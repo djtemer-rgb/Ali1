@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "next": "^13.4.9",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@upstash/redis": "^7.0.0",
+    "jose": "^4.13.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "shadcn": "^4.6.0"
+  }
+}
