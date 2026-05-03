@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+*.env
+.env.local
+
+# Скрываем файлы с переменными окружения (это золотое правило!)
+.env
+.env.local
+.env.*.local
+
+# Скрываем любые файлы, в названии которых есть "secret"
+*secret.json
+*secret.config
+
+# Скрываем директории, где могут лежать временные или конфиденциальные данные
+/secrets/
+/private/
+/credentials/
