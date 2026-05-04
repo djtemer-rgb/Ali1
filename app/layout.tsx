@@ -1,16 +1,22 @@
-import './globals.css'
-import { ReactNode } from 'react'
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css"; // <-- ВОТ ЭТА СТРОЧКА САМАЯ ВАЖНАЯ
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+const inter = Inter({ subsets: ["latin", "cyrillic"] });
+
+export const metadata: Metadata = {
+  title: "Путь героя",
+  description: "Дашборд для Али и Саида",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="ru">
-      <head />
-      <body>
-        <header className="header">
-          <div className="brand">Ali Quest</div>
-        </header>
-        <main className="container">{children}</main>
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
-  )
+  );
 }
