@@ -1,30 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { Star, X, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Star, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import Header from "./components/Header";
 import Navigation from "./components/Navigation";
 
+interface Task {
+  id: string;
+  title: string;
+  stars: number;
+  completed: boolean;
+  completedAt?: string;
+  subtasksMode: 'none' | 'checkboxes' | 'plain-list';
+  subtasks: { id: string; title: string; done: boolean }[];
+  requiresOpenDetails: boolean;
+  detailsOpened: boolean;
+}
+
+interface Reward {
+  id: string;
+  title: string;
+  description?: string;
+  costStars: number;
+  icon: string;
+}
+
 export default function Home() {
   const [currentChild, setCurrentChild] = useState({ id: "ali", name: "Али", letter: "А", mode: "full" });
   const [stars, setStars] = useState(0);
-
-  const [tasks, setTasks] = useState([
-    { id: 1, title: "Прочитать 10 страниц", completed: false, reward: 5 },
-    { id: 2, title: "Собрать портфель", completed: false, reward: 2 },
-  ]);
-
-  const rewards = [
-    { id: 1, title: "1 час видеоигр", cost: 10 },
-    { id: 2, title: "Поход в кино", cost: 50 },
-    { id: 3, title: "Новое Лего", cost: 200 }
-  ];
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState("");
+
+  // Load data from API
+  useEffect(() => {
+    loadData();
+  }, [currentChild.id]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Load tasks for today
+      const tasksRes = await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`);
+      const tasksData = await tasksRes.json();
+      setTasks(tasksData);
+
+      // Load stars balance
+      const starsRes = await fetch(`/api/star-ledger?childId=${currentChild.id}`);
+      const starsData = await starsRes.json();
+      setStars(starsData.balance || 0);
+
+      // Load rewards
+      const rewardsRes = await fetch(`/api/rewards?childId=${currentChild.id}`);
+      const rewardsData = await rewardsRes.json();
+      setRewards(rewardsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const switchChild = () => {
     setCurrentChild(prev => 
@@ -32,20 +75,59 @@ export default function Home() {
         ? { id: "said", name: "Саид", letter: "С", mode: "little-hero" } 
         : { id: "ali", name: "Али", letter: "А", mode: "full" }
     );
-    setTasks(tasks.map(t => ({ ...t, completed: false })));
   };
 
-  const completeTask = (taskId: number, reward: number, isCompleted: boolean) => {
+  const completeTask = async (taskId: string, reward: number, isCompleted: boolean) => {
     if (isCompleted) return; 
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Update task in state
+    const updatedTasks = tasks.map(t => 
+      t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
+    );
+    setTasks(updatedTasks);
+    
+    // Save to API
+    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks })
+    });
+
+    // Add stars to ledger
+    await fetch('/api/star-ledger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: currentChild.id,
+        amount: reward,
+        source: 'task',
+        sourceId: taskId,
+        reason: `Выполнена задача: ${tasks.find(t => t.id === taskId)?.title}`
+      })
+    });
+
     setStars(prev => prev + reward);
     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#F59E0B', '#10B981'] });
   };
 
-  const buyReward = (cost: number, title: string) => {
+  const buyReward = async (cost: number, title: string) => {
     if (stars >= cost) {
       setStars(prev => prev - cost);
       alert(`🎉 Ура! Ты получил: ${title}`);
+      
+      // Add to ledger
+      await fetch('/api/star-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: currentChild.id,
+          amount: -cost,
+          source: 'reward-purchase',
+          reason: `Покупка награды: ${title}`
+        })
+      });
     } else {
       alert(`Не хватает звезд! Нужно еще ${cost - stars} ⭐️`);
     }
@@ -70,6 +152,14 @@ export default function Home() {
     }, 1500);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={48} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
       <Header currentChild={currentChild} onSwitchChild={switchChild} stars={stars} />
@@ -92,10 +182,13 @@ export default function Home() {
           </div>
 
           <div className="space-y-2 md:space-y-3">
+            {tasks.length === 0 && (
+              <p className="text-slate-400 text-center py-8">Нет задач на сегодня</p>
+            )}
             {tasks.map(task => (
               <div 
                 key={task.id}
-                onClick={() => completeTask(task.id, task.reward, task.completed)}
+                onClick={() => completeTask(task.id, task.stars, task.completed)}
                 className={`border rounded-2xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all ${
                   task.completed ? 'border-green-200 bg-green-50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
                 }`}
@@ -113,7 +206,7 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg text-sm md:text-base">
-                  +{task.reward} <Star size={14} className="fill-amber-400" />
+                  +{task.stars} <Star size={14} className="fill-amber-400" />
                 </div>
               </div>
             ))}
@@ -127,20 +220,23 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
             {rewards.map(reward => {
-              const canAfford = stars >= reward.cost;
+              const canAfford = stars >= reward.costStars;
               return (
                 <div 
                   key={reward.id}
-                  onClick={() => buyReward(reward.cost, reward.title)}
+                  onClick={() => buyReward(reward.costStars, reward.title)}
                   className={`border rounded-2xl p-4 md:p-5 flex flex-row md:flex-col justify-between items-center md:items-stretch h-auto md:h-32 transition-all cursor-pointer ${
                     canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-lg' : 'bg-white/5 border-white/10 opacity-70 hover:bg-white/10'
                   }`}
                 >
                   <h3 className="text-white font-bold text-base md:text-lg leading-tight">{reward.title}</h3>
+                  {reward.description && (
+                    <p className="text-white/70 text-xs md:text-sm mt-1 hidden md:block">{reward.description}</p>
+                  )}
                   <div className={`rounded-xl px-3 py-1.5 md:py-2 flex justify-center items-center gap-1 font-extrabold transition-colors text-sm md:text-base mt-0 md:mt-auto ${
                     canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'
                   }`}>
-                    {reward.cost} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                    {reward.costStars} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
                   </div>
                 </div>
               );
@@ -163,7 +259,7 @@ export default function Home() {
                 onClick={() => setIsAiModalOpen(false)} 
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1"
               >
-                <X size={20} />
+                <XIcon size={20} />
               </button>
               
               <div className="flex items-center gap-3 mb-4">
@@ -203,3 +299,4 @@ export default function Home() {
 function SparklesIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" fill="currentColor"/></svg>; }
 function CheckIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>; }
 function BotIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg>; }
+function XIcon({ size }: { size: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>; }
