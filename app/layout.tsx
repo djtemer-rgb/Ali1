@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css"; // <-- ВОТ ЭТА СТРОЧКА САМАЯ ВАЖНАЯ
-
-const inter = Inter({ subsets: ["latin", "cyrillic"] });
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Путь героя",
@@ -11,12 +8,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="ru">
-      <body className={inter.className}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
