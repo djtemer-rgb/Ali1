@@ -526,7 +526,7 @@ function CompactListSection({ title, icon, emptyLabel, children, maxVisibleItems
       {hasContent ? (
         <div
           className="space-y-2.5 overflow-y-auto pr-1"
-          style={{ maxHeight: `calc(${maxVisibleItems} * 152px + ${Math.max(0, maxVisibleItems - 1)} * 10px)` }}
+          style={{ maxHeight: `calc(${maxVisibleItems} * 110px + ${Math.max(0, maxVisibleItems - 1)} * 10px)` }}
         >
           {children}
         </div>
