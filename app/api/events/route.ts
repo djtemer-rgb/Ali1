@@ -1,6 +1,36 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 
+async function sendTelegramNotification(message: string) {
+  try {
+    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    const CHAT_IDS = process.env.TELEGRAM_CHAT_IDS?.split(',') || [];
+    
+    if (!BOT_TOKEN || CHAT_IDS.length === 0) {
+      console.log('Telegram not configured, skipping notification');
+      return;
+    }
+    
+    await Promise.allSettled(
+      CHAT_IDS.map(async (chatId) => {
+        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId.trim(),
+            text: message,
+            parse_mode: 'HTML'
+          })
+        });
+      })
+    );
+  } catch (error) {
+    console.error('Error sending Telegram notification:', error);
+    // Don't crash the app
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -45,6 +75,10 @@ export async function POST(request: Request) {
     
     events.push(newEvent);
     await setJson('aq:events:parent', events);
+    
+    // Send Telegram notification
+    const message = `🔔 <b>Новое событие!</b>\n\n<b>${newEvent.title}</b>\n${newEvent.body}`;
+    await sendTelegramNotification(message);
     
     return NextResponse.json(newEvent);
   } catch (error) {

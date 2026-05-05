@@ -1,81 +1,81 @@
 "use client";
 
-import { useState } from "react";
-import Header from "../components/Header";
-import Navigation from "../components/Navigation";
-import { Plus, Star } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, BookOpen, Star } from "lucide-react";
+import Link from "next/link";
+import { useChild } from "@/app/lib/ChildContext";
+import GradeInput from "../components/GradeInput";
+
+interface GradeRecord { id: string; subjectName: string; grade: number; starsAwarded: number; createdAt: string; }
 
 export default function GradesPage() {
-  const [currentChild, setCurrentChild] = useState({ id: "ali", name: "Али", letter: "А", mode: "full" });
-  const [selectedGrade, setSelectedGrade] = useState<number | null>(5);
+  const { currentChild } = useChild();
+  const [grades, setGrades] = useState<GradeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const switchChild = () => {
-    setCurrentChild(prev => 
-      prev.id === "ali" 
-        ? { id: "said", name: "Саид", letter: "С", mode: "little-hero" } 
-        : { id: "ali", name: "Али", letter: "А", mode: "full" }
-    );
+  const loadGrades = async () => {
+    setLoading(true);
+    try {
+      const [gradesRes] = await Promise.all([fetch(`/api/grades?type=grades&childId=${currentChild.id}`)]);
+      const d = await gradesRes.json();
+      setGrades(Array.isArray(d) ? d.reverse() : []);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
+  useEffect(() => { loadGrades(); }, [currentChild.id]);
+
+  const getGradeColor = (g: number) =>
+    g === 5 ? 'bg-green-100 text-green-700 border-green-300' : g === 4 ? 'bg-blue-100 text-blue-700 border-blue-300' : g === 3 ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-red-100 text-red-700 border-red-300';
+
   return (
-    <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-20">
-      <Header currentChild={currentChild} onSwitchChild={switchChild} stars={0} />
-      <Navigation isLittleHero={currentChild.mode === "little-hero"} />
+    <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
+      <header className="bg-white px-4 md:px-6 py-3 md:py-4 flex items-center border-b border-slate-100">
+        <Link href="/" className="flex items-center gap-1.5 text-slate-400 hover:text-slate-600 transition-colors text-sm font-medium">
+          <ArrowLeft size={18} /> Назад
+        </Link>
+      </header>
+      <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 text-center py-4 md:py-5">Оценки</h1>
 
-      <main className="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* ЛЕВАЯ ЧАСТЬ: Добавить оценку */}
-        <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100">
-          <h2 className="text-2xl font-extrabold text-slate-800 mb-6">Добавить оценку</h2>
-          
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-slate-700 mb-2">Предмет</label>
-            <select className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium appearance-none bg-white">
-              <option>Математика</option>
-              <option>Русский язык</option>
-              <option>Чтение</option>
-            </select>
-          </div>
+      <main className="max-w-3xl mx-auto px-4 md:px-6 space-y-4">
+        <GradeInput childId={currentChild.id} onGradeAdded={loadGrades} />
 
-          <div className="mb-8">
-            <label className="block text-sm font-bold text-slate-700 mb-2">Оценка</label>
-            <div className="flex gap-3">
-              {[5, 4, 3, 2].map((grade) => (
-                <button
-                  key={grade}
-                  onClick={() => setSelectedGrade(grade)}
-                  className={`flex-1 py-3 rounded-xl font-extrabold text-xl transition-all border-2 ${
-                    selectedGrade === grade 
-                      ? grade === 5 ? "bg-[#22C55E] text-white border-[#22C55E] shadow-md shadow-green-200" 
-                      : grade === 4 ? "bg-[#3B82F6] text-white border-[#3B82F6] shadow-md shadow-blue-200"
-                      : "bg-[#F59E0B] text-white border-[#F59E0B] shadow-md shadow-amber-200"
-                      : "bg-white text-slate-400 border-slate-100 hover:border-slate-300"
-                  }`}
-                >
-                  {grade}
-                </button>
+        <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+          <h2 className="text-base font-extrabold flex items-center gap-2 text-slate-800 mb-4">
+            <BookOpen size={18} className="text-blue-500" /> Дневник
+          </h2>
+          {loading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-slate-100 animate-pulse" />)}</div>
+          ) : grades.length === 0 ? (
+            <p className="text-slate-400 text-center py-6 text-sm">Пока нет оценок</p>
+          ) : (
+            <div className="space-y-2">
+              {grades.map(g => (
+                <div key={g.id} className="flex items-center justify-between bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl font-extrabold text-base flex items-center justify-center border-2 ${getGradeColor(g.grade)}`}>{g.grade}</div>
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm">{g.subjectName}</p>
+                      <p className="text-[11px] text-slate-400">{new Date(g.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+                    </div>
+                  </div>
+                    <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                      +{g.grade === 5 ? 5 : g.grade === 4 ? 2 : 0} <Star size={11} className="fill-amber-400" />
+                    </div>
+                </div>
               ))}
             </div>
-          </div>
-
-          <button className="w-full bg-[#5A67D8] text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-            <Plus size={20} /> Сохранить оценку
-          </button>
-          
-          <div className="mt-4 text-center text-xs text-slate-400 font-medium flex items-center justify-center gap-2">
-            5 = +5 <Star size={12} className="fill-amber-400 text-amber-400" /> | 4 = +2 <Star size={12} className="fill-amber-400 text-amber-400" />
-          </div>
+          )}
         </section>
 
-        {/* ПРАВАЯ ЧАСТЬ: Дневник */}
-        <section className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 flex flex-col">
-          <h2 className="text-2xl font-extrabold text-slate-800 mb-6">Дневник (Недавние)</h2>
-          
-          <div className="flex-1 flex items-center justify-center text-slate-400 italic font-medium min-h-[200px]">
-            Пока нет оценок.
+        <section className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+          <p className="text-xs font-bold text-slate-500 mb-2">Как начисляются звёзды</p>
+          <div className="flex gap-3 text-xs flex-wrap">
+            <span><span className="font-bold text-green-600">5</span> = +5 ⭐</span>
+            <span><span className="font-bold text-blue-600">4</span> = +2 ⭐</span>
+            <span><span className="font-bold text-amber-600">3</span> = +0 ⭐</span>
+            <span><span className="font-bold text-red-600">2</span> = +0 ⭐</span>
           </div>
         </section>
-
       </main>
     </div>
   );

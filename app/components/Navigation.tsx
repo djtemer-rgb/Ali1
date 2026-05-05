@@ -27,17 +27,17 @@ export default function Navigation({ isLittleHero }: NavProps) {
         const Icon = item.icon;
 
         return (
-          <Link key={item.href} href={item.href}>
-            <button 
-              className={`px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm transition-colors ${
-                isActive 
-                  ? "bg-[#3B82F6] text-white shadow-md shadow-blue-200 hover:bg-blue-600" 
-                  : "bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} /> 
-              {item.label}
-            </button>
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm transition-colors ${
+              isActive
+                ? "bg-[#3B82F6] text-white shadow-md shadow-blue-200 hover:bg-blue-600"
+                : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
+            {item.label}
           </Link>
         );
       })}

@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Star, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Star, Loader2, Home, BookOpen, Calendar, Settings } from "lucide-react";
 import GradeInput from "../../components/GradeInput";
+import TaskCard from "../../components/TaskCard";
+import confetti from "canvas-confetti";
+
+interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
 
 interface Task {
   id: string;
@@ -12,9 +21,13 @@ interface Task {
   completed: boolean;
   completedAt?: string;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list';
-  subtasks: { id: string; title: string; done: boolean }[];
+  subtasks: Subtask[];
   requiresOpenDetails: boolean;
   detailsOpened: boolean;
+  detailsText?: string;
+  difficulty?: 'easy' | 'normal' | 'hard';
+  askDifficultyAfterDone?: boolean;
+  category?: string;
 }
 
 interface Reward {
@@ -28,52 +41,60 @@ interface Reward {
 interface ChildProfile {
   id: string;
   name: string;
-  letter: string;
+  avatarLetter: string;
   mode: string;
 }
 
 export default function ChildDashboard({ params }: { params: { id: string } }) {
-  const childId = params.id;
+  const childId = params?.id || 'ali';
   const [currentChild, setCurrentChild] = useState<ChildProfile | null>(null);
   const [stars, setStars] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    loadData();
+    if (childId) {
+      loadData();
+    }
   }, [childId]);
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Load child profile
       const childrenRes = await fetch('/api/children');
       const children = await childrenRes.json();
+
+      if (!Array.isArray(children)) {
+        throw new Error('Invalid children data');
+      }
+
       const child = children.find((c: ChildProfile) => c.id === childId);
       if (child) {
         setCurrentChild(child);
+      } else {
+        throw new Error(`Child ${childId} not found`);
       }
 
       const today = new Date().toISOString().split('T')[0];
-      
-      // Load tasks for today
+
       const tasksRes = await fetch(`/api/tasks/day?childId=${childId}&date=${today}`);
       const tasksData = await tasksRes.json();
-      setTasks(tasksData);
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
 
-      // Load stars balance
       const starsRes = await fetch(`/api/star-ledger?childId=${childId}`);
       const starsData = await starsRes.json();
-      setStars(starsData.balance || 0);
+      setStars(starsData?.balance || 0);
 
-      // Load rewards
       const rewardsRes = await fetch(`/api/rewards?childId=${childId}`);
       const rewardsData = await rewardsRes.json();
-      setRewards(rewardsData);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      setRewards(Array.isArray(rewardsData) ? rewardsData : []);
+    } catch (err: any) {
+      console.error('Error loading data:', err);
+      setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -84,55 +105,134 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
     router.push(`/child/${newId}`);
   };
 
-  const completeTask = async (taskId: string, reward: number, isCompleted: boolean) => {
-    if (isCompleted) return; 
-    
+  const completeTask = async (taskId: string, difficulty?: 'easy' | 'normal' | 'hard') => {
     const today = new Date().toISOString().split('T')[0];
-    
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.completed) return;
+
     const updatedTasks = tasks.map(t => {
       if (t.id === taskId) {
-        return { ...t, completed: true, completedAt: new Date().toISOString() };
+        return {
+          ...t,
+          completed: true,
+          completedAt: new Date().toISOString(),
+          difficulty: difficulty || t.difficulty,
+          detailsOpened: true
+        };
       }
       return t;
     });
     setTasks(updatedTasks);
-    
-    await fetch(`/api/tasks/day?childId=${childId}&date=${today}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId, date: today, tasks: updatedTasks })
-    });
 
-    await fetch('/api/star-ledger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        childId,
-        amount: reward,
-        source: 'task',
-        sourceId: taskId,
-        reason: `Выполнена задача: ${tasks.find(t => t.id === taskId)?.title}`
-      })
-    });
+    try {
+      const allDone = updatedTasks.every(t => t.completed);
 
-    setStars(prev => prev + reward);
-  };
+      await fetch(`/api/tasks/day?childId=${childId}&date=${today}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId, date: today, tasks: updatedTasks })
+      });
 
-  const buyReward = async (cost: number, title: string) => {
-    if (stars >= cost) {
-      setStars(prev => prev - cost);
-      alert(`🎉 Ура! Ты получил: ${title}`);
-      
       await fetch('/api/star-ledger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           childId,
-          amount: -cost,
-          source: 'reward-purchase',
-          reason: `Покупка награды: ${title}`
+          amount: task.stars,
+          source: 'task',
+          sourceId: taskId,
+          reason: `Выполнена задача: ${task.title}`
         })
       });
+
+      await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId,
+          type: 'task-completed',
+          title: 'Задача выполнена',
+          body: `${currentChild?.name || childId} выполнил задачу: ${task.title}`
+        })
+      });
+
+      if (allDone) {
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId,
+            type: 'day-completed',
+            title: 'День завершён',
+            body: `${currentChild?.name || childId} выполнил все задачи на сегодня! 🎉`
+          })
+        });
+      }
+
+      setStars(prev => prev + task.stars);
+    } catch (err) {
+      console.error('Error completing task:', err);
+    }
+  };
+
+  const handleDetailsOpened = async (taskId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const updatedTasks = tasks.map(t =>
+      t.id === taskId ? { ...t, detailsOpened: true } : t
+    );
+    setTasks(updatedTasks);
+
+    await fetch(`/api/tasks/day?childId=${childId}&date=${today}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId, date: today, tasks: updatedTasks })
+    });
+  };
+
+  const handleSubtasksUpdate = async (taskId: string, subtasks: Subtask[]) => {
+    const today = new Date().toISOString().split('T')[0];
+    const updatedTasks = tasks.map(t =>
+      t.id === taskId ? { ...t, subtasks } : t
+    );
+    setTasks(updatedTasks);
+
+    await fetch(`/api/tasks/day?childId=${childId}&date=${today}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId, date: today, tasks: updatedTasks })
+    });
+  };
+
+  const buyReward = async (cost: number, title: string) => {
+    if (stars >= cost) {
+      setStars(prev => prev - cost);
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
+
+      try {
+        await fetch('/api/star-ledger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId,
+            amount: -cost,
+            source: 'reward-purchase',
+            reason: `Покупка награды: ${title}`
+          })
+        });
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId,
+            type: 'reward-selected',
+            title: 'Награда выбрана',
+            body: `${currentChild?.name || childId} выбрал награду: ${title}`
+          })
+        });
+      } catch (err) {
+        console.error('Error buying reward:', err);
+      }
     } else {
       alert(`Не хватает звезд! Нужно еще ${cost - stars} ⭐️`);
     }
@@ -142,6 +242,23 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
     return (
       <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center">
         <Loader2 className="animate-spin text-blue-500" size={48} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 font-bold">Ошибка загрузки</p>
+          <p className="text-slate-500 mt-2">{error}</p>
+          <button
+            onClick={() => loadData()}
+            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-xl"
+          >
+            Попробовать снова
+          </button>
+        </div>
       </div>
     );
   }
@@ -161,7 +278,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
       <header className="bg-white px-4 md:px-6 py-3 md:py-5 flex items-center justify-between border-b border-slate-100">
         <div className="flex items-center gap-3 md:gap-4">
           <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-500 text-white rounded-full flex items-center justify-center text-lg md:text-xl font-bold">
-            {currentChild.letter}
+            {currentChild.avatarLetter}
           </div>
           <div>
             <div className="flex items-baseline gap-1 cursor-pointer group" onClick={switchChild}>
@@ -177,34 +294,38 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
       </header>
 
       <nav className="flex gap-2 md:gap-3 px-4 md:px-6 py-4 md:py-6 overflow-x-auto no-scrollbar max-w-5xl mx-auto">
-        <button className="bg-[#3B82F6] text-white px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-md shadow-blue-200">
-          🚀 Главная
-        </button>
+        <Link href={`/child/${childId}`}>
+          <span className="bg-[#3B82F6] text-white px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-md shadow-blue-200 cursor-pointer">
+            <Home size={18} /> Главная
+          </span>
+        </Link>
         {!isLittleHero && (
-          <button className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50">
-            📖 Оценки
-          </button>
+          <Link href={`/grades`}>
+            <span className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50 cursor-pointer transition-colors">
+              <BookOpen size={18} className="text-slate-400" /> Оценки
+            </span>
+          </Link>
         )}
-        <button className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50">
-          📅 Расписание
-        </button>
+        <Link href={`/schedule`}>
+          <span className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50 cursor-pointer transition-colors">
+            <Calendar size={18} className="text-slate-400" /> Расписание
+          </span>
+        </Link>
+        <Link href={`/settings`}>
+          <span className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50 cursor-pointer transition-colors">
+            <Settings size={18} className="text-slate-400" /> Настройки
+          </span>
+        </Link>
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4 md:space-y-6">
-        
-        {/* ОЦЕНКИ */}
+
         {!isLittleHero && (
-          <section className="bg-white rounded-[24px] md:rounded-[32px] p-5 md:p-6 shadow-sm border border-slate-100">
-            <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-slate-800 mb-5 md:mb-6">
-              <span className="text-xl md:text-2xl">📖</span> Добавить оценку
-            </h2>
-            <GradeInput childId={childId} onGradeAdded={() => loadData()} />
-          </section>
+          <GradeInput childId={childId} onGradeAdded={() => loadData()} />
         )}
 
-        {/* КВЕСТЫ НА СЕГОДНЯ */}
         <section className="bg-white rounded-[24px] md:rounded-[32px] p-5 md:p-6 shadow-sm border border-slate-100">
-          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-slate-800 mb-5 md:mb-6">
+          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-slate-800 mb-5">
             <span className="text-xl md:text-2xl">🚀</span> Квесты на сегодня
           </h2>
 
@@ -213,38 +334,17 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
               <p className="text-slate-400 text-center py-8">Нет задач на сегодня</p>
             )}
             {tasks.map(task => (
-              <div 
+              <TaskCard
                 key={task.id}
-                onClick={() => completeTask(task.id, task.stars, task.completed)}
-                className={`border rounded-2xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all ${
-                  task.completed ? 'border-green-200 bg-green-50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                }`}
-              >
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full border-[3px] flex items-center justify-center flex-shrink-0 transition-colors ${
-                    task.completed ? 'border-green-500 bg-green-500' : 'border-slate-300'
-                  }`}>
-                    {task.completed && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    )}
-                  </div>
-                  <span className={`font-bold text-base md:text-lg transition-colors ${
-                    task.completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                  }`}>
-                    {task.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg text-sm md:text-base">
-                  +{task.stars} <Star size={14} className="fill-amber-400" />
-                </div>
-              </div>
+                task={task}
+                onComplete={completeTask}
+                onDetailsOpened={handleDetailsOpened}
+                onSubtasksUpdate={handleSubtasksUpdate}
+              />
             ))}
           </div>
         </section>
 
-        {/* МАГАЗИН НАГРАД */}
         <section className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] rounded-[24px] md:rounded-[32px] p-6 md:p-8 shadow-lg shadow-indigo-200">
           <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-white mb-5 md:mb-6">
             <span className="text-xl md:text-2xl">🎁</span> Магазин наград
@@ -253,7 +353,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
             {rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
               return (
-                <div 
+                <div
                   key={reward.id}
                   onClick={() => buyReward(reward.costStars, reward.title)}
                   className={`border rounded-2xl p-4 md:p-5 flex flex-row md:flex-col justify-between items-center md:items-stretch h-auto md:h-32 transition-all cursor-pointer ${

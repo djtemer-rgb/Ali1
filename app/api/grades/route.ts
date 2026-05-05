@@ -14,19 +14,25 @@ const DEFAULT_GRADES: any[] = [];
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const childId = url.searchParams.get('childId') || 'ali';
-    const date = url.searchParams.get('date');
+    const type = url.searchParams.get('type') || 'subjects';
     
-    const grades = await getJson('aq:grades') || DEFAULT_GRADES;
-    let filtered = grades.filter((g: any) => g.childId === childId);
-    
-    if (date) {
-      filtered = filtered.filter((g: any) => g.date === date);
+    if (type === 'grades') {
+      const childId = url.searchParams.get('childId') || 'ali';
+      const date = url.searchParams.get('date');
+      const grades = await getJson('aq:grades') || DEFAULT_GRADES;
+      let filtered = grades.filter((g: any) => g.childId === childId);
+      if (date) filtered = filtered.filter((g: any) => g.date === date);
+      return NextResponse.json(filtered);
     }
     
-    return NextResponse.json(filtered);
+    // Return subjects by default
+    const subjects = await getJson('aq:subjects');
+    if (subjects && Array.isArray(subjects)) {
+      return NextResponse.json(subjects);
+    }
+    return NextResponse.json(DEFAULT_SUBJECTS);
   } catch (error) {
-    console.error('Error getting grades:', error);
+    console.error('Error getting grades/subjects:', error);
     return NextResponse.json([]);
   }
 }
@@ -59,6 +65,23 @@ export async function POST(request: Request) {
         sourceId: newGrade.id,
         reason: `Оценка ${body.grade} по предмету ${body.subjectName}`
       });
+    }
+
+    // Create parent event
+    try {
+      const events = await getJson('aq:events:parent') || [];
+      events.push({
+        id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        childId: body.childId,
+        type: 'grade-added',
+        title: 'Оценка добавлена',
+        body: `${body.childId === 'ali' ? 'Али' : 'Саид'} получил оценку ${body.grade} по предмету ${body.subjectName}${starsAwarded > 0 ? ` (+${starsAwarded} ⭐)` : ''}`,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+      await setJson('aq:events:parent', events);
+    } catch (e) {
+      console.error('Error creating grade event:', e);
     }
     
     return NextResponse.json(newGrade);

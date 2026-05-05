@@ -51,7 +51,6 @@ export async function POST(request: Request) {
     const children = body.children || body;
     await setJson(CHILDREN_KEY, children);
     
-    // Update individual profile keys
     if (Array.isArray(children)) {
       for (const child of children) {
         await setJson(`aq:child:${child.id}:profile`, child);
@@ -62,5 +61,28 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error saving children:', error);
     return NextResponse.json({ error: 'Failed to save children' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+    
+    if (!id) return NextResponse.json({ error: 'Child ID required' }, { status: 400 });
+    
+    const children = await getJson(CHILDREN_KEY) || DEFAULT_CHILDREN;
+    const updatedChildren = Array.isArray(children)
+      ? children.map((c: any) => c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c)
+      : children;
+    
+    await setJson(CHILDREN_KEY, updatedChildren);
+    const updated = Array.isArray(updatedChildren) ? updatedChildren.find((c: any) => c.id === id) : null;
+    if (updated) await setJson(`aq:child:${id}:profile`, updated);
+    
+    return NextResponse.json(updated || updatedChildren);
+  } catch (error) {
+    console.error('Error updating child:', error);
+    return NextResponse.json({ error: 'Failed to update child' }, { status: 500 });
   }
 }

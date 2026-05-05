@@ -116,3 +116,12 @@ export type AppSettings = {
   starExpirationDays?: number;
   children: ChildProfile[];
 };
+
+// Reward status per child
+export type RewardStatus = {
+  rewardId: string;
+  childId: 'ali' | 'said';
+  status: 'available' | 'selected' | 'fulfilled';
+  selectedAt?: string;
+  fulfilledAt?: string;
+};

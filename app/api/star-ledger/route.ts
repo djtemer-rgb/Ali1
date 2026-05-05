@@ -8,10 +8,10 @@ export async function GET(request: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     
     const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
-    const limited = ledger.slice(-limit); // Get last N items
     
-    // Calculate current balance
-    const balance = limited.reduce((sum: number, item: any) => sum + item.amount, 0);
+    // Calculate balance from ALL entries, not just limited
+    const balance = Array.isArray(ledger) ? ledger.reduce((sum: number, item: any) => sum + item.amount, 0) : 0;
+    const limited = Array.isArray(ledger) ? ledger.slice(-limit) : [];
     
     return NextResponse.json({ balance, ledger: limited });
   } catch (error) {

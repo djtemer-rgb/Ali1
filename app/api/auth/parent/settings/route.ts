@@ -76,3 +76,13 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Failed to save recovery word' }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    await setJson(PARENT_AUTH_KEY, {});
+    return NextResponse.json({ success: true, message: 'PINs reset' });
+  } catch (error) {
+    console.error('Error resetting auth:', error);
+    return NextResponse.json({ error: 'Failed to reset auth' }, { status: 500 });
+  }
+}

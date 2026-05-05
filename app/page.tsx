@@ -1,214 +1,283 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, Loader2 } from "lucide-react";
+import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
-import Header from "./components/Header";
-import Navigation from "./components/Navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
+import { useChild } from "@/app/lib/ChildContext";
+import TaskCard from "./components/TaskCard";
+import HeroMessage from "./components/HeroMessage";
+import StarHistoryModal from "./components/StarHistoryModal";
+import PinModal from "./components/PinModal";
 
 interface Task {
-  id: string;
-  title: string;
-  stars: number;
-  completed: boolean;
-  completedAt?: string;
-  subtasksMode: 'none' | 'checkboxes' | 'plain-list';
-  subtasks: { id: string; title: string; done: boolean }[];
-  requiresOpenDetails: boolean;
-  detailsOpened: boolean;
+  id: string; title: string; stars: number; completed: boolean; completedAt?: string;
+  subtasksMode: 'none' | 'checkboxes' | 'plain-list'; subtasks: { id: string; title: string; done: boolean }[];
+  requiresOpenDetails: boolean; detailsOpened: boolean; detailsText?: string;
+  difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string;
 }
-
-interface Reward {
-  id: string;
-  title: string;
-  description?: string;
-  costStars: number;
-  icon: string;
-}
+interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
+interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; }
 
 export default function Home() {
-  const [currentChild, setCurrentChild] = useState({ id: "ali", name: "Али", letter: "А", mode: "full" });
+  const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingRewards, setLoadingRewards] = useState(true);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showStarHistory, setShowStarHistory] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [modalMessage, setModalMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
+  }, []);
+
+  useEffect(() => {
+    const doLoad = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      setLoadingTasks(true); setLoadingRewards(true);
+      try {
+        const [tasksRes, starsRes, rewardsRes, tplRes] = await Promise.all([
+          fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`),
+          fetch(`/api/star-ledger?childId=${currentChild.id}`),
+          fetch(`/api/rewards?childId=${currentChild.id}`),
+          fetch(`/api/tasks/templates`)
+        ]);
+        const [tasksData, starsData, rewardsData, tplData] = await Promise.all([
+          tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json()
+        ]);
+        setTasks(Array.isArray(tasksData) ? tasksData : []);
+        setStars(starsData.balance || 0);
+        setRewards(Array.isArray(rewardsData) ? rewardsData : []);
+        setTemplates(Array.isArray(tplData) ? tplData.filter((t: any) => (t.childId === currentChild.id || t.childId === 'both') && t.repeatDays?.length > 0) : []);
+      } catch (e) { console.error(e); }
+      finally { setLoadingTasks(false); setLoadingRewards(false); }
+    };
+    doLoad();
   }, [currentChild.id]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      const tasksRes = await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`);
-      const tasksData = await tasksRes.json();
-      setTasks(tasksData);
-
-      const starsRes = await fetch(`/api/star-ledger?childId=${currentChild.id}`);
-      const starsData = await starsRes.json();
-      setStars(starsData.balance || 0);
-
-      const rewardsRes = await fetch(`/api/rewards?childId=${currentChild.id}`);
-      const rewardsData = await rewardsRes.json();
-      setRewards(rewardsData);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const switchChild = () => {
-    setCurrentChild(prev => 
-      prev.id === "ali" 
-        ? { id: "said", name: "Саид", letter: "С", mode: "little-hero" } 
-        : { id: "ali", name: "Али", letter: "А", mode: "full" }
-    );
-  };
-
-  const completeTask = async (taskId: string, reward: number, isCompleted: boolean) => {
-    if (isCompleted) return; 
-    
+  const completeTask = async (taskId: string, difficulty?: 'easy' | 'normal' | 'hard') => {
     const today = new Date().toISOString().split('T')[0];
-    
-    const updatedTasks = tasks.map(t => {
-      if (t.id === taskId) {
-        return { ...t, completed: true, completedAt: new Date().toISOString() };
-      }
-      return t;
-    });
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.completed) return;
+
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), difficulty: difficulty || t.difficulty, detailsOpened: true } : t);
     setTasks(updatedTasks);
-    
-    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks })
-    });
+    const allDone = updatedTasks.every(t => t.completed);
 
-    await fetch('/api/star-ledger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        childId: currentChild.id,
-        amount: reward,
-        source: 'task',
-        sourceId: taskId,
-        reason: `Выполнена задача: ${tasks.find(t => t.id === taskId)?.title}`
-      })
-    });
+    await Promise.all([
+      fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
+      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: `Выполнена задача: ${task.title}` }) }),
+      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: `${currentChild.name} выполнил задачу: ${task.title}` }) }),
+      ...(allDone ? [fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'day-completed', title: 'День завершён', body: `${currentChild.name} выполнил все задачи на сегодня! 🎉` }) })] : [])
+    ]);
+    setStars(prev => prev + task.stars);
+  };
 
-    setStars(prev => prev + reward);
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#F59E0B', '#10B981'] });
+  const handleDetailsOpened = async (taskId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, detailsOpened: true } : t);
+    setTasks(updatedTasks);
+    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
+  };
+
+  const handleSubtasksUpdate = async (taskId: string, subtasks: any[]) => {
+    const today = new Date().toISOString().split('T')[0];
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, subtasks } : t);
+    setTasks(updatedTasks);
+    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
   };
 
   const buyReward = async (cost: number, title: string) => {
     if (stars >= cost) {
       setStars(prev => prev - cost);
-      alert(`🎉 Ура! Ты получил: ${title}`);
-      
-      await fetch('/api/star-ledger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          childId: currentChild.id,
-          amount: -cost,
-          source: 'reward-purchase',
-          reason: `Покупка награды: ${title}`
-        })
-      });
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
+      await Promise.all([
+        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -cost, source: 'reward-purchase', reason: `Покупка награды: ${title}` }) }),
+        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${title}` }) })
+      ]);
     } else {
-      alert(`Не хватает звезд! Нужно еще ${cost - stars} ⭐️`);
+      setModalMessage(`Не хватает звёзд! Нужно ещё ${cost - stars} ⭐`);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500" size={48} />
-      </div>
-    );
-  }
+  const navItems = [
+    { href: "/", label: "Главная", icon: HomeIcon },
+    ...(currentChild.mode !== "little-hero" ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
+    { href: "/reports", label: "Отчёты", icon: BarChart3 },
+    { href: "#hero", label: "Послание героя", icon: Sparkles },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
-      <Header currentChild={currentChild} onSwitchChild={switchChild} stars={stars} />
-      <Navigation isLittleHero={currentChild.mode === "little-hero"} />
-
-      <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4 md:space-y-6">
-        
-        <section className="bg-white rounded-[24px] md:rounded-[32px] p-5 md:p-6 shadow-sm border border-slate-100">
-          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-slate-800 mb-5">
-            <span className="text-xl md:text-2xl">🚀</span> Квесты на сегодня
-          </h2>
-
-          <div className="space-y-2 md:space-y-3">
-            {tasks.length === 0 && (
-              <p className="text-slate-400 text-center py-8">Нет задач на сегодня</p>
+      {/* HEADER */}
+      <header className="bg-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 md:w-11 md:h-11 bg-blue-500 text-white rounded-full flex items-center justify-center text-base md:text-lg font-bold shrink-0 overflow-hidden">
+            {currentChild.avatarUrl ? (
+              <img src={currentChild.avatarUrl} alt={currentChild.name} className="w-full h-full object-cover" />
+            ) : (
+              currentChild.letter
             )}
-            {tasks.map(task => (
-              <div 
-                key={task.id}
-                onClick={() => completeTask(task.id, task.stars, task.completed)}
-                className={`border rounded-2xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all ${
-                  task.completed ? 'border-green-200 bg-green-50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                }`}
-              >
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full border-[3px] flex items-center justify-center flex-shrink-0 transition-colors ${
-                    task.completed ? 'border-green-500 bg-green-500' : 'border-slate-300'
-                  }`}>
-                    {task.completed && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    )}
-                  </div>
-                  <span className={`font-bold text-base md:text-lg transition-colors ${
-                    task.completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                  }`}>
-                    {task.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg text-sm md:text-base">
-                  +{task.stars} <Star size={14} className="fill-amber-400" />
-                </div>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-lg md:text-xl font-extrabold text-slate-600">Привет,</span>
+            <div className="relative">
+              <button onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="text-lg md:text-xl font-extrabold text-slate-800 hover:text-blue-600 transition-colors flex items-center gap-1 cursor-pointer">
+                <AnimatePresence mode="popLayout">
+                  <motion.span key={currentChild.id} initial={{ y: -15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 15, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} className="block">
+                    {currentChild.name}!
+                  </motion.span>
+                </AnimatePresence>
+                <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute top-full mt-1 left-0 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 min-w-[120px]">
+                    {(["ali", "said"] as const).filter(id => id !== currentChild.id).map(id => (
+                      <button key={id} onClick={() => { switchChild(id); setIsDropdownOpen(false); }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-blue-50 cursor-pointer font-extrabold text-lg transition-colors">
+                        {id === "ali" ? "Али" : "Саид"}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowStarHistory(true)}
+            className="relative bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] px-3 py-1.5 rounded-xl font-extrabold text-sm md:text-base flex items-center gap-1.5 shadow-sm hover:bg-amber-100 transition-colors cursor-pointer">
+            <Star className="fill-amber-400 text-amber-400 w-4 h-4" /> {stars}
+          </button>
+
+          <button onClick={() => setShowPinModal(true)}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
+            title={isLoggedIn ? "Выйти" : "Войти"}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              {isLoggedIn ? (
+                <>
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </>
+              ) : (
+                <>
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* NAV */}
+      <nav className="flex gap-2 px-4 md:px-6 py-3 md:py-4 overflow-x-auto no-scrollbar max-w-5xl mx-auto">
+        {navItems.map(item => {
+          if (item.href === "#hero") {
+            return (
+              <div key="hero" className="flex-shrink-0">
+                <HeroMessage childId={currentChild.id} childName={currentChild.name} mode={currentChild.mode} tasks={tasks} />
               </div>
+            );
+          }
+          return (
+            <Link key={item.href} href={item.href}
+              className="bg-white text-slate-700 px-4 py-2.5 rounded-[14px] font-bold text-sm flex items-center gap-1.5 whitespace-nowrap shadow-sm hover:bg-slate-50 transition-colors">
+              <item.icon size={16} className="text-slate-400" /> {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* MAIN */}
+      <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4">
+
+        {/* ЗАДАЧИ НА СЕГОДНЯ */}
+        <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+          <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-slate-800 mb-4">
+            <span>🚀</span> Задачи на сегодня
+          </h2>
+          <div className="space-y-2">
+            {loadingTasks && <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-slate-100 animate-pulse" />)}</>}
+            {!loadingTasks && tasks.length === 0 && <p className="text-slate-400 text-center py-6 text-sm">Нет задач на сегодня</p>}
+            {!loadingTasks && tasks.map(task => (
+              <TaskCard key={task.id} task={task} onComplete={completeTask} onDetailsOpened={handleDetailsOpened} onSubtasksUpdate={handleSubtasksUpdate} />
             ))}
           </div>
         </section>
 
-        <section className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] rounded-[24px] md:rounded-[32px] p-6 md:p-8 shadow-lg shadow-indigo-200">
-          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-2 text-white mb-5 md:mb-6">
-            <span className="text-xl md:text-2xl">🎁</span> Магазин наград
+        {/* РАСПИСАНИЕ (read-only) */}
+        {templates.length > 0 && (
+          <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+            <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-slate-800 mb-4">
+              <span>📅</span> Расписание
+            </h2>
+            <div className="space-y-2">
+              {templates.map(t => (
+                <div key={t.id} className="flex items-center gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                  <span className="font-bold text-slate-800 text-sm flex-1 truncate">{t.title}</span>
+                  <div className="flex gap-0.5">
+                    {[1,2,3,4,5,6,0].map((di, i) => (
+                      <span key={i} className={`text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center ${t.repeatDays?.includes(di) ? 'bg-blue-100 text-blue-600' : 'text-slate-300'} ${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}`}>{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}</span>
+                    ))}
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-500 shrink-0 ml-1">+{t.stars} ⭐</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* МАГАЗИН НАГРАД */}
+        <section className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] rounded-[24px] p-5 md:p-6 shadow-lg shadow-indigo-200">
+          <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-white mb-4">
+            <span>🎁</span> Магазин наград
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
-            {rewards.map(reward => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {loadingRewards && <>{[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-white/15 animate-pulse" />)}</>}
+            {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
               return (
-                <div 
-                  key={reward.id}
-                  onClick={() => buyReward(reward.costStars, reward.title)}
-                  className={`border rounded-2xl p-4 md:p-5 flex flex-row md:flex-col justify-between items-center md:items-stretch h-auto md:h-32 transition-all cursor-pointer ${
-                    canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-lg' : 'bg-white/5 border-white/10 opacity-70 hover:bg-white/10'
-                  }`}
-                >
-                  <h3 className="text-white font-bold text-base md:text-lg leading-tight">{reward.title}</h3>
-                  {reward.description && (
-                    <p className="text-white/70 text-xs md:text-sm mt-1 hidden md:block">{reward.description}</p>
-                  )}
-                  <div className={`rounded-xl px-3 py-1.5 md:py-2 flex justify-center items-center gap-1 font-extrabold transition-colors text-sm md:text-base mt-0 md:mt-auto ${
-                    canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'
-                  }`}>
-                    {reward.costStars} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                <div key={reward.id} onClick={() => buyReward(reward.costStars, reward.title)}
+                  className={`border rounded-2xl p-4 flex flex-col gap-2 transition-all cursor-pointer ${canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-md' : 'bg-white/5 border-white/10 opacity-70'}`}>
+                   <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
+                  {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
+                  <div className="flex items-center gap-2 mt-auto">
+                    <div className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs ${canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'}`}>
+                      {reward.costStars} <Star size={11} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
+          {!loadingRewards && rewards.length === 0 && <p className="text-white/60 text-center py-4 text-sm">Пока нет наград</p>}
         </section>
       </main>
+
+      <StarHistoryModal childId={currentChild.id} open={showStarHistory} onClose={() => setShowStarHistory(false)} />
+      <PinModal open={showPinModal} onClose={() => setShowPinModal(false)} />
+      <AnimatePresence>
+        {modalMessage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setModalMessage(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
+              <p className="text-slate-700 text-base mb-5">{modalMessage}</p>
+              <button onClick={() => setModalMessage(null)} className="bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-600 transition-colors">Понятно</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,18 +1,36 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
-export function middleware(request: NextRequest) {
+const SESSION_SECRET = new TextEncoder().encode(
+  process.env.AQ_PARENT_SESSION_SECRET || 'default-secret-change-me-in-production'
+);
+
+async function verifySession(token: string): Promise<boolean> {
+  try {
+    await jwtVerify(token, SESSION_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  // Protect parent routes
-  if (pathname.startsWith('/parent') || pathname.startsWith('/settings')) {
+
+  if (
+    (pathname.startsWith('/parent') && pathname !== '/parent/login') ||
+    pathname.startsWith('/settings')
+  ) {
     const session = request.cookies.get('parent-session');
-    
-    if (!session || session.value !== 'authorized') {
-      return NextResponse.redirect(new URL('/parent/login', request.url));
+
+    if (!session || !(await verifySession(session.value))) {
+      const loginUrl = new URL('/parent/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
-  
+
   return NextResponse.next();
 }
 

@@ -4,7 +4,9 @@
   "small_model": "openrouter/qwen/qwen3-coder:free",
   "instructions": [
     "AGENTS.md",
-    "docs/ALI_QUEST_PRODUCT_BRIEF.md"
+    "docs/ALI_QUEST_PRODUCT_BRIEF.md",
+    "skills/socraticode/SKILL.md",
+    "skills/socraticode/workflow.md"
   ],
   "permission": {
     "skill": {
@@ -33,9 +35,23 @@
     },
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp@latest"
+      ],
       "enabled": true,
       "timeout": 10000
+    },
+    "socraticode": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "socraticode"
+      ],
+      "enabled": true,
+      "timeout": 20000
     }
   }
 }

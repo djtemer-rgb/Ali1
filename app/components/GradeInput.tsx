@@ -51,7 +51,6 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
       });
       
       if (res.ok) {
-        alert(`✅ Оценка ${selectedGrade} по предмету ${selectedSubject} добавлена!`);
         if (onGradeAdded) onGradeAdded();
       }
     } catch (error) {
