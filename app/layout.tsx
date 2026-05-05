@@ -48,7 +48,8 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-                if (!isProd) {
+                const allowLocalSW = window.localStorage.getItem('ali1-allow-sw') === '1';
+                if (!isProd && !allowLocalSW) {
                   navigator.serviceWorker.getRegistrations().then(function(registrations) {
                     return Promise.all(registrations.map(function(reg) { return reg.unregister(); }));
                   }).catch(function() {});

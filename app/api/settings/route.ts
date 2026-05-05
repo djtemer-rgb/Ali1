@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
+import { defaultChildSettings, getChildSettings, normalizeAiPrefs, normalizeNotificationPrefs, normalizeTaskCategories } from '@/app/lib/settings-shared';
 
 const SETTINGS_KEY = 'aq:settings';
 
@@ -17,7 +18,11 @@ const DEFAULT_SETTINGS = {
   aiDailyLimitPerChild: 3,
   aiModel: '',
   aiModelFallback: '',
-  systemPrompt: 'Ты — герой-наставник для ребенка. Мотивируй, хвали за усилия, поддерживай. Не используй стыд или наказания.'
+  systemPrompt: 'Ты — герой-наставник для ребенка. Мотивируй, хвали за усилия, поддерживай. Не используй стыд или наказания.',
+  childSettings: {
+    ali: defaultChildSettings(),
+    said: defaultChildSettings()
+  }
 };
 
 export async function GET() {
@@ -29,6 +34,9 @@ export async function GET() {
     } else {
       settings = { ...DEFAULT_SETTINGS, ...settings };
       if (settings.gradeHistoryLimit === undefined) settings.gradeHistoryLimit = DEFAULT_SETTINGS.gradeHistoryLimit;
+      settings.childSettings = settings.childSettings || {};
+      settings.childSettings.ali = getChildSettings(settings, 'ali');
+      settings.childSettings.said = getChildSettings(settings, 'said');
     }
     return NextResponse.json(settings);
   } catch (error) {
@@ -40,9 +48,24 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const current = await getJson(SETTINGS_KEY) || DEFAULT_SETTINGS;
+    const incomingChildSettings = body.childSettings || current.childSettings || DEFAULT_SETTINGS.childSettings;
+    const childSettings = {
+      ali: {
+        taskCategories: normalizeTaskCategories(incomingChildSettings?.ali?.taskCategories),
+        notifications: normalizeNotificationPrefs(incomingChildSettings?.ali?.notifications),
+        ai: normalizeAiPrefs(incomingChildSettings?.ali?.ai)
+      },
+      said: {
+        taskCategories: normalizeTaskCategories(incomingChildSettings?.said?.taskCategories),
+        notifications: normalizeNotificationPrefs(incomingChildSettings?.said?.notifications),
+        ai: normalizeAiPrefs(incomingChildSettings?.said?.ai)
+      }
+    };
     const settings = {
       ...DEFAULT_SETTINGS,
       ...body,
+      childSettings,
       gradeHistoryLimit: Number.isFinite(Number(body.gradeHistoryLimit)) ? Math.min(50, Math.max(20, Number(body.gradeHistoryLimit))) : DEFAULT_SETTINGS.gradeHistoryLimit,
       updatedAt: new Date().toISOString()
     };

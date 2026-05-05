@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson, redis } from '../../upstash';
+import { getChildSettings } from '@/app/lib/settings-shared';
 
 async function getDailyLimit(): Promise<number> {
   const settings = await getJson('aq:settings') as any;
@@ -66,9 +67,22 @@ export async function POST(request: Request) {
     const totalCount = Array.isArray(tasks) ? tasks.length : 0;
 
     const settings = await getJson('aq:settings') as any || {};
+    const childSettings = getChildSettings(settings, childId as 'ali' | 'said');
+    const aiPrefs = childSettings.ai;
     const openRouterKey = process.env.OPENROUTER_API_KEY;
-    const openRouterUrl = settings?.openRouterUrl || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
-    const configuredModel = settings?.aiModel || process.env.HERO_AI_MODEL || 'openai/gpt-4o-mini';
+    const openRouterUrl = aiPrefs.openRouterUrl || settings?.openRouterUrl || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+    const configuredModel = aiPrefs.aiModel || settings?.aiModel || process.env.HERO_AI_MODEL || 'openai/gpt-4o-mini';
+
+    if (!aiPrefs.enabled) {
+      usage += 1;
+      await setJson(usageKey, usage);
+      return NextResponse.json({
+        message: getFallbackMessage(childName, completedCount, totalCount),
+        remaining: DAILY_LIMIT - usage,
+        ai: false,
+        mode: 'local'
+      });
+    }
 
     if (!openRouterKey || openRouterKey.length < 10) {
       usage += 1;
@@ -76,21 +90,43 @@ export async function POST(request: Request) {
       return NextResponse.json({
         message: getFallbackMessage(childName, completedCount, totalCount),
         remaining: DAILY_LIMIT - usage,
-        ai: false
+        ai: false,
+        mode: 'fallback'
       });
     }
 
     try {
-      const savedHeroes = settings?.heroes;
+      const savedHeroes = aiPrefs.heroes || settings?.heroes;
       const heroesList = Array.isArray(favoriteHeroes) && favoriteHeroes.length > 0
         ? favoriteHeroes.slice(0, 10)
         : (typeof savedHeroes === 'string' ? savedHeroes.split(',').map((h: string) => h.trim()).filter(Boolean) : ['Мухаммед Али', 'Тайсон', 'Роналду']);
 
       const heroesPrompt = heroesList.length > 0
-        ? `Любимые герои ребёнка: ${heroesList.join(', ')}. Иногда упоминай их в ответе для вдохновения.`
+        ? `Любимые герои ребёнка: ${heroesList.join(', ')}. Иногда мягко упоминай их как примеры силы, дисциплины и смелости.`
         : '';
 
-      const systemPrompt = settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || `Ты — герой-наставник для ребёнка. Отвечай коротко (2-3 предложения), поддерживающе, без стыда. ${heroesPrompt}. Не упоминай, что ты ИИ. Не давай медицинских, юридических или опасных советов. Не создавай бесконечный диалог. Ребёнок не может тебе ответить.`;
+      const richPrompt = [
+        'Ты — тёплый герой-наставник для ребёнка.',
+        'Отвечай 2-4 предложениями, живо, по-человечески и с небольшой глубиной.',
+        'Не будь сухим или канцелярским. Не пиши слишком общо.',
+        'Поддерживай усилие, характер, смелость и маленькие победы.',
+        'Не стыди и не угрожай. Не превращай ответ в бесконечный чат.',
+        'Старайся делать ответ запоминающимся, но не пафосным.',
+        heroesPrompt,
+      ].filter(Boolean).join(' ');
+
+      const basicPrompt = [
+        'Ты — герой-наставник для ребёнка.',
+        'Отвечай коротко и поддерживающе.',
+        'Не используй стыд и наказания.',
+        'Не создавай бесконечный диалог.',
+        heroesPrompt,
+      ].filter(Boolean).join(' ');
+
+      const configuredSystemPrompt = (aiPrefs.systemPrompt || settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || '').trim();
+      const systemPrompt = configuredSystemPrompt
+        ? `${configuredSystemPrompt} ${aiPrefs.richMode ? heroesPrompt : ''}`.trim()
+        : (aiPrefs.richMode ? richPrompt : basicPrompt);
 
       const userPrompt = `Ребёнок: ${childName} (${mode === 'little-hero' ? 'little-hero режим' : 'полный режим'}). Выполнено задач сегодня: ${completedCount} из ${totalCount}. ${todayGrades && todayGrades.length > 0 ? `Сегодняшние оценки: ${todayGrades.map((g: any) => `${g.subjectName}: ${g.grade}`).join(', ')}.` : 'Оценок сегодня нет.'} Напиши короткое поддерживающее сообщение.`;
 
@@ -134,7 +170,9 @@ export async function POST(request: Request) {
       return NextResponse.json({
         message,
         remaining: DAILY_LIMIT - usage,
-        ai: true
+        ai: true,
+        mode: 'openrouter',
+        model: configuredModel
       });
     } catch (aiError) {
       console.error('AI error, using fallback:', aiError);
@@ -143,7 +181,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         message: getFallbackMessage(childName, completedCount, totalCount),
         remaining: DAILY_LIMIT - usage,
-        ai: false
+        ai: false,
+        mode: 'fallback'
       });
     }
   } catch (error) {

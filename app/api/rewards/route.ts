@@ -11,6 +11,7 @@ const DEFAULT_REWARDS = [
     icon: '🎮',
     iconStyle: 'color',
     active: true,
+    sortOrderByChild: { ali: 0, said: 0 },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -23,6 +24,7 @@ const DEFAULT_REWARDS = [
     icon: '🎬',
     iconStyle: 'color',
     active: true,
+    sortOrderByChild: { ali: 1, said: 1 },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -35,6 +37,7 @@ const DEFAULT_REWARDS = [
     icon: '🧱',
     iconStyle: 'color',
     active: true,
+    sortOrderByChild: { ali: 2, said: 2 },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
@@ -52,7 +55,9 @@ export async function GET(request: Request) {
     }
     
     // Filter rewards for this child (include 'both' rewards)
-    const filtered = rewards.filter((r: any) => r.active && (r.childId === childId || r.childId === 'both'));
+    const filtered = rewards
+      .filter((r: any) => r.active && (r.childId === childId || r.childId === 'both'))
+      .sort((a: any, b: any) => getRewardOrder(a, childId) - getRewardOrder(b, childId) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
     return NextResponse.json(filtered);
   } catch (error) {
@@ -65,10 +70,29 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const rewards = await getJson('aq:rewards') || [];
+
+    if (Array.isArray(body.rewards)) {
+      const normalized = body.rewards.map((reward: any, index: number) => ({
+        ...reward,
+        sortOrderByChild: reward.sortOrderByChild || {},
+        updatedAt: new Date().toISOString()
+      }));
+      await setJson('aq:rewards', normalized);
+      return NextResponse.json(normalized);
+    }
     
+    const childId = body.childId || 'ali';
+    const nextOrder = rewards
+      .filter((r: any) => r.active && (r.childId === childId || r.childId === 'both'))
+      .reduce((max: number, reward: any) => Math.max(max, getRewardOrder(reward, childId)), -1) + 1;
+
     const newReward = {
       id: `reward-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ...body,
+      sortOrderByChild: {
+        ...(body.sortOrderByChild || {}),
+        [childId]: Number.isFinite(Number(body.sortOrderByChild?.[childId])) ? Number(body.sortOrderByChild[childId]) : nextOrder
+      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -86,6 +110,17 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
+    const updatesList = Array.isArray(body.updates) ? body.updates : null;
+    if (updatesList) {
+      let rewards = await getJson('aq:rewards') || [];
+      rewards = rewards.map((r: any) => {
+        const update = updatesList.find((item: any) => item.id === r.id);
+        return update ? { ...r, ...update, updatedAt: new Date().toISOString() } : r;
+      });
+      await setJson('aq:rewards', rewards);
+      return NextResponse.json(rewards);
+    }
+
     const { id, ...updates } = body;
     
     let rewards = await getJson('aq:rewards') || [];
@@ -99,6 +134,14 @@ export async function PUT(request: Request) {
     console.error('Error updating reward:', error);
     return NextResponse.json({ error: 'Failed to update reward' }, { status: 500 });
   }
+}
+
+function getRewardOrder(reward: any, childId: string) {
+  return Number.isFinite(Number(reward?.sortOrderByChild?.[childId]))
+    ? Number(reward.sortOrderByChild[childId])
+    : Number.isFinite(Number(reward?.sortOrderByChild?.both))
+      ? Number(reward.sortOrderByChild.both)
+      : 9999;
 }
 
 export async function DELETE(request: Request) {

@@ -1,35 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
-
-async function sendTelegramNotification(message: string) {
-  try {
-    const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-    const CHAT_IDS = process.env.TELEGRAM_CHAT_IDS?.split(',') || [];
-    
-    if (!BOT_TOKEN || CHAT_IDS.length === 0) {
-      console.log('Telegram not configured, skipping notification');
-      return;
-    }
-    
-    await Promise.allSettled(
-      CHAT_IDS.map(async (chatId) => {
-        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId.trim(),
-            text: message,
-            parse_mode: 'HTML'
-          })
-        });
-      })
-    );
-  } catch (error) {
-    console.error('Error sending Telegram notification:', error);
-    // Don't crash the app
-  }
-}
+import { getChildSettings, NOTIFICATION_EVENT_KEYS } from '@/app/lib/settings-shared';
+import { sendTelegramIfEnabled, sendWebPushToChild } from '@/app/lib/notifications';
 
 export async function GET(request: Request) {
   try {
@@ -72,13 +44,30 @@ export async function POST(request: Request) {
       read: false,
       createdAt: new Date().toISOString()
     };
-    
+
     events.push(newEvent);
     await setJson('aq:events:parent', events);
-    
-    // Send Telegram notification
+
+    const settings = await getJson('aq:settings') as any || {};
+    const childSettings = getChildSettings(settings, newEvent.childId);
     const message = `🔔 <b>Новое событие!</b>\n\n<b>${newEvent.title}</b>\n${newEvent.body}`;
-    await sendTelegramNotification(message);
+
+    if (NOTIFICATION_EVENT_KEYS.includes(newEvent.type)) {
+      await sendTelegramIfEnabled(settings, newEvent.childId, newEvent.type as any, message);
+      if (childSettings.notifications.webPush.enabled && childSettings.notifications.webPush.events[newEvent.type as any]) {
+        await sendWebPushToChild(newEvent.childId, {
+          title: newEvent.title,
+          body: newEvent.body,
+          tag: newEvent.type,
+          url: '/parent/inbox',
+          data: {
+            childId: newEvent.childId,
+            eventId: newEvent.id,
+            type: newEvent.type,
+          },
+        });
+      }
+    }
     
     return NextResponse.json(newEvent);
   } catch (error) {
@@ -90,13 +79,22 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, ...updates } = body;
-    
+    const { id, read, markAllRead, childId, type, ...updates } = body;
+
     let events = await getJson('aq:events:parent') || [];
-    events = events.map((e: any) => 
-      e.id === id ? { ...e, ...updates } : e
-    );
-    
+
+    if (markAllRead) {
+      events = events.map((e: any) => {
+        if (childId && e.childId !== childId) return e;
+        if (type && e.type !== type) return e;
+        return { ...e, read: true };
+      });
+    } else {
+      events = events.map((e: any) => 
+        e.id === id ? { ...e, ...(read !== undefined ? { read } : updates) } : e
+      );
+    }
+
     await setJson('aq:events:parent', events);
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -52,7 +52,7 @@ export async function GET(request: Request) {
           if (task.completed) {
             dayCompleted++;
             dayStars += task.stars || 0;
-            const cat = getCategoryLabel(task.category || 'other');
+            const cat = getCategoryLabel(task.category || 'other', task.customCategory || '');
             categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
           }
         }
@@ -110,7 +110,8 @@ export async function GET(request: Request) {
   }
 }
 
-function getCategoryLabel(cat: string): string {
+function getCategoryLabel(cat: string, customLabel = ''): string {
+  if (customLabel.trim()) return customLabel.trim();
   const labels: Record<string, string> = {
     study: 'Учёба', sport: 'Спорт', boxing: 'Бокс', chess: 'Шахматы',
     reading: 'Чтение', order: 'Порядок', 'home-help': 'Помощь', rest: 'Отдых', other: 'Другое'

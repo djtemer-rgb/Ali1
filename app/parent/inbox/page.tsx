@@ -71,6 +71,23 @@ export default function ParentInbox() {
     }
   };
 
+  const markAllRead = async () => {
+    try {
+      await fetch('/api/events', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          markAllRead: true,
+          childId: childFilter === 'all' ? undefined : childFilter,
+          read: true
+        })
+      });
+      loadEvents();
+    } catch (error) {
+      console.error('Error marking all read:', error);
+    }
+  };
+
   const deleteEvent = async (id: string) => {
     try {
       await fetch(`/api/events?id=${id}`, { method: 'DELETE' });
@@ -159,12 +176,20 @@ export default function ParentInbox() {
           <h1 className="text-2xl font-extrabold text-slate-800">Входящие</h1>
           <p className="text-slate-500 text-sm mt-1">События и уведомления</p>
         </div>
-        <button
-          onClick={() => router.push('/parent')}
-          className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-        >
-          Назад
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={markAllRead}
+            className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl font-bold hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
+          >
+            ✓ Прочитать все
+          </button>
+          <button
+            onClick={() => router.push('/parent')}
+            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+          >
+            Назад
+          </button>
+        </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-4">

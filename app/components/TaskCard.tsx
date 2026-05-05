@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Star, X, AlertTriangle, CheckSquare2, Square, CheckCircle } from 'lucide-react';
+import { Star, X, AlertTriangle, Circle, Check } from 'lucide-react';
 
 interface Subtask {
   id: string;
@@ -25,6 +25,7 @@ interface TaskData {
   difficulty?: 'easy' | 'normal' | 'hard';
   askDifficultyAfterDone?: boolean;
   category?: string;
+  customCategory?: string;
 }
 
 interface TaskCardProps {
@@ -103,6 +104,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   };
 
   const needsModal = task.requiresOpenDetails || localSubtasks.length > 0;
+  const categoryLabel = task.customCategory || task.category;
 
   return (
     <>
@@ -117,11 +119,30 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (task.completed) return;
+            if (needsModal) {
+              handleClick();
+              return;
+            }
+            completeTask();
+          }}
+          className={`w-7 h-7 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors mt-0.5 ${
+            task.completed ? 'border-green-500 bg-green-500 text-white' : 'border-slate-300 text-slate-300 hover:border-blue-300 hover:text-blue-600'
+          }`}
+          aria-label={task.completed ? 'Задача выполнена' : 'Выполнить задачу'}
+        >
+          {task.completed ? <Check size={15} className="text-white" /> : <Circle size={14} />}
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
             handleClick();
           }}
           className="flex-1 min-w-0 text-left"
         >
-          <div className="flex items-start gap-3 md:gap-4">
+          <div className="flex items-start gap-2.5 md:gap-3">
             <div className="min-w-0 flex-1">
               <span className={`font-bold text-sm md:text-base transition-colors block leading-tight line-clamp-2 ${
               task.completed ? 'text-slate-400 line-through' : 'text-slate-700'
@@ -138,47 +159,19 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                   Сложность: {task.difficulty === 'easy' ? 'Легко' : task.difficulty === 'normal' ? 'Нормально' : 'Сложно'}
                 </span>
               )}
-            </div>
-            <div className={`w-6 h-6 md:w-7 md:h-7 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-              task.completed ? 'border-green-500 bg-green-50 text-green-600' : 'border-slate-300 text-slate-300'
-            }`}>
-              {task.completed ? <CheckSquare2 size={16} /> : <Square size={16} />}
+              {categoryLabel && (
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
+                  {categoryLabel}
+                </span>
+              )}
             </div>
           </div>
         </button>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2 py-1 rounded-lg text-xs md:text-sm">
-            +{task.stars} <Star size={13} className="fill-amber-400" />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-full text-[10px] md:text-[11px]">
+            +{task.stars} <Star size={11} className="fill-amber-400" />
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (task.completed) return;
-              if (subtasksEnabled && !allSubtasksDone) {
-                setIsModalOpen(true);
-                return;
-              }
-              if (task.requiresOpenDetails && !detailsOpened) {
-                setShowWarning(true);
-                setTimeout(() => setShowWarning(false), 1200);
-              }
-              if (!subtasksEnabled) {
-                completeTask();
-              } else {
-                setIsModalOpen(true);
-              }
-            }}
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${
-              task.completed
-                ? 'border-green-200 bg-green-100 text-green-600'
-                : 'border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600'
-            }`}
-            title="Открыть или завершить"
-          >
-            <CheckCircle size={18} />
-          </button>
         </div>
 
         <AnimatePresence>
@@ -253,7 +246,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                         <div className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                           st.done ? 'border-green-500 bg-green-500' : 'border-slate-300'
                         }`}>
-                          {st.done && <CheckCircle size={12} className="text-white" />}
+                          {st.done && <Check size={12} className="text-white" />}
                         </div>
                       ) : (
                         <div className="w-1.5 h-1.5 mt-2 bg-blue-400 rounded-full flex-shrink-0" />

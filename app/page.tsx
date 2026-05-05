@@ -15,7 +15,7 @@ interface Task {
   id: string; title: string; stars: number; completed: boolean; completedAt?: string;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list'; subtasks: { id: string; title: string; done: boolean }[];
   requiresOpenDetails: boolean; detailsOpened: boolean; detailsText?: string;
-  difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string;
+  difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string; customCategory?: string;
 }
 interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
 interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; }
@@ -52,6 +52,14 @@ function getNextRepeatInfo(repeatDays: number[], from = new Date()) {
   return { label: 'По графику', date: '' };
 }
 
+function getRewardOrder(reward: any, childId: string) {
+  return Number.isFinite(Number(reward?.sortOrderByChild?.[childId]))
+    ? Number(reward.sortOrderByChild[childId])
+    : Number.isFinite(Number(reward?.sortOrderByChild?.both))
+      ? Number(reward.sortOrderByChild.both)
+      : 9999;
+}
+
 export default function Home() {
   const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
@@ -86,7 +94,7 @@ export default function Home() {
         ]);
         setTasks(Array.isArray(tasksData) ? tasksData : []);
         setStars(starsData.balance || 0);
-        setRewards(Array.isArray(rewardsData) ? rewardsData : []);
+        setRewards(Array.isArray(rewardsData) ? [...rewardsData].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)) : []);
         setTemplates(Array.isArray(tplData) ? tplData.filter((t: any) => (t.childId === currentChild.id || t.childId === 'both') && t.repeatDays?.length > 0) : []);
       } catch (e) { console.error(e); }
       finally { setLoadingTasks(false); setLoadingRewards(false); }
@@ -126,16 +134,17 @@ export default function Home() {
     await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
   };
 
-  const buyReward = async (cost: number, title: string) => {
-    if (stars >= cost) {
-      setStars(prev => prev - cost);
+  const buyReward = async (reward: Reward) => {
+    if (stars >= reward.costStars) {
+      setStars(prev => prev - reward.costStars);
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
       await Promise.all([
-        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -cost, source: 'reward-purchase', reason: `Покупка награды: ${title}` }) }),
-        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${title}` }) })
+        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title}` }) }),
+        fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }) }),
+        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title}`, rewardId: reward.id }) })
       ]);
     } else {
-      setModalMessage(`Не хватает звёзд! Нужно ещё ${cost - stars} ⭐`);
+      setModalMessage(`Не хватает звёзд! Нужно ещё ${reward.costStars - stars} ⭐`);
     }
   };
 
@@ -295,7 +304,7 @@ export default function Home() {
             {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
               return (
-                <div key={reward.id} onClick={() => buyReward(reward.costStars, reward.title)}
+                <div key={reward.id} onClick={() => buyReward(reward)}
                   className={`border rounded-2xl p-3 flex flex-col gap-2 transition-all cursor-pointer ${canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-md' : 'bg-white/5 border-white/10 opacity-70'}`}>
                    <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
                   {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
