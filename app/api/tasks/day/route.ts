@@ -23,11 +23,10 @@ export async function GET(request: Request) {
       : [];
 
     if (!dayTasks || !Array.isArray(dayTasks) || force) {
-      // Generate fresh
       dayTasks = relevantTemplates.map((t: any) => createTaskInstance(t, childId, date));
       await setJson(key, dayTasks);
     } else {
-      // Merge: add templates that are not yet in dayTasks
+      dayTasks = reconcileDayTasks(dayTasks, relevantTemplates, childId, date);
       const existingTemplateIds = new Set(
         dayTasks.map((t: any) => t.templateId).filter(Boolean)
       );
@@ -53,8 +52,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { childId, date, tasks } = body;
     const key = `aq:day:${childId}:${date}`;
-    await setJson(key, tasks);
-    return NextResponse.json(tasks);
+    const normalized = Array.isArray(tasks) ? tasks.map(normalizeTaskState) : [];
+    await setJson(key, normalized);
+    return NextResponse.json(normalized);
   } catch (error) {
     console.error('Error saving day tasks:', error);
     return NextResponse.json({ error: 'Failed to save tasks' }, { status: 500 });
@@ -77,9 +77,65 @@ function createTaskInstance(template: any, childId: string, date: string) {
     requiresOpenDetails: template.requiresOpenDetails || false,
     detailsText: template.detailsText || '',
     subtasksMode: template.subtasksMode || 'none',
-    subtasks: template.subtasks || [],
+    subtasks: Array.isArray(template.subtasks)
+      ? template.subtasks.map((st: any, index: number) => ({
+          id: st.id || `subtask-${index}`,
+          title: st.title || '',
+          done: !!st.done
+        }))
+      : [],
     askDifficultyAfterDone: template.askDifficultyAfterDone || false,
     difficulty: null,
     createdAt: new Date().toISOString()
   };
+}
+
+function normalizeTaskState(task: any) {
+  return {
+    ...task,
+    subtasks: Array.isArray(task.subtasks)
+      ? task.subtasks.map((st: any, index: number) => ({
+          id: st.id || `subtask-${index}`,
+          title: st.title || '',
+          done: !!st.done
+        }))
+      : [],
+  };
+}
+
+function reconcileDayTasks(dayTasks: any[], templates: any[], childId: string, date: string) {
+  const templateMap = new Map(templates.map((template: any) => [template.id, template]));
+  return dayTasks.map((task: any) => {
+    const template = task.templateId ? templateMap.get(task.templateId) : null;
+    if (!template) return normalizeTaskState(task);
+    const mergedSubtasks = mergeSubtasks(task.subtasks, template.subtasks);
+    return {
+      ...task,
+      childId,
+      date,
+      title: template.title,
+      category: template.category,
+      stars: template.stars,
+      dueTime: template.dueTime || null,
+      requiresOpenDetails: !!template.requiresOpenDetails,
+      detailsText: template.detailsText || '',
+      subtasksMode: template.subtasksMode || 'none',
+      subtasks: mergedSubtasks,
+      askDifficultyAfterDone: !!template.askDifficultyAfterDone,
+      updatedAt: new Date().toISOString()
+    };
+  });
+}
+
+function mergeSubtasks(current: any[], templateSubtasks: any[]) {
+  const currentMap = new Map((Array.isArray(current) ? current : []).map((st: any) => [st.id || st.title, st]));
+  return (Array.isArray(templateSubtasks) ? templateSubtasks : []).map((templateSubtask: any, index: number) => {
+    const key = templateSubtask.id || templateSubtask.title || `subtask-${index}`;
+    const existing = currentMap.get(key);
+    return {
+      id: templateSubtask.id || key,
+      title: templateSubtask.title || '',
+      done: existing ? !!existing.done : !!templateSubtask.done
+    };
+  });
 }

@@ -47,6 +47,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
+                const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+                if (!isProd) {
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    return Promise.all(registrations.map(function(reg) { return reg.unregister(); }));
+                  }).catch(function() {});
+                  return;
+                }
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(reg) {
                     console.log('SW registered:', reg.scope);

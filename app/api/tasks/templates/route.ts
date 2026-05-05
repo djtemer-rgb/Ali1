@@ -71,11 +71,39 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const templates = body.templates || body;
+    const templates = normalizeTemplates(body.templates || body);
     await setJson(TEMPLATES_KEY, templates);
     return NextResponse.json(templates);
   } catch (error) {
     console.error('Error saving templates:', error);
     return NextResponse.json({ error: 'Failed to save templates' }, { status: 500 });
   }
+}
+
+function normalizeTemplates(input: any) {
+  const templates = Array.isArray(input) ? input : [];
+  return templates.map((template, index) => ({
+    id: template.id || `tpl-${Date.now()}-${index}`,
+    childId: template.childId || 'ali',
+    title: template.title || '',
+    category: template.category || 'study',
+    customCategory: template.customCategory || '',
+    repeatDays: Array.isArray(template.repeatDays) ? template.repeatDays : [],
+    dueTime: template.dueTime || '',
+    stars: typeof template.stars === 'number' ? template.stars : parseFloat(template.stars || '0') || 0,
+    active: template.active !== false,
+    requiresOpenDetails: !!template.requiresOpenDetails,
+    detailsText: template.detailsText || '',
+    subtasksMode: template.subtasksMode || 'none',
+    subtasks: Array.isArray(template.subtasks)
+      ? template.subtasks.map((st: any, stIndex: number) => ({
+          id: st.id || `subtask-${index}-${stIndex}`,
+          title: st.title || '',
+          done: !!st.done
+        }))
+      : [],
+    askDifficultyAfterDone: !!template.askDifficultyAfterDone,
+    createdAt: template.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }));
 }

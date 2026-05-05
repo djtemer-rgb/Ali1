@@ -44,9 +44,14 @@ export type DailyTaskInstance = {
   completedAt?: string;
   detailsOpened: boolean;
   requiresOpenDetails: boolean;
+  requiresOpenSubtasks?: boolean;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list';
   subtasks: { id: string; title: string; done: boolean }[];
   difficulty?: 'easy' | 'normal' | 'hard';
+  askDifficultyAfterDone?: boolean;
+  detailsText?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 // Grade
