@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Star, X, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Star, X, AlertTriangle, CheckSquare2, Square, CheckCircle } from 'lucide-react';
 
 interface Subtask {
   id: string;
@@ -39,25 +39,30 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(task.subtasks || []);
   const [showDifficulty, setShowDifficulty] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
-  const [justCompleted, setJustCompleted] = useState(false);
+  const [detailsOpened, setDetailsOpened] = useState(task.detailsOpened);
+
+  useEffect(() => {
+    setLocalSubtasks(task.subtasks || []);
+    setDetailsOpened(task.detailsOpened);
+  }, [task.id, task.subtasks, task.detailsOpened]);
 
   const allSubtasksDone = localSubtasks.length === 0 || localSubtasks.every(st => st.done);
+  const subtasksEnabled = task.subtasksMode !== 'none' && localSubtasks.length > 0;
+  const requiresDetails = task.requiresOpenDetails && !detailsOpened;
+  const cardSubtitle = useMemo(() => {
+    if (requiresDetails) return 'Сначала открой условия квеста';
+    if (subtasksEnabled && !allSubtasksDone) return 'Есть подзадачи';
+    return '';
+  }, [allSubtasksDone, requiresDetails, subtasksEnabled]);
 
   const handleClick = () => {
-    if (task.completed) return;
-
-    const needsModal = task.requiresOpenDetails || localSubtasks.length > 0;
-
-    if (needsModal) {
-      if (task.requiresOpenDetails && !task.detailsOpened) {
+    if (!task.completed) {
+      setIsModalOpen(true);
+      if (requiresDetails) {
         setShowWarning(true);
         setTimeout(() => setShowWarning(false), 1200);
       }
-      setIsModalOpen(true);
-      return;
     }
-
-    completeTask();
   };
 
   const completeTask = (difficulty?: 'easy' | 'normal' | 'hard') => {
@@ -71,7 +76,6 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
     });
 
     if (task.askDifficultyAfterDone && !difficulty) {
-      setJustCompleted(true);
       setShowDifficulty(true);
       return;
     }
@@ -83,8 +87,9 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
 
   const handleModalComplete = () => {
     if (!allSubtasksDone) return;
-    if (task.requiresOpenDetails && !task.detailsOpened) {
+    if (task.requiresOpenDetails && !detailsOpened) {
       onDetailsOpened(task.id);
+      setDetailsOpened(true);
     }
     completeTask();
   };
@@ -102,49 +107,78 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   return (
     <>
       <div
-        onClick={handleClick}
-        className={`relative border rounded-2xl p-4 md:p-5 flex items-center justify-between cursor-pointer transition-all ${
+        className={`relative border rounded-2xl p-3 md:p-4 flex items-stretch gap-3 cursor-pointer transition-all ${
           task.completed
             ? 'border-green-200 bg-green-50'
             : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
         }`}
       >
-        <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
-          <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full border-[3px] flex items-center justify-center flex-shrink-0 transition-colors ${
-            task.completed ? 'border-green-500 bg-green-500' : 'border-slate-300'
-          }`}>
-            {task.completed && (
-              <CheckCircle size={14} className="text-white" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <span className={`font-bold text-base md:text-lg transition-colors block truncate ${
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClick();
+          }}
+          className="flex-1 min-w-0 text-left"
+        >
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="min-w-0 flex-1">
+              <span className={`font-bold text-sm md:text-base transition-colors block leading-tight line-clamp-2 ${
               task.completed ? 'text-slate-400 line-through' : 'text-slate-700'
             }`}>
               {task.title}
             </span>
-            {task.requiresOpenDetails && !task.detailsOpened && !task.completed && (
-              <span className="text-xs text-amber-500 font-medium mt-0.5 block">
-                🔍 Требуется открыть условия
-              </span>
-            )}
-            {task.difficulty && (
-              <span className="text-xs text-slate-400 font-medium mt-0.5 block">
-                Сложность: {task.difficulty === 'easy' ? 'Легко' : task.difficulty === 'normal' ? 'Нормально' : 'Сложно'}
-              </span>
-            )}
+              {cardSubtitle && !task.completed && (
+                <span className={`text-[11px] font-medium mt-1 block ${requiresDetails ? 'text-amber-500' : 'text-slate-400'}`}>
+                  {requiresDetails ? '🔍 ' : ''}{cardSubtitle}
+                </span>
+              )}
+              {task.difficulty && (
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
+                  Сложность: {task.difficulty === 'easy' ? 'Легко' : task.difficulty === 'normal' ? 'Нормально' : 'Сложно'}
+                </span>
+              )}
+            </div>
+            <div className={`w-6 h-6 md:w-7 md:h-7 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+              task.completed ? 'border-green-500 bg-green-50 text-green-600' : 'border-slate-300 text-slate-300'
+            }`}>
+              {task.completed ? <CheckSquare2 size={16} /> : <Square size={16} />}
+            </div>
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-          {needsModal && !task.completed && (
-            <span className="text-xs text-blue-400 font-medium">
-              Подробнее
-            </span>
-          )}
-          <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg text-sm md:text-base">
-            +{task.stars} <Star size={14} className="fill-amber-400" />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-2 py-1 rounded-lg text-xs md:text-sm">
+            +{task.stars} <Star size={13} className="fill-amber-400" />
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (task.completed) return;
+              if (subtasksEnabled && !allSubtasksDone) {
+                setIsModalOpen(true);
+                return;
+              }
+              if (task.requiresOpenDetails && !detailsOpened) {
+                setShowWarning(true);
+                setTimeout(() => setShowWarning(false), 1200);
+              }
+              if (!subtasksEnabled) {
+                completeTask();
+              } else {
+                setIsModalOpen(true);
+              }
+            }}
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${
+              task.completed
+                ? 'border-green-200 bg-green-100 text-green-600'
+                : 'border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600'
+            }`}
+            title="Открыть или завершить"
+          >
+            <CheckCircle size={18} />
+          </button>
         </div>
 
         <AnimatePresence>
@@ -188,7 +222,9 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                 )}
               </div>
 
-              <h2 className="text-2xl font-extrabold text-slate-800 mt-3 mb-4">{task.title}</h2>
+              <h2 className="text-xl md:text-2xl font-extrabold text-slate-800 mt-3 mb-4 leading-tight">
+                {task.title}
+              </h2>
 
               {task.detailsText && (
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-5">
@@ -222,7 +258,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                       ) : (
                         <div className="w-1.5 h-1.5 mt-2 bg-blue-400 rounded-full flex-shrink-0" />
                       )}
-                      <span className={`text-sm leading-relaxed ${
+                      <span className={`text-sm leading-relaxed whitespace-pre-wrap ${
                         st.done ? 'text-slate-400 line-through' : 'text-slate-700'
                       }`}>
                         {st.title}
@@ -232,9 +268,10 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                 </div>
               )}
 
-              {task.requiresOpenDetails && !task.detailsOpened && (
+              {task.requiresOpenDetails && !detailsOpened && (
                 <button
                   onClick={() => {
+                    setDetailsOpened(true);
                     onDetailsOpened(task.id);
                   }}
                   className="w-full mb-3 bg-amber-50 border-2 border-amber-200 text-amber-700 py-3 rounded-xl font-bold hover:bg-amber-100 transition-colors"
@@ -281,7 +318,6 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                     key={opt.key}
                     onClick={() => {
                       setShowDifficulty(false);
-                      setJustCompleted(false);
                       setIsModalOpen(false);
                       onComplete(task.id, opt.key);
                     }}

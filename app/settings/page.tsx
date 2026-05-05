@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X } from "lucide-react";
+import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X, Bell, CheckCheck } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useChild } from "@/app/lib/ChildContext";
 import AccordionSection from "../components/AccordionSection";
 import { COLOR_ICONS, MINIMAL_ICONS, getIconDisplay } from "../lib/icons";
@@ -9,7 +10,28 @@ import { Switch } from "@/components/ui/switch";
 
 interface Subject { id: string; name: string; order: number; }
 interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; }
-interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; active: boolean; childId: string; }
+interface TaskTemplate {
+  id: string;
+  title: string;
+  category: string;
+  repeatDays: number[];
+  stars: number;
+  active: boolean;
+  childId: string;
+  detailsText?: string;
+  requiresOpenDetails?: boolean;
+  subtasksMode?: 'none' | 'checkboxes' | 'plain-list';
+  subtasks?: { id: string; title: string; done?: boolean }[];
+}
+interface ParentEvent {
+  id: string;
+  childId: 'ali' | 'said';
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
 
 const DAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const DAY_INDEX = [1, 2, 3, 4, 5, 6, 0]; // maps display index to Date.getDay() index
@@ -22,6 +44,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
 
   // Subjects
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -53,14 +76,39 @@ export default function SettingsPage() {
   // Interface / avatars
   const [avatarAli, setAvatarAli] = useState<string | null>(null);
   const [avatarSaid, setAvatarSaid] = useState<string | null>(null);
+  const [showInbox, setShowInbox] = useState(false);
+  const [events, setEvents] = useState<ParentEvent[]>([]);
+  const [eventFilter, setEventFilter] = useState<'all' | 'unread'>('all');
+  const [eventChildFilter, setEventChildFilter] = useState<'all' | 'ali' | 'said'>('all');
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   // Tasks (schedule)
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [newTitle, setNewTitle] = useState(''); const [newStars, setNewStars] = useState('1');
   const [newCategory, setNewCategory] = useState('study'); const [newDays, setNewDays] = useState<number[]>([]);
+  const [newDetailsText, setNewDetailsText] = useState('');
+  const [newRequiresOpenDetails, setNewRequiresOpenDetails] = useState(false);
+  const [newSubtasksMode, setNewSubtasksMode] = useState<'none' | 'checkboxes' | 'plain-list'>('none');
+  const [newSubtasks, setNewSubtasks] = useState<{ id: string; title: string; done?: boolean }[]>([]);
 
   useEffect(() => { setSettingsChildId(currentChild.id); }, [currentChild.id]);
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/parent/me');
+        if (!res.ok) window.location.href = '/parent/login';
+        setAuthChecked(true);
+      } catch {
+        window.location.href = '/parent/login';
+      }
+    };
+    checkAuth();
+  }, []);
   useEffect(() => { loadAll(); }, [settingsChildId]);
+  useEffect(() => {
+    if (!showInbox) return;
+    loadEvents();
+  }, [showInbox, eventFilter, eventChildFilter]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -96,6 +144,37 @@ export default function SettingsPage() {
       }
       const tplData = await tplRes.json(); setTemplates(Array.isArray(tplData) ? tplData.filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both') : []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    try {
+      let url = '/api/events?';
+      if (eventChildFilter !== 'all') url += `childId=${eventChildFilter}&`;
+      if (eventFilter === 'unread') url += 'read=false&';
+      const res = await fetch(url);
+      const data = await res.json();
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const markEventRead = async (id: string) => {
+    await fetch('/api/events', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, read: true })
+    });
+    loadEvents();
+  };
+
+  const deleteEvent = async (id: string) => {
+    await fetch(`/api/events?id=${id}`, { method: 'DELETE' });
+    loadEvents();
   };
 
   const showSaved = (msg: string) => { setSaved(msg); setTimeout(() => setSaved(''), 2000); };
@@ -188,12 +267,38 @@ export default function SettingsPage() {
     const current = await (await fetch('/api/tasks/templates')).json();
     let updated = Array.isArray(current) ? [...current] : [];
     if (editTemplateId) {
-      updated = updated.map((t: any) => t.id === editTemplateId ? { ...t, title: newTitle.trim(), category: newCategory, repeatDays: newDays, stars: parseFloat(newStars), updatedAt: new Date().toISOString() } : t);
+      updated = updated.map((t: any) => t.id === editTemplateId ? {
+        ...t,
+        title: newTitle.trim(),
+        category: newCategory,
+        repeatDays: newDays,
+        stars: parseFloat(newStars),
+        detailsText: newDetailsText,
+        requiresOpenDetails: newRequiresOpenDetails,
+        subtasksMode: newSubtasksMode,
+        subtasks: newSubtasks,
+        updatedAt: new Date().toISOString()
+      } : t);
     } else {
-      updated.push({ id: `tpl-${Date.now()}`, childId: settingsChildId, title: newTitle.trim(), category: newCategory, repeatDays: newDays, stars: parseFloat(newStars), active: true, requiresOpenDetails: false, detailsText: '', subtasksMode: 'none', subtasks: [], askDifficultyAfterDone: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      updated.push({
+        id: `tpl-${Date.now()}`,
+        childId: settingsChildId,
+        title: newTitle.trim(),
+        category: newCategory,
+        repeatDays: newDays,
+        stars: parseFloat(newStars),
+        active: true,
+        requiresOpenDetails: newRequiresOpenDetails,
+        detailsText: newDetailsText,
+        subtasksMode: newSubtasksMode,
+        subtasks: newSubtasks,
+        askDifficultyAfterDone: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
     }
     await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-    setNewTitle(''); setNewStars('1'); setNewDays([]); setEditTemplateId(null); loadAll();
+    setNewTitle(''); setNewStars('1'); setNewDays([]); setNewDetailsText(''); setNewRequiresOpenDetails(false); setNewSubtasksMode('none'); setNewSubtasks([]); setEditTemplateId(null); loadAll();
   };
   const deleteTemplate = async (id: string) => { const updated = templates.filter(t => t.id !== id); await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }); setTemplates(updated); };
   const moveTemplate = async (index: number, dir: -1 | 1) => {
@@ -202,10 +307,30 @@ export default function SettingsPage() {
     const updated = [...templates]; [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
     await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }); setTemplates(updated);
   };
-  const cancelEdit = () => { setEditTemplateId(null); setNewTitle(''); setNewStars('1'); setNewDays([]); };
+  const cancelEdit = () => { setEditTemplateId(null); setNewTitle(''); setNewStars('1'); setNewDays([]); setNewDetailsText(''); setNewRequiresOpenDetails(false); setNewSubtasksMode('none'); setNewSubtasks([]); };
   const getCategoryLabel = (cat: string) => CATEGORIES[cat] || cat;
+  const beginEditTemplate = (t: TaskTemplate) => {
+    setEditTemplateId(t.id);
+    setNewTitle(t.title);
+    setNewStars(String(t.stars));
+    setNewCategory(t.category);
+    setNewDays(t.repeatDays || []);
+    setNewDetailsText((t as any).detailsText || '');
+    setNewRequiresOpenDetails(!!(t as any).requiresOpenDetails);
+    setNewSubtasksMode((t as any).subtasksMode || 'none');
+    setNewSubtasks(Array.isArray((t as any).subtasks) ? (t as any).subtasks.map((st: any, idx: number) => ({ id: st.id || `subtask-${idx}`, title: st.title || '', done: !!st.done })) : []);
+  };
+  const addTemplateSubtask = () => {
+    setNewSubtasks(prev => [...prev, { id: `subtask-${Date.now()}-${prev.length}`, title: '' }]);
+  };
+  const updateTemplateSubtask = (id: string, title: string) => {
+    setNewSubtasks(prev => prev.map(st => st.id === id ? { ...st, title } : st));
+  };
+  const removeTemplateSubtask = (id: string) => {
+    setNewSubtasks(prev => prev.filter(st => st.id !== id));
+  };
 
-  if (loading) return (
+  if (!authChecked || loading) return (
     <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center">
       <svg width={48} height={48} viewBox="0 0 24 24" fill="none" className="animate-spin text-blue-500"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray="60" strokeDashoffset="20"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg>
     </div>
@@ -215,11 +340,21 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
       <header className="bg-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 z-40">
         <h1 className="text-lg md:text-xl font-extrabold text-slate-800">Настройки</h1>
-        <div className="bg-slate-100 rounded-xl p-1 flex">
-          {(['ali', 'said'] as const).map(id => (
-            <button key={id} onClick={() => setSettingsChildId(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === id ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{id === 'ali' ? 'Али' : 'Саид'}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowInbox(true)}
+            className="w-10 h-10 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center"
+            title="Входящие"
+          >
+            <Bell size={18} />
+          </button>
+          <div className="bg-slate-100 rounded-xl p-1 flex">
+            {(['ali', 'said'] as const).map(id => (
+              <button key={id} onClick={() => setSettingsChildId(id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === id ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{id === 'ali' ? 'Али' : 'Саид'}</button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -250,7 +385,6 @@ export default function SettingsPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <p className="text-[11px] text-slate-400">PIN 1 по умолчанию: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-xs">199991</code></p>
             <button onClick={async () => {
               await fetch('/api/auth/parent/settings', { method: 'DELETE' });
               setPinStatus({ hasPin1: false, hasPin2: false, hasRecovery: false });
@@ -279,6 +413,46 @@ export default function SettingsPage() {
                 {editTemplateId ? <Check size={20} /> : <Plus size={20} />}
               </button>
             </div>
+            <input type="text" placeholder="Описание квеста (необязательно)" value={newDetailsText} onChange={e => setNewDetailsText(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-green-500 transition-all font-medium text-sm" />
+            <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+              <div>
+                <p className="text-sm font-bold text-slate-700">Требовать открыть условия</p>
+                <p className="text-xs text-slate-400">Для сложных квестов перед завершением</p>
+              </div>
+              <Switch checked={newRequiresOpenDetails} onCheckedChange={setNewRequiresOpenDetails} />
+            </div>
+            <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+              <div>
+                <p className="text-sm font-bold text-slate-700">Подзадачи</p>
+                <p className="text-xs text-slate-400">Чекбоксы, список инструкций или без них</p>
+              </div>
+              <select value={newSubtasksMode} onChange={e => setNewSubtasksMode(e.target.value as any)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold bg-white">
+                <option value="none">Без подзадач</option>
+                <option value="checkboxes">Чекбоксы</option>
+                <option value="plain-list">Список</option>
+              </select>
+            </div>
+            {newSubtasksMode !== 'none' && (
+              <div className="space-y-2 bg-slate-50 rounded-2xl border border-slate-100 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Подзадачи</p>
+                  <button onClick={addTemplateSubtask} className="text-xs font-bold text-blue-600 hover:text-blue-700">+ Добавить</button>
+                </div>
+                <div className="space-y-2">
+                  {newSubtasks.map((st, idx) => (
+                    <div key={st.id} className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 w-5 shrink-0">{idx + 1}.</span>
+                      <input value={st.title} onChange={e => updateTemplateSubtask(st.id, e.target.value)}
+                        placeholder="Текст подзадачи"
+                        className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white" />
+                      <button onClick={() => removeTemplateSubtask(st.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-1.5">
               {DAYS_SHORT.map((day, i) => {
                 const di = DAY_INDEX[i];
@@ -294,23 +468,35 @@ export default function SettingsPage() {
           <div className="space-y-1.5 max-h-60 overflow-y-auto">
             {templates.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет задач</p>}
             {templates.map((t, idx) => (
-              <div key={t.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-3 flex items-center justify-between gap-2 group">
+              <div key={t.id} className={`rounded-2xl p-3 flex items-start justify-between gap-2 group border ${t.active ? 'bg-slate-50 border-slate-100' : 'bg-slate-100 border-slate-200 opacity-70'}`}>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-slate-800 text-sm truncate">{t.title}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getCategoryLabel(t.category)}</span>
                   </div>
+                  {(t as any).subtasks?.length > 0 && (
+                    <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
+                      {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}
+                    </div>
+                  )}
                   <div className="flex items-center gap-0.5 mt-1">
                     {DAYS_SHORT.map((day, i) => (
-                      <span key={i} className={`text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center ${t.repeatDays?.includes(DAY_INDEX[i]) ? 'bg-blue-100 text-blue-600' : 'text-slate-300'}`}>{day}</span>
+                      t.repeatDays?.includes(DAY_INDEX[i]) ? <span key={i} className="text-[9px] font-bold px-1.5 h-4 rounded flex items-center justify-center bg-blue-100 text-blue-600">{day}</span> : null
                     ))}
                     <span className="ml-1.5 text-[11px] font-bold text-amber-500">+{t.stars} ⭐</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={async () => {
+                    const updated = templates.map(item => item.id === t.id ? { ...item, active: !item.active, updatedAt: new Date().toISOString() } : item);
+                    setTemplates(updated);
+                    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+                  }} className={`text-xs font-bold px-2 py-1 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                    {t.active ? 'On' : 'Off'}
+                  </button>
                   <button onClick={() => moveTemplate(idx, -1)} disabled={idx === 0} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg></button>
                   <button onClick={() => moveTemplate(idx, 1)} disabled={idx === templates.length - 1} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
-                  <button onClick={() => editTemplate(t)} className="text-slate-300 hover:text-blue-500 transition-colors p-1"><Edit3 size={13} /></button>
+                  <button onClick={() => beginEditTemplate(t as any)} className="text-slate-300 hover:text-blue-500 transition-colors p-1"><Edit3 size={13} /></button>
                   <button onClick={() => deleteTemplate(t.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><Trash2 size={13} /></button>
                 </div>
               </div>
@@ -561,6 +747,73 @@ export default function SettingsPage() {
         </AccordionSection>
 
       </main>
+
+      <AnimatePresence>
+        {showInbox && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowInbox(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-3xl max-h-[85vh] overflow-hidden bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col"
+            >
+              <div className="p-4 md:p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-extrabold text-slate-800">Входящие</h2>
+                  <p className="text-sm text-slate-500">Последние действия и события детей</p>
+                </div>
+                <button onClick={() => setShowInbox(false)} className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 flex items-center justify-center">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-4 md:p-5 border-b border-slate-100 flex flex-wrap gap-2">
+                <button onClick={() => setEventFilter('all')} className={`px-3 py-2 rounded-xl text-xs font-bold ${eventFilter === 'all' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>Все</button>
+                <button onClick={() => setEventFilter('unread')} className={`px-3 py-2 rounded-xl text-xs font-bold ${eventFilter === 'unread' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>Непрочитанные</button>
+                <button onClick={() => setEventChildFilter('all')} className={`px-3 py-2 rounded-xl text-xs font-bold ${eventChildFilter === 'all' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>Все дети</button>
+                <button onClick={() => setEventChildFilter('ali')} className={`px-3 py-2 rounded-xl text-xs font-bold ${eventChildFilter === 'ali' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>Али</button>
+                <button onClick={() => setEventChildFilter('said')} className={`px-3 py-2 rounded-xl text-xs font-bold ${eventChildFilter === 'said' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>Саид</button>
+              </div>
+              <div className="p-4 md:p-5 overflow-y-auto space-y-3">
+                {eventsLoading ? (
+                  <div className="text-center py-8 text-slate-400">Загрузка...</div>
+                ) : events.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">Нет событий</div>
+                ) : events.map(event => (
+                  <div key={event.id} className={`rounded-2xl border p-4 ${event.read ? 'border-slate-100 bg-white' : 'border-blue-200 bg-blue-50/30'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${event.childId === 'ali' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                            {event.childId === 'ali' ? 'Али' : 'Саид'}
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
+                            {event.type}
+                          </span>
+                          {!event.read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+                        </div>
+                        <h3 className="font-bold text-slate-800 leading-tight">{event.title}</h3>
+                        <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{event.body}</p>
+                        <p className="text-xs text-slate-400 mt-2">{new Date(event.createdAt).toLocaleString('ru-RU')}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!event.read && (
+                          <button onClick={() => markEventRead(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-blue-500 hover:bg-blue-50 flex items-center justify-center" title="Прочитано">
+                            <CheckCheck size={16} />
+                          </button>
+                        )}
+                        <button onClick={() => deleteEvent(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center" title="Удалить">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

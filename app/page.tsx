@@ -20,6 +20,38 @@ interface Task {
 interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
 interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; }
 
+const DAY_NAMES_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+function getNextRepeatInfo(repeatDays: number[], from = new Date()) {
+  if (!Array.isArray(repeatDays) || repeatDays.length === 0) {
+    return { label: 'Одноразово', date: '' };
+  }
+
+  const today = new Date(from);
+  today.setHours(0, 0, 0, 0);
+  const currentDay = today.getDay();
+  const sorted = DAY_ORDER.filter((day) => repeatDays.includes(day));
+  const todayIncluded = sorted.includes(currentDay);
+
+  if (todayIncluded) {
+    return { label: 'Сегодня', date: today.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) };
+  }
+
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const candidate = new Date(today);
+    candidate.setDate(today.getDate() + offset);
+    if (repeatDays.includes(candidate.getDay())) {
+      return {
+        label: DAY_NAMES_SHORT[candidate.getDay()],
+        date: candidate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
+      };
+    }
+  }
+
+  return { label: 'По графику', date: '' };
+}
+
 export default function Home() {
   const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
@@ -203,7 +235,7 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4">
 
         {/* ЗАДАЧИ НА СЕГОДНЯ */}
-        <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+        <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
           <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-slate-800 mb-4">
             <span>🚀</span> Задачи на сегодня
           </h2>
@@ -218,38 +250,53 @@ export default function Home() {
 
         {/* РАСПИСАНИЕ (read-only) */}
         {templates.length > 0 && (
-          <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+          <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
             <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-slate-800 mb-4">
               <span>📅</span> Расписание
             </h2>
             <div className="space-y-2">
-              {templates.map(t => (
-                <div key={t.id} className="flex items-center gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                  <span className="font-bold text-slate-800 text-sm flex-1 truncate">{t.title}</span>
-                  <div className="flex gap-0.5">
-                    {[1,2,3,4,5,6,0].map((di, i) => (
-                      <span key={i} className={`text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center ${t.repeatDays?.includes(di) ? 'bg-blue-100 text-blue-600' : 'text-slate-300'} ${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}`}>{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]}</span>
-                    ))}
+              {templates.map(t => {
+                const repeatInfo = getNextRepeatInfo(t.repeatDays);
+                return (
+                  <div key={t.id} className="flex items-start gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                    <div className="min-w-0 flex-1">
+                      <span
+                        className="font-bold text-slate-800 text-sm leading-tight block overflow-hidden"
+                        style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}
+                      >
+                        {t.title}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 max-w-[55%]">
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-600 whitespace-nowrap">
+                        {repeatInfo.label}
+                      </span>
+                      {repeatInfo.date && (
+                        <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">
+                          {repeatInfo.date}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-500 shrink-0 ml-1 whitespace-nowrap">+{t.stars} ⭐</span>
                   </div>
-                  <span className="text-[11px] font-bold text-amber-500 shrink-0 ml-1">+{t.stars} ⭐</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
 
         {/* МАГАЗИН НАГРАД */}
-        <section className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] rounded-[24px] p-5 md:p-6 shadow-lg shadow-indigo-200">
+        <section className="bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] rounded-[24px] p-4 md:p-6 shadow-lg shadow-indigo-200">
           <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-white mb-4">
             <span>🎁</span> Магазин наград
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
             {loadingRewards && <>{[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-white/15 animate-pulse" />)}</>}
             {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
               return (
                 <div key={reward.id} onClick={() => buyReward(reward.costStars, reward.title)}
-                  className={`border rounded-2xl p-4 flex flex-col gap-2 transition-all cursor-pointer ${canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-md' : 'bg-white/5 border-white/10 opacity-70'}`}>
+                  className={`border rounded-2xl p-3 flex flex-col gap-2 transition-all cursor-pointer ${canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-md' : 'bg-white/5 border-white/10 opacity-70'}`}>
                    <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
                   {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
                   <div className="flex items-center gap-2 mt-auto">
