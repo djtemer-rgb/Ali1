@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Check, Filter } from "lucide-react";
+import { Trash2, Check, Filter, CircleCheckBig, Ban } from "lucide-react";
 
 interface ParentEvent {
   id: string;
@@ -12,10 +12,19 @@ interface ParentEvent {
   body: string;
   read: boolean;
   createdAt: string;
+  rewardId?: string;
+}
+
+interface RewardItem {
+  id: string;
+  childId: 'ali' | 'said' | 'both';
+  title: string;
+  costStars: number;
 }
 
 export default function ParentInbox() {
   const [events, setEvents] = useState<ParentEvent[]>([]);
+  const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [childFilter, setChildFilter] = useState<'all' | 'ali' | 'said'>('all');
   const [loading, setLoading] = useState(true);
@@ -31,10 +40,17 @@ export default function ParentInbox() {
       let url = '/api/events?';
       if (childFilter !== 'all') url += `childId=${childFilter}&`;
       if (filter === 'unread') url += 'read=false&';
-      
-      const res = await fetch(url);
-      const data = await res.json();
-      setEvents(data);
+
+      const [eventsRes, aliRewardsRes, saidRewardsRes] = await Promise.all([
+        fetch(url),
+        fetch('/api/rewards?childId=ali'),
+        fetch('/api/rewards?childId=said')
+      ]);
+      const data = await eventsRes.json();
+      const aliRewards = await aliRewardsRes.json();
+      const saidRewards = await saidRewardsRes.json();
+      setEvents(Array.isArray(data) ? data : []);
+      setRewards([...(Array.isArray(aliRewards) ? aliRewards : []), ...(Array.isArray(saidRewards) ? saidRewards : [])]);
     } catch (error) {
       console.error('Error loading events:', error);
     } finally {
@@ -78,6 +94,62 @@ export default function ParentInbox() {
       'system': 'Система'
     };
     return labels[type] || type;
+  };
+
+  const rewardById = (rewardId?: string) => rewards.find(r => r.id === rewardId);
+
+  const confirmReward = async (event: ParentEvent) => {
+    if (!event.rewardId) return;
+    await fetch('/api/rewards/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'fulfilled' })
+    });
+    await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: event.childId,
+        type: 'system',
+        title: 'Награда подтверждена',
+        body: `${getChildName(event.childId)} получил подтверждение на награду: ${rewardById(event.rewardId)?.title || 'Награда'}`
+      })
+    });
+    loadEvents();
+  };
+
+  const cancelReward = async (event: ParentEvent) => {
+    if (!event.rewardId) return;
+    const reward = rewardById(event.rewardId);
+    await fetch('/api/rewards/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'available' })
+    });
+    if (reward) {
+      await fetch('/api/star-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: event.childId,
+          amount: reward.costStars,
+          source: 'adjustment',
+          sourceId: reward.id,
+          reason: `Отмена награды: ${reward.title}`
+        })
+      });
+    }
+    await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: event.childId,
+        type: 'system',
+        title: 'Награда отменена',
+        body: `${getChildName(event.childId)}: награда отменена${reward ? `, звёзды возвращены (+${reward.costStars})` : ''}`
+      })
+    });
+    loadEvents();
   };
 
   return (
@@ -170,6 +242,22 @@ export default function ParentInbox() {
                     </div>
                     <h3 className="font-bold text-slate-800">{event.title}</h3>
                     <p className="text-sm text-slate-600 mt-1">{event.body}</p>
+                    {event.type === 'reward-selected' && event.rewardId && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => confirmReward(event)}
+                          className="inline-flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors"
+                        >
+                          <CircleCheckBig size={14} /> Подтвердить
+                        </button>
+                        <button
+                          onClick={() => cancelReward(event)}
+                          className="inline-flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-200 transition-colors"
+                        >
+                          <Ban size={14} /> Отменить
+                        </button>
+                      </div>
+                    )}
                     <p className="text-xs text-slate-400 mt-2">
                       {new Date(event.createdAt).toLocaleString('ru-RU')}
                     </p>

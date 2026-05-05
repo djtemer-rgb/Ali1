@@ -23,6 +23,13 @@ interface TaskTemplate {
   subtasksMode?: 'none' | 'checkboxes' | 'plain-list';
   subtasks?: { id: string; title: string; done?: boolean }[];
 }
+interface GradeRecord {
+  id: string;
+  subjectName: string;
+  grade: number;
+  starsAwarded: number;
+  createdAt: string;
+}
 interface ParentEvent {
   id: string;
   childId: 'ali' | 'said';
@@ -81,6 +88,10 @@ export default function SettingsPage() {
   const [eventFilter, setEventFilter] = useState<'all' | 'unread'>('all');
   const [eventChildFilter, setEventChildFilter] = useState<'all' | 'ali' | 'said'>('all');
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [gradeHistoryLimit, setGradeHistoryLimit] = useState('20');
+  const [showGradeHistory, setShowGradeHistory] = useState(false);
+  const [gradeHistory, setGradeHistory] = useState<GradeRecord[]>([]);
+  const [gradeHistoryLoading, setGradeHistoryLoading] = useState(false);
 
   // Tasks (schedule)
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -109,6 +120,10 @@ export default function SettingsPage() {
     if (!showInbox) return;
     loadEvents();
   }, [showInbox, eventFilter, eventChildFilter]);
+  useEffect(() => {
+    if (!showGradeHistory) return;
+    loadGradeHistory();
+  }, [showGradeHistory, gradeHistoryLimit, settingsChildId]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -129,6 +144,7 @@ export default function SettingsPage() {
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
       if (setData.resetEnabled !== undefined) setResetEnabled(setData.resetEnabled);
       if (setData.resetDays) setResetDays(String(setData.resetDays));
+      if (setData.gradeHistoryLimit !== undefined) setGradeHistoryLimit(String(setData.gradeHistoryLimit));
       if (setData.openRouterUrl) setOpenRouterUrl(setData.openRouterUrl);
       if (setData.aiModel) setAiModel(setData.aiModel);
       if (setData.heroes) setHeroes(setData.heroes);
@@ -160,6 +176,22 @@ export default function SettingsPage() {
       setEvents([]);
     } finally {
       setEventsLoading(false);
+    }
+  };
+
+  const loadGradeHistory = async () => {
+    setGradeHistoryLoading(true);
+    try {
+      const limit = Math.min(50, Math.max(20, parseInt(gradeHistoryLimit) || 20));
+      const res = await fetch(`/api/grades?type=grades&childId=${settingsChildId}`);
+      const data = await res.json();
+      const ordered = Array.isArray(data) ? [...data].reverse().slice(0, limit) : [];
+      setGradeHistory(ordered);
+    } catch (error) {
+      console.error('Error loading grade history:', error);
+      setGradeHistory([]);
+    } finally {
+      setGradeHistoryLoading(false);
     }
   };
 
@@ -200,6 +232,15 @@ export default function SettingsPage() {
     settings.gradeToStars = gradeToStars;
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     showSaved('Маппинг оценок сохранён');
+  };
+
+  const saveGradeHistoryLimit = async () => {
+    const limit = Math.min(50, Math.max(20, parseInt(gradeHistoryLimit) || 20));
+    const settings = await (await fetch('/api/settings')).json();
+    settings.gradeHistoryLimit = limit;
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+    setGradeHistoryLimit(String(limit));
+    showSaved('Лимит истории сохранён');
   };
 
   // Star economy
@@ -537,6 +578,32 @@ export default function SettingsPage() {
             </div>
             <button onClick={saveGradeMapping} className="bg-blue-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-blue-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить маппинг</button>
           </div>
+
+          <div className="mt-4 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-700">История оценок</p>
+                <p className="text-xs text-slate-400">Компактное окно с лимитом от 20 до 50 записей</p>
+              </div>
+              <button onClick={() => setShowGradeHistory(true)} className="bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold hover:border-blue-300 hover:text-blue-600 transition-colors">
+                Открыть
+              </button>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Лимит:</span>
+              <input
+                type="number"
+                min="20"
+                max="50"
+                value={gradeHistoryLimit}
+                onChange={e => setGradeHistoryLimit(e.target.value)}
+                className="w-20 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 transition-all font-medium text-sm text-center bg-white"
+              />
+              <button onClick={saveGradeHistoryLimit} className="bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors">
+                Сохранить
+              </button>
+            </div>
+          </div>
         </AccordionSection>
 
         {/* 4. STAR ECONOMY */}
@@ -749,6 +816,51 @@ export default function SettingsPage() {
       </main>
 
       <AnimatePresence>
+        {showGradeHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowGradeHistory(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[80vh] overflow-hidden"
+            >
+              <div className="p-4 md:p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-extrabold text-slate-800">История оценок</h2>
+                  <p className="text-sm text-slate-500">Показываем последние {Math.min(50, Math.max(20, parseInt(gradeHistoryLimit) || 20))} записей</p>
+                </div>
+                <button onClick={() => setShowGradeHistory(false)} className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 flex items-center justify-center">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-4 md:p-5 overflow-y-auto space-y-2">
+                {gradeHistoryLoading ? (
+                  <div className="space-y-2">
+                    {[1,2,3,4,5].map(i => <div key={i} className="h-14 rounded-2xl bg-slate-100 animate-pulse" />)}
+                  </div>
+                ) : gradeHistory.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">Пока нет оценок</div>
+                ) : (
+                  gradeHistory.map(g => (
+                    <div key={g.id} className="flex items-center justify-between bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl font-extrabold text-base flex items-center justify-center border-2 ${g.grade === 5 ? 'bg-green-100 text-green-700 border-green-300' : g.grade === 4 ? 'bg-blue-100 text-blue-700 border-blue-300' : g.grade === 3 ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-red-100 text-red-700 border-red-300'}`}>{g.grade}</div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 text-sm truncate">{g.subjectName}</p>
+                          <p className="text-[11px] text-slate-400">{new Date(g.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-amber-500 font-bold text-xs shrink-0 ml-3">
+                        +{g.starsAwarded || (g.grade === 5 ? 5 : g.grade === 4 ? 2 : 0)} <Star size={11} className="fill-amber-400" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
         {showInbox && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowInbox(false)}>
             <motion.div

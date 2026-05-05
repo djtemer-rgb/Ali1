@@ -8,6 +8,14 @@ import GradeInput from "../components/GradeInput";
 
 interface GradeRecord { id: string; subjectName: string; grade: number; starsAwarded: number; createdAt: string; }
 
+function formatFullDate(dateInput: string) {
+  return new Date(dateInput).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
 export default function GradesPage() {
   const { currentChild } = useChild();
   const [grades, setGrades] = useState<GradeRecord[]>([]);
@@ -18,7 +26,8 @@ export default function GradesPage() {
     try {
       const [gradesRes] = await Promise.all([fetch(`/api/grades?type=grades&childId=${currentChild.id}`)]);
       const d = await gradesRes.json();
-      setGrades(Array.isArray(d) ? d.reverse() : []);
+      const ordered = Array.isArray(d) ? [...d].reverse() : [];
+      setGrades(ordered.slice(0, 20));
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
@@ -54,8 +63,7 @@ export default function GradesPage() {
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl font-extrabold text-base flex items-center justify-center border-2 ${getGradeColor(g.grade)}`}>{g.grade}</div>
                     <div>
-                      <p className="font-bold text-slate-800 text-sm">{g.subjectName}</p>
-                      <p className="text-[11px] text-slate-400">{new Date(g.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+                      <p className="font-bold text-slate-800 text-sm">{g.subjectName} <span className="text-[11px] text-slate-400 font-medium">({formatFullDate(g.createdAt)})</span></p>
                     </div>
                   </div>
                     <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">

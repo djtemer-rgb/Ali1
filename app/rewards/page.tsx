@@ -25,7 +25,7 @@ export default function RewardsPage() {
   const [currentChild, setCurrentChild] = useState<ChildProfile>({ id: "ali", name: "Али", letter: "А", mode: "full" });
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [stars, setStars] = useState(0);
-  const [selectedRewards, setSelectedRewards] = useState<string[]>([]);
+  const [rewardStatuses, setRewardStatuses] = useState<Record<string, 'available' | 'selected' | 'fulfilled'>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,11 +46,13 @@ export default function RewardsPage() {
 
       setRewards(Array.isArray(rewardsData) ? rewardsData : []);
       setStars(starsData.balance || 0);
-      setSelectedRewards(
-        Array.isArray(statusData)
-          ? statusData.filter((s: any) => s.status === 'selected').map((s: any) => s.rewardId)
-          : []
-      );
+      const statuses: Record<string, 'available' | 'selected' | 'fulfilled'> = {};
+      if (Array.isArray(statusData)) {
+        statusData.forEach((s: any) => {
+          if (s.rewardId) statuses[s.rewardId] = s.status;
+        });
+      }
+      setRewardStatuses(statuses);
     } catch (error) {
       console.error('Error loading rewards:', error);
     } finally {
@@ -59,23 +61,40 @@ export default function RewardsPage() {
   };
 
   const toggleSelectReward = async (reward: Reward) => {
-    if (stars < reward.costStars) {
-      alert(`Не хватает звезд! Нужно еще ${reward.costStars - stars} ⭐️`);
-      return;
-    }
+    const currentStatus = rewardStatuses[reward.id] || 'available';
 
-    if (selectedRewards.includes(reward.id)) {
-      setSelectedRewards(prev => prev.filter(id => id !== reward.id));
+    if (currentStatus === 'selected') {
+      setStars(prev => prev + reward.costStars);
+      await fetch('/api/star-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: currentChild.id,
+          amount: reward.costStars,
+          source: 'adjustment',
+          sourceId: reward.id,
+          reason: `Отмена выбора награды: ${reward.title}`
+        })
+      });
       await fetch('/api/rewards/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'available' })
       });
+      setRewardStatuses(prev => ({ ...prev, [reward.id]: 'available' }));
+      return;
+    }
+
+    if (currentStatus === 'fulfilled') {
+      return;
+    }
+
+    if (stars < reward.costStars) {
+      alert(`Не хватает звезд! Нужно еще ${reward.costStars - stars} ⭐️`);
       return;
     }
 
     setStars(prev => prev - reward.costStars);
-    setSelectedRewards(prev => [...prev, reward.id]);
     confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
 
     await fetch('/api/star-ledger', {
@@ -94,6 +113,7 @@ export default function RewardsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' })
     });
+    setRewardStatuses(prev => ({ ...prev, [reward.id]: 'selected' }));
 
     await fetch('/api/events', {
       method: 'POST',
@@ -102,7 +122,8 @@ export default function RewardsPage() {
         childId: currentChild.id,
         type: 'reward-selected',
         title: 'Награда выбрана',
-        body: `${currentChild.name} выбрал награду: ${reward.title}`
+        body: `${currentChild.name} выбрал награду: ${reward.title}`,
+        rewardId: reward.id
       })
     });
   };
@@ -159,7 +180,8 @@ export default function RewardsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {rewards.map(reward => {
-              const isSelected = selectedRewards.includes(reward.id);
+              const isSelected = rewardStatuses[reward.id] === 'selected';
+              const isFulfilled = rewardStatuses[reward.id] === 'fulfilled';
               const canAfford = stars >= reward.costStars;
               return (
                 <div
@@ -182,11 +204,13 @@ export default function RewardsPage() {
                     <div className={`rounded-xl px-4 py-2 flex items-center gap-1 font-extrabold text-sm ${
                       isSelected
                         ? 'bg-green-500 text-white'
+                        : isFulfilled
+                        ? 'bg-blue-500 text-white'
                         : canAfford
                         ? 'bg-amber-50 text-amber-600'
                         : 'bg-slate-100 text-slate-400'
                     }`}>
-                      {isSelected ? '✅ Выбрано' : `${reward.costStars} ⭐`}
+                      {isFulfilled ? 'Получено' : isSelected ? 'Отменить выбор' : `${reward.costStars} ⭐`}
                     </div>
                   </div>
                 </div>

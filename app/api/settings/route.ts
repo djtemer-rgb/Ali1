@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
     '3': 0,
     '2': 0
   },
+  gradeHistoryLimit: 20,
   starExpirationDays: 90,
   telegramEnabled: false,
   aiEnabled: false,
@@ -25,6 +26,9 @@ export async function GET() {
     if (!settings) {
       settings = DEFAULT_SETTINGS;
       await setJson(SETTINGS_KEY, settings);
+    } else {
+      settings = { ...DEFAULT_SETTINGS, ...settings };
+      if (settings.gradeHistoryLimit === undefined) settings.gradeHistoryLimit = DEFAULT_SETTINGS.gradeHistoryLimit;
     }
     return NextResponse.json(settings);
   } catch (error) {
@@ -36,7 +40,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const settings = { ...body, updatedAt: new Date().toISOString() };
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...body,
+      gradeHistoryLimit: Number.isFinite(Number(body.gradeHistoryLimit)) ? Math.min(50, Math.max(20, Number(body.gradeHistoryLimit))) : DEFAULT_SETTINGS.gradeHistoryLimit,
+      updatedAt: new Date().toISOString()
+    };
     await setJson(SETTINGS_KEY, settings);
     return NextResponse.json(settings);
   } catch (error) {

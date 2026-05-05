@@ -37,6 +37,11 @@ export async function POST(request: Request) {
       fulfilledAt: status === 'fulfilled' ? new Date().toISOString() : undefined,
     };
 
+    if (status === 'available') {
+      newStatus.selectedAt = undefined;
+      newStatus.fulfilledAt = undefined;
+    }
+
     if (existing >= 0) {
       statuses[existing] = { ...statuses[existing], ...newStatus };
     } else {
