@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
+import { invalidateReportCache } from '../report-cache';
 
 export async function GET(request: Request) {
   try {
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
     
     ledger.push(newItem);
     await setJson(`aq:star-ledger:${childId}`, ledger);
+    await invalidateReportCache(childId);
     
     // Calculate new balance
     const balance = ledger.reduce((sum: number, item: any) => sum + item.amount, 0);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
+import { invalidateReportCache } from '../report-cache';
 
 const DEFAULT_SUBJECTS = [
   { id: 'subj-1', name: 'Математика', order: 1 },
@@ -67,6 +68,8 @@ export async function POST(request: Request) {
       });
     }
 
+    await invalidateReportCache(body.childId);
+
     // Create parent event
     try {
       const events = await getJson('aq:events:parent') || [];
@@ -114,9 +117,12 @@ export async function DELETE(request: Request) {
     const id = url.searchParams.get('id');
     
     let grades = await getJson('aq:grades') || [];
+    const gradeToRemove = grades.find((g: any) => g.id === id);
     grades = grades.filter((g: any) => g.id !== id);
     await setJson('aq:grades', grades);
-    
+
+    await invalidateReportCache(gradeToRemove?.childId);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting grade:', error);
@@ -134,4 +140,5 @@ async function addStarLedgerItem(item: any) {
     createdAt: new Date().toISOString()
   });
   await setJson(`aq:star-ledger:${item.childId}`, ledger);
+  await invalidateReportCache(item.childId);
 }

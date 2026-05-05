@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../../upstash';
+import { invalidateReportCache } from '../../report-cache';
 
 export async function GET(request: Request) {
   try {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     }
 
     await setJson(`aq:reward-status:${childId}`, statuses);
+    await invalidateReportCache(childId);
     return NextResponse.json(newStatus);
   } catch (error) {
     console.error('Error saving reward status:', error);

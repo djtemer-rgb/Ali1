@@ -68,8 +68,7 @@ export async function GET(request: Request) {
     }
 
     // Get grades — batch read all grades and filter locally
-    const allGradesRaw = await redis.get<string>('aq:grades');
-    const allGrades: any[] = allGradesRaw ? JSON.parse(allGradesRaw) : [];
+    const allGrades = await getJson('aq:grades');
     const periodGrades = Array.isArray(allGrades)
       ? allGrades.filter((g: any) =>
           g.childId === childId &&

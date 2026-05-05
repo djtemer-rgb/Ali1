@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../../upstash';
+import { invalidateReportCache } from '../../report-cache';
 
 export async function GET(request: Request) {
   try {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     const key = `aq:day:${childId}:${date}`;
     const normalized = Array.isArray(tasks) ? tasks.map(normalizeTaskState) : [];
     await setJson(key, normalized);
+    await invalidateReportCache(childId);
     return NextResponse.json(normalized);
   } catch (error) {
     console.error('Error saving day tasks:', error);
