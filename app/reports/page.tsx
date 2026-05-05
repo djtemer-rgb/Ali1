@@ -164,6 +164,7 @@ export default function ReportsPage() {
   const maxChartValue = Math.max(maxTasks, maxStarMagnitude);
   const gradeLimit = data?.settings?.gradeHistoryLimit || 20;
   const gradeToStars = data?.settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
+  const reportListLimit = 20;
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
@@ -334,13 +335,14 @@ export default function ReportsPage() {
               )}
             </section>
 
-            <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <section className="space-y-4">
               <CompactListSection
                 title="Последние выполненные задачи"
                 icon={<FileText size={18} className="text-blue-500" />}
                 emptyLabel="Пока нет выполненных задач"
+                maxVisibleItems={5}
               >
-                {data.recentTasks.slice(0, 10).map((task) => (
+                {data.recentTasks.slice(0, reportListLimit).map((task) => (
                   <div key={task.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -379,8 +381,9 @@ export default function ReportsPage() {
                 title="История звёзд"
                 icon={<Star size={18} className="fill-amber-400 text-amber-400" />}
                 emptyLabel="Пока нет записей"
+                maxVisibleItems={5}
               >
-                {data.recentStarEntries.slice(0, 10).map((entry) => (
+                {data.recentStarEntries.slice(0, reportListLimit).map((entry) => (
                   <div key={entry.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -407,8 +410,9 @@ export default function ReportsPage() {
                 title="Последние оценки"
                 icon={<BadgeInfo size={18} className="text-indigo-500" />}
                 emptyLabel="Пока нет оценок"
+                maxVisibleItems={5}
               >
-                {data.grades.slice(0, 10).map((grade: any) => (
+                {data.grades.slice(0, reportListLimit).map((grade: any) => (
                   <div key={grade.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -433,9 +437,9 @@ export default function ReportsPage() {
               </CompactListSection>
             </section>
 
-            {data.grades.length > 10 && (
+            {data.grades.length > reportListLimit && (
               <p className="text-[11px] text-slate-400 text-center -mt-1">
-                Показаны 10 последних оценок из {data.summary.totalGradesCount}
+                Показаны 20 последних оценок из {data.summary.totalGradesCount}
               </p>
             )}
 
@@ -510,7 +514,7 @@ function InsightPill({ title, value, subtitle }: { title: string; value: ReactNo
   );
 }
 
-function CompactListSection({ title, icon, emptyLabel, children }: { title: string; icon: ReactNode; emptyLabel: string; children: ReactNode }) {
+function CompactListSection({ title, icon, emptyLabel, children, maxVisibleItems = 5 }: { title: string; icon: ReactNode; emptyLabel: string; children: ReactNode; maxVisibleItems?: number }) {
   const hasContent = Children.toArray(children).length > 0;
 
   return (
@@ -520,7 +524,12 @@ function CompactListSection({ title, icon, emptyLabel, children }: { title: stri
         {title}
       </div>
       {hasContent ? (
-        <div className="space-y-2.5">{children}</div>
+        <div
+          className="space-y-2.5 overflow-y-auto pr-1"
+          style={{ maxHeight: `calc(${maxVisibleItems} * 152px + ${Math.max(0, maxVisibleItems - 1)} * 10px)` }}
+        >
+          {children}
+        </div>
       ) : (
         <p className="text-slate-400 text-sm">{emptyLabel}</p>
       )}
