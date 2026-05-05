@@ -11,6 +11,7 @@ import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
 import { buildTaskCompletionBundle, formatStarAmount } from "@/app/lib/reporting";
+import { getChildSettings } from "@/app/lib/settings-shared";
 
 interface Task {
   id: string; templateId?: string; title: string; stars: number; completed: boolean; completedAt?: string;
@@ -19,20 +20,28 @@ interface Task {
   difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string; customCategory?: string;
 }
 interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
-interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; }
+interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; oneTimeDate?: string; }
 
 const DAY_NAMES_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-function getNextRepeatInfo(repeatDays: number[], from = new Date()) {
-  if (!Array.isArray(repeatDays) || repeatDays.length === 0) {
+function getNextRepeatInfo(template: Pick<TaskTemplate, 'repeatDays' | 'oneTimeDate'>, from = new Date()) {
+  if (!Array.isArray(template.repeatDays) || template.repeatDays.length === 0) {
+    const oneTimeDate = normalizeDate(template.oneTimeDate);
+    if (oneTimeDate) {
+      const todayKey = from.toISOString().split('T')[0];
+      if (oneTimeDate === todayKey) {
+        return { label: 'Сегодня', date: from.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) };
+      }
+      return { label: 'Одноразово', date: oneTimeDate };
+    }
     return { label: 'Одноразово', date: '' };
   }
 
   const today = new Date(from);
   today.setHours(0, 0, 0, 0);
   const currentDay = today.getDay();
-  const sorted = DAY_ORDER.filter((day) => repeatDays.includes(day));
+  const sorted = DAY_ORDER.filter((day) => template.repeatDays.includes(day));
   const todayIncluded = sorted.includes(currentDay);
 
   if (todayIncluded) {
@@ -42,7 +51,7 @@ function getNextRepeatInfo(repeatDays: number[], from = new Date()) {
   for (let offset = 1; offset <= 7; offset += 1) {
     const candidate = new Date(today);
     candidate.setDate(today.getDate() + offset);
-    if (repeatDays.includes(candidate.getDay())) {
+    if (template.repeatDays.includes(candidate.getDay())) {
       return {
         label: DAY_NAMES_SHORT[candidate.getDay()],
         date: candidate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
@@ -51,6 +60,13 @@ function getNextRepeatInfo(repeatDays: number[], from = new Date()) {
   }
 
   return { label: 'По графику', date: '' };
+}
+
+function normalizeDate(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().split('T')[0];
 }
 
 function getRewardOrder(reward: any, childId: string) {
@@ -74,6 +90,7 @@ export default function Home() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
+  const [gradesEnabled, setGradesEnabled] = useState(true);
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
@@ -93,10 +110,21 @@ export default function Home() {
         const [tasksData, starsData, rewardsData, tplData] = await Promise.all([
           tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json()
         ]);
+        const settingsRes = await fetch('/api/settings');
+        const settingsData = await settingsRes.json();
         setTasks(Array.isArray(tasksData) ? tasksData : []);
         setStars(starsData.balance || 0);
         setRewards(Array.isArray(rewardsData) ? [...rewardsData].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)) : []);
-        setTemplates(Array.isArray(tplData) ? tplData.filter((t: any) => (t.childId === currentChild.id || t.childId === 'both') && t.repeatDays?.length > 0) : []);
+        const childSettings = getChildSettings(settingsData, currentChild.id);
+        setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
+        const todayKey = today;
+        setTemplates(Array.isArray(tplData)
+          ? tplData.filter((t: any) => {
+              if (t.childId !== currentChild.id && t.childId !== 'both') return false;
+              if (Array.isArray(t.repeatDays) && t.repeatDays.length > 0) return true;
+              return normalizeDate(t.oneTimeDate || t.createdAt) === todayKey;
+            })
+          : []);
       } catch (e) { console.error(e); }
       finally { setLoadingTasks(false); setLoadingRewards(false); }
     };
@@ -160,7 +188,7 @@ export default function Home() {
 
   const navItems = [
     { href: "/", label: "Главная", icon: HomeIcon },
-    ...(currentChild.mode !== "little-hero" ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
+    ...(gradesEnabled ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
     { href: "/reports", label: "Отчёты", icon: BarChart3 },
     { href: "#hero", label: "Послание героя", icon: Sparkles },
   ];
@@ -275,7 +303,7 @@ export default function Home() {
             </h2>
             <div className="space-y-2">
               {templates.map(t => {
-                const repeatInfo = getNextRepeatInfo(t.repeatDays);
+                const repeatInfo = getNextRepeatInfo(t);
                 const currentTask = tasks.find(task => task.templateId === t.id);
                 const canRunNow = !!currentTask && !currentTask.completed && repeatInfo.label === 'Сегодня';
                 return (

@@ -22,6 +22,7 @@ interface TaskTemplate {
   stars: number;
   active: boolean;
   childId: string;
+  oneTimeDate?: string;
   detailsText?: string;
   requiresOpenDetails?: boolean;
   subtasksMode?: 'none' | 'checkboxes' | 'plain-list';
@@ -65,6 +66,7 @@ interface ChildSettingsForm {
   taskCategories: TaskCategory[];
   notifications: ReturnType<typeof defaultNotificationPrefs>;
   ai: ReturnType<typeof defaultAiPrefs>;
+  gradesEnabled: boolean;
 }
 interface TaskCategoryItem {
   id: string;
@@ -110,6 +112,7 @@ export default function SettingsPage() {
   // AI
   const [aiEnabled, setAiEnabled] = useState(true);
   const [aiRichMode, setAiRichMode] = useState(true);
+  const [gradesEnabled, setGradesEnabled] = useState(true);
   const [heroes, setHeroes] = useState('Мухаммед Али, Тайсон, Роналду');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [openRouterUrl, setOpenRouterUrl] = useState('https://openrouter.ai/api/v1');
@@ -199,6 +202,7 @@ export default function SettingsPage() {
       setNotificationPrefs(childSettings.notifications);
       setAiEnabled(childSettings.ai.enabled);
       setAiRichMode(childSettings.ai.richMode);
+      setGradesEnabled(childSettings.gradesEnabled ?? settingsChildId === 'ali');
       setOpenRouterUrl(childSettings.ai.openRouterUrl || setData.openRouterUrl || 'https://openrouter.ai/api/v1');
       setAiModel(childSettings.ai.aiModel || setData.aiModel || 'openai/gpt-4o-mini');
       setHeroes(childSettings.ai.heroes || setData.heroes || 'Мухаммед Али, Тайсон, Роналду');
@@ -404,6 +408,7 @@ export default function SettingsPage() {
       ...(patch.taskCategories ? { taskCategories: patch.taskCategories } : {}),
       ...(patch.notifications ? { notifications: patch.notifications } : {}),
       ...(patch.ai ? { ai: patch.ai } : {}),
+      ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
     };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
   };
@@ -694,6 +699,7 @@ export default function SettingsPage() {
     const selectedCategory = childCategories.find(cat => cat.id === newCategory);
     const categoryId = selectedCategory?.id || newCategory;
     const customCategory = selectedCategory && !selectedCategory.builtIn ? selectedCategory.label : '';
+    const oneTimeDate = newDays.length === 0 ? new Date().toISOString().split('T')[0] : undefined;
     if (editTemplateId) {
       updated = updated.map((t: any) => t.id === editTemplateId ? {
         ...t,
@@ -701,6 +707,7 @@ export default function SettingsPage() {
         category: categoryId,
         customCategory,
         repeatDays: newDays,
+        oneTimeDate,
         stars: parseFloat(newStars),
         detailsText: newDetailsText,
         requiresOpenDetails: newRequiresOpenDetails,
@@ -716,6 +723,7 @@ export default function SettingsPage() {
         category: categoryId,
         customCategory,
         repeatDays: newDays,
+        oneTimeDate,
         stars: parseFloat(newStars),
         active: true,
         requiresOpenDetails: newRequiresOpenDetails,
@@ -1381,6 +1389,22 @@ export default function SettingsPage() {
                 </div>
               );
             })}
+            <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div>
+                <p className="text-sm font-bold text-slate-700">Показывать оценки</p>
+                <p className="text-xs text-slate-400">
+                  Для Али включено по умолчанию, для Саида скрыто до ручного включения
+                </p>
+              </div>
+              <Switch
+                checked={gradesEnabled}
+                onCheckedChange={async (checked) => {
+                  setGradesEnabled(checked);
+                  await saveChildSettings({ gradesEnabled: checked });
+                  showSaved(checked ? 'Оценки включены' : 'Оценки скрыты');
+                }}
+              />
+            </div>
           </div>
         </AccordionSection>
 
@@ -1390,7 +1414,7 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <button onClick={() => setShowCleanupModal(true)}
               className="w-full bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors text-left">
-              🗑 Очистить старые данные (90+ дней)
+              🗑 Очистить тестовые данные
             </button>
             <button onClick={() => {
               const d = new Date(); d.setTime(d.getTime() - 1);
@@ -1594,9 +1618,9 @@ export default function SettingsPage() {
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-lg font-extrabold text-slate-800">Очистить старые данные?</h2>
+                  <h2 className="text-lg font-extrabold text-slate-800">Очистить тестовые данные?</h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    Будут удалены записи старше 90 дней: дни, оценки, ledger и события.
+                    Будут очищены тестовые и runtime-данные: оценки, звёздные истории, входящие, статусы наград, кэши отчётов и дневные инстансы.
                   </p>
                 </div>
                 <button
@@ -1625,8 +1649,16 @@ export default function SettingsPage() {
                       if (!res.ok) {
                         throw new Error(data?.error || 'Cleanup failed');
                       }
-                      setCleanupMessage(data?.message || 'Очистка выполнена');
-                      showSaved(data?.message || 'Очистка выполнена');
+                      setCleanupMessage(data?.message || 'Тестовые данные очищены');
+                      setEvents([]);
+                      setGradeHistory([]);
+                      if (showInbox) {
+                        loadEvents();
+                      }
+                      if (showGradeHistory) {
+                        loadGradeHistory();
+                      }
+                      showSaved(data?.message || 'Тестовые данные очищены');
                     } catch (error) {
                       const message = error instanceof Error ? error.message : 'Не удалось очистить данные';
                       setCleanupMessage(message);

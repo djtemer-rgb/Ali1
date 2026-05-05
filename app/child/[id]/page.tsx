@@ -9,6 +9,7 @@ import TaskCard from "../../components/TaskCard";
 import confetti from "canvas-confetti";
 import { buildTaskCompletionBundle } from "@/app/lib/reporting";
 import { formatStarAmount } from "@/app/lib/reporting";
+import { getChildSettings } from "@/app/lib/settings-shared";
 
 interface Subtask {
   id: string;
@@ -56,6 +57,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [gradesEnabled, setGradesEnabled] = useState(childId === 'ali');
   const router = useRouter();
 
   useEffect(() => {
@@ -95,6 +97,11 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
       const rewardsRes = await fetch(`/api/rewards?childId=${childId}`);
       const rewardsData = await rewardsRes.json();
       setRewards(Array.isArray(rewardsData) ? rewardsData : []);
+
+      const settingsRes = await fetch('/api/settings');
+      const settings = await settingsRes.json();
+      const childSettings = getChildSettings(settings, childId as 'ali' | 'said');
+      setGradesEnabled(childSettings.gradesEnabled ?? childId === 'ali');
     } catch (err: any) {
       console.error('Error loading data:', err);
       setError(err.message || 'Failed to load data');
@@ -291,8 +298,6 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
     );
   }
 
-  const isLittleHero = currentChild.mode === 'little-hero';
-
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
       <header className="bg-white px-4 md:px-6 py-3 md:py-5 flex items-center justify-between border-b border-slate-100">
@@ -319,7 +324,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
             <Home size={18} /> Главная
           </span>
         </Link>
-        {!isLittleHero && (
+        {gradesEnabled && (
           <Link href={`/grades`}>
             <span className="bg-white text-slate-700 px-4 md:px-6 py-2.5 md:py-3.5 rounded-[14px] md:rounded-2xl font-bold text-sm md:text-base flex items-center gap-1.5 md:gap-2 whitespace-nowrap shadow-sm hover:bg-slate-50 cursor-pointer transition-colors">
               <BookOpen size={18} className="text-slate-400" /> Оценки
@@ -340,7 +345,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4 md:space-y-6">
 
-        {!isLittleHero && (
+        {gradesEnabled && (
           <GradeInput childId={childId} onGradeAdded={() => loadData()} />
         )}
 

@@ -5,7 +5,6 @@ import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/rendere
 import {
   formatLongDate,
   formatShortDate,
-  formatStarAmount,
   getCategoryLabel,
   shortenText,
 } from "@/app/lib/reporting";
@@ -327,15 +326,15 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
 
         <View style={styles.summaryRow}>
           <PdfCard label="Задач" value={data.summary.totalTasksCompleted} />
-          <PdfCard label="Звёзд" value={formatStarAmount(data.summary.totalStarsEarned)} accent={theme.amber} />
+          <PdfCard label="Звёзд" value={formatPdfStarAmount(data.summary.totalStarsEarned)} accent={theme.amber} />
           <PdfCard label="Серия" value={`${data.summary.streakDays} дн.`} accent={theme.green} />
-          <PdfCard label="Баланс" value={formatStarAmount(data.summary.currentBalance)} accent={theme.blue} />
+          <PdfCard label="Баланс" value={formatPdfStarAmount(data.summary.currentBalance)} accent={theme.blue} />
         </View>
 
         <View style={styles.insightRow}>
           <InsightCard
             title="Лучший день"
-            value={data.insights.bestDay ? `${data.insights.bestDay.label} · ${formatStarAmount(data.insights.bestDay.starsEarned)}` : "Нет данных"}
+            value={data.insights.bestDay ? `${data.insights.bestDay.label} · ${formatPdfStarAmount(data.insights.bestDay.starsEarned)}` : "Нет данных"}
             subtitle={data.insights.bestDay ? `${data.insights.bestDay.tasksCompleted} задач` : undefined}
           />
           <InsightCard
@@ -346,7 +345,7 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
           <InsightCard
             title="Топ-квест"
             value={data.insights.topTask ? shortenText(data.insights.topTask.title, 28) : "Нет данных"}
-            subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || "Без сложности"} · ${formatStarAmount(data.insights.topTask.stars)}` : undefined}
+            subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || "Без сложности"} · ${formatPdfStarAmount(data.insights.topTask.stars)}` : undefined}
           />
         </View>
 
@@ -417,7 +416,7 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
                   <Text style={styles.denseCardTitle}>{shortenText(task.title, 32)}</Text>
                   <Text style={styles.denseCardMeta}>{formatShortDate(task.completedAt)}</Text>
                   <Text style={{ fontSize: 8, fontWeight: 700, color: theme.green, marginTop: 2 }}>
-                    {formatStarAmount(task.stars)}
+                    {formatPdfStarAmount(task.stars)}
                   </Text>
                   {task.difficultyLabel ? <Text style={styles.denseCardMeta}>Сложность: {task.difficultyLabel}</Text> : null}
                   {task.subtaskSummary ? (
@@ -441,7 +440,7 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
                     {entry.sourceLabel} · {formatShortDate(entry.createdAt)}
                   </Text>
                   <Text style={{ fontSize: 8, fontWeight: 700, color: entry.amount >= 0 ? theme.green : theme.red, marginTop: 2 }}>
-                    {formatStarAmount(entry.amount)}
+                    {formatPdfStarAmount(entry.amount)}
                   </Text>
                   <Text style={styles.denseCardMeta}>{shortenText(entry.reason, 64)}</Text>
                 </View>
@@ -462,8 +461,8 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
                   <Text style={{ fontSize: 8.3, fontWeight: 700, color: grade.grade >= 4 ? theme.green : grade.grade === 3 ? theme.amber : theme.red, marginTop: 2 }}>
                     Оценка {grade.grade}
                   </Text>
-                  <Text style={{ fontSize: 8, fontWeight: 700, color: typeof grade.starsAwarded === "number" && grade.starsAwarded < 0 ? theme.red : theme.amber, marginTop: 2 }}>
-                    {formatStarAmount(
+                    <Text style={{ fontSize: 8, fontWeight: 700, color: typeof grade.starsAwarded === "number" && grade.starsAwarded < 0 ? theme.red : theme.amber, marginTop: 2 }}>
+                    {formatPdfStarAmount(
                       typeof grade.starsAwarded === "number"
                         ? grade.starsAwarded
                         : (gradeToStars[String(grade.grade)] ?? 0)
@@ -523,4 +522,9 @@ function compressLabels(labels: string[], days: number) {
     if (index % step === 0 || index === labels.length - 1) return label;
     return "";
   });
+}
+
+function formatPdfStarAmount(amount: number) {
+  const prefix = amount >= 0 ? "+" : "";
+  return `${prefix}${amount} ★`;
 }

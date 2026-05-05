@@ -125,7 +125,6 @@ export default function ParentInbox() {
       'reward-selected': 'Награда выбрана',
       'day-completed': 'День завершен',
       'task-completed': 'Задача выполнена',
-      'task-reverted': 'Задача отменена',
       'grade-added': 'Оценка добавлена',
       'system': 'Система'
     };
@@ -198,45 +197,6 @@ export default function ParentInbox() {
         }
       })
     });
-    loadEvents();
-  };
-
-  const revertTask = async (event: ParentEvent) => {
-    if (!event.details?.taskId) return;
-    const taskTitle = event.details.taskTitle || event.body || 'Задача';
-    const date = event.details.completedAt ? new Date(event.details.completedAt).toISOString().split('T')[0] : new Date(event.createdAt).toISOString().split('T')[0];
-    const ok = window.confirm(`Отменить выполнение задачи "${taskTitle}" и вернуть её в невыполненные?`);
-    if (!ok) return;
-
-    const revertRes = await fetch('/api/tasks/revert', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId: event.childId, date, taskId: event.details.taskId })
-    });
-    const revertData = await revertRes.json();
-    if (!revertRes.ok) {
-      alert(revertData?.error || 'Не удалось отменить задачу');
-      return;
-    }
-
-    await fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        childId: event.childId,
-        type: 'system',
-        title: 'Задача отменена',
-        body: `${getChildName(event.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
-        details: {
-          childName: getChildName(event.childId),
-          taskId: event.details.taskId,
-          taskTitle,
-          stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
-          completedAt: event.details.completedAt || event.createdAt,
-        }
-      })
-    });
-
     loadEvents();
   };
 
@@ -437,18 +397,9 @@ export default function ParentInbox() {
                         <Trash2 size={18} />
                       </button>
                     </div>
-                    {event.type === 'task-completed' && event.details && (
-                      <button
-                        onClick={() => revertTask(event)}
-                        className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-[11px] font-bold hover:bg-red-100 transition-colors"
-                        title="Отменить выполнение задачи"
-                      >
-                        <Ban size={12} /> Отменить
-                      </button>
-                    )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
             ))}
           </div>
         )}

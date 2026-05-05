@@ -9,7 +9,6 @@ import {
   formatDifficultyLabel,
   formatLongDate,
   formatShortDate,
-  formatStarAmount,
   shortenText,
 } from "@/app/lib/reporting";
 
@@ -162,6 +161,7 @@ export default function ReportsPage() {
 
   const maxTasks = data ? Math.max(...data.chart.tasksCompleted, 1) : 1;
   const maxStarMagnitude = data ? Math.max(...data.chart.starsEarned.map((value) => Math.abs(value)), 1) : 1;
+  const maxChartValue = Math.max(maxTasks, maxStarMagnitude);
   const gradeLimit = data?.settings?.gradeHistoryLimit || 20;
   const gradeToStars = data?.settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
 
@@ -237,9 +237,9 @@ export default function ReportsPage() {
           ) : (
             <>
               <StatCard label="Задач" value={data.summary.totalTasksCompleted} accent="text-slate-800" icon={<FileText size={16} />} />
-              <StatCard label="Звёзд" value={formatStarAmount(data.summary.totalStarsEarned)} accent="text-amber-500" icon={<Star size={16} className="fill-amber-400" />} />
+              <StatCard label="Звёзд" value={<AmountWithStar amount={data.summary.totalStarsEarned} tone="amber" />} accent="text-amber-500" icon={<Star size={16} className="fill-amber-400" />} />
               <StatCard label="Серия" value={`${data.summary.streakDays} дн.`} accent="text-green-500" icon={<Sparkles size={16} />} />
-              <StatCard label="Баланс" value={formatStarAmount(data.summary.currentBalance)} accent="text-blue-500" icon={<Trophy size={16} />} />
+              <StatCard label="Баланс" value={<AmountWithStar amount={data.summary.currentBalance} tone="blue" />} accent="text-blue-500" icon={<Trophy size={16} />} />
               <StatCard label="Оценок" value={data.summary.totalGradesCount} accent="text-indigo-500" icon={<BadgeInfo size={16} />} />
               <StatCard label="Наград" value={`${data.rewards.selected}/${data.rewards.fulfilled}`} accent="text-purple-500" icon={<Gift size={16} />} />
             </>
@@ -252,10 +252,10 @@ export default function ReportsPage() {
               <ChartBar size={18} className="text-blue-500" />
               Быстрые итоги
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <InsightPill
-                title="Лучший день"
-                value={data.insights.bestDay ? `${data.insights.bestDay.label} · ${formatStarAmount(data.insights.bestDay.starsEarned)}` : 'Нет данных'}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <InsightPill
+                  title="Лучший день"
+                value={data.insights.bestDay ? <span className="inline-flex items-center gap-1"><span>{data.insights.bestDay.label}</span><AmountWithStar amount={data.insights.bestDay.starsEarned} tone="amber" compact /></span> : 'Нет данных'}
                 subtitle={data.insights.bestDay ? `${data.insights.bestDay.tasksCompleted} задач` : undefined}
               />
               <InsightPill
@@ -266,7 +266,7 @@ export default function ReportsPage() {
               <InsightPill
                 title="Топ-квест"
                 value={data.insights.topTask ? data.insights.topTask.title : 'Нет данных'}
-                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · ${formatStarAmount(data.insights.topTask.stars)}` : undefined}
+                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · ${data.insights.topTask.stars} зв.` : undefined}
               />
             </div>
           </section>
@@ -276,9 +276,19 @@ export default function ReportsPage() {
           <>
             <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
               <h2 className="text-base font-extrabold text-slate-800 mb-4">Активность</h2>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mb-3">
+                <span className="px-2 py-1 rounded-full bg-slate-50 border border-slate-200">Ось X: дни периода</span>
+                <span className="px-2 py-1 rounded-full bg-slate-50 border border-slate-200">Ось Y: количество</span>
+                <span className="px-2 py-1 rounded-full bg-slate-50 border border-slate-200">Пик: {maxChartValue}</span>
+              </div>
               <div className="overflow-x-auto -mx-4 px-4 pb-2">
-                <div className="relative flex gap-1.5 items-stretch h-44" style={{ minWidth: `${Math.max(data.chart.labels.length * 14, 260)}px` }}>
-                  <div className="absolute left-4 right-4 top-1/2 h-px bg-slate-200" />
+                <div className="relative flex gap-1.5 items-stretch h-44 pl-8" style={{ minWidth: `${Math.max(data.chart.labels.length * 14, 260)}px` }}>
+                  <div className="absolute left-8 right-4 top-1/2 h-px bg-slate-200" />
+                  <div className="absolute left-0 top-0 bottom-0 w-7 flex flex-col justify-between items-end text-[10px] text-slate-400 pr-1 pointer-events-none">
+                    <span>{maxChartValue}</span>
+                    <span>0</span>
+                    <span>{maxChartValue > 0 ? `-${maxChartValue}` : '0'}</span>
+                  </div>
                   {data.chart.labels.map((label, i) => {
                     const tasksHeight = Math.max((data.chart.tasksCompleted[i] / maxTasks) * 72, data.chart.tasksCompleted[i] > 0 ? 4 : 0);
                     const starsHeight = Math.max((Math.abs(data.chart.starsEarned[i]) / maxStarMagnitude) * 72, data.chart.starsEarned[i] !== 0 ? 4 : 0);
@@ -330,16 +340,16 @@ export default function ReportsPage() {
                 icon={<FileText size={18} className="text-blue-500" />}
                 emptyLabel="Пока нет выполненных задач"
               >
-                {data.recentTasks.slice(0, 4).map((task) => (
-                  <div key={task.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
+                {data.recentTasks.slice(0, 10).map((task) => (
+                  <div key={task.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-800 text-sm leading-tight">{task.title}</p>
+                        <p className="font-bold text-slate-800 text-sm leading-tight truncate">{task.title}</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           {formatLongDate(task.completedAt)}
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          <MiniBadge label={formatStarAmount(task.stars)} tone="amber" />
+                          <MiniBadge label={<AmountWithStar amount={task.stars} tone="amber" compact />} tone="amber" />
                           {task.difficultyLabel && <MiniBadge label={`Сложность: ${task.difficultyLabel}`} tone="blue" />}
                           {task.subtaskSummary && <MiniBadge label={`Подзадачи: ${task.subtaskSummary}`} tone="slate" />}
                         </div>
@@ -370,8 +380,8 @@ export default function ReportsPage() {
                 icon={<Star size={18} className="fill-amber-400 text-amber-400" />}
                 emptyLabel="Пока нет записей"
               >
-                {data.recentStarEntries.slice(0, 4).map((entry) => (
-                  <div key={entry.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
+                {data.recentStarEntries.slice(0, 10).map((entry) => (
+                  <div key={entry.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -387,9 +397,7 @@ export default function ReportsPage() {
                           {entry.subtaskSummary && <MiniBadge label={`Подзадачи: ${entry.subtaskSummary}`} tone="slate" />}
                         </div>
                       </div>
-                      <div className={`shrink-0 text-sm font-extrabold ${entry.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        {formatStarAmount(entry.amount)}
-                      </div>
+                      <AmountWithStar amount={entry.amount} tone={entry.amount >= 0 ? 'green' : 'red'} />
                     </div>
                   </div>
                 ))}
@@ -400,8 +408,8 @@ export default function ReportsPage() {
                 icon={<BadgeInfo size={18} className="text-indigo-500" />}
                 emptyLabel="Пока нет оценок"
               >
-                {data.grades.slice(0, 4).map((grade: any) => (
-                  <div key={grade.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
+                {data.grades.slice(0, 10).map((grade: any) => (
+                  <div key={grade.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-700 truncate">{grade.subjectName}</p>
@@ -413,21 +421,21 @@ export default function ReportsPage() {
                         {grade.grade}
                       </span>
                     </div>
-                    <p className={`text-[11px] mt-2 font-bold ${Number(grade.starsAwarded) >= 0 ? 'text-amber-600' : 'text-red-500'}`}>
-                      {formatStarAmount(
-                        typeof grade.starsAwarded === 'number'
-                          ? grade.starsAwarded
-                          : (gradeToStars[String(grade.grade)] ?? 0)
-                      )}
-                    </p>
+                    <div className="mt-2">
+                      <AmountWithStar
+                        amount={typeof grade.starsAwarded === 'number' ? grade.starsAwarded : (gradeToStars[String(grade.grade)] ?? 0)}
+                        tone={Number(grade.starsAwarded) >= 0 ? 'amber' : 'red'}
+                        compact
+                      />
+                    </div>
                   </div>
                 ))}
               </CompactListSection>
             </section>
 
-            {data.grades.length > 4 && (
+            {data.grades.length > 10 && (
               <p className="text-[11px] text-slate-400 text-center -mt-1">
-                Показаны 4 последних оценки из {data.summary.totalGradesCount}
+                Показаны 10 последних оценок из {data.summary.totalGradesCount}
               </p>
             )}
 
@@ -469,7 +477,7 @@ export default function ReportsPage() {
                       <p className="font-bold text-slate-800 text-sm truncate">{reward.title}</p>
                       {reward.description && <p className="text-xs text-slate-400 truncate">{reward.description}</p>}
                     </div>
-                    <span className="text-xs font-extrabold text-amber-500 shrink-0">{formatStarAmount(reward.costStars)}</span>
+                    <AmountWithStar amount={reward.costStars} tone="amber" compact />
                   </div>
                 ))}
               </div>
@@ -481,7 +489,7 @@ export default function ReportsPage() {
   );
 }
 
-function StatCard({ label, value, accent, icon }: { label: string; value: string | number; accent: string; icon: ReactNode }) {
+function StatCard({ label, value, accent, icon }: { label: string; value: ReactNode; accent: string; icon: ReactNode }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
@@ -492,7 +500,7 @@ function StatCard({ label, value, accent, icon }: { label: string; value: string
   );
 }
 
-function InsightPill({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) {
+function InsightPill({ title, value, subtitle }: { title: string; value: ReactNode; subtitle?: string }) {
   return (
     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
       <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{title}</p>
@@ -512,7 +520,7 @@ function CompactListSection({ title, icon, emptyLabel, children }: { title: stri
         {title}
       </div>
       {hasContent ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">{children}</div>
+        <div className="space-y-2.5">{children}</div>
       ) : (
         <p className="text-slate-400 text-sm">{emptyLabel}</p>
       )}
@@ -520,12 +528,31 @@ function CompactListSection({ title, icon, emptyLabel, children }: { title: stri
   );
 }
 
-function MiniBadge({ label, tone }: { label: string; tone: 'amber' | 'blue' | 'slate' }) {
-  const classes = {
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    slate: 'bg-slate-100 text-slate-600 border-slate-200',
+function AmountWithStar({ amount, tone = "amber", compact = false }: { amount: number; tone?: "amber" | "blue" | "green" | "red" | "slate"; compact?: boolean }) {
+  const toneClass = {
+    amber: "text-amber-600",
+    blue: "text-blue-600",
+    green: "text-green-600",
+    red: "text-red-500",
+    slate: "text-slate-600",
   }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1 font-extrabold ${toneClass} ${compact ? "text-xs" : "text-sm"}`}>
+      <span>{amount >= 0 ? `+${amount}` : amount}</span>
+      <Star size={compact ? 11 : 13} className={`fill-current ${toneClass}`} />
+    </span>
+  );
+}
 
-  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${classes}`}>{label}</span>;
+function MiniBadge({ label, tone }: { label: ReactNode; tone: "amber" | "blue" | "slate" }) {
+  const toneClass = {
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    blue: "bg-blue-50 text-blue-700 border-blue-100",
+    slate: "bg-white text-slate-500 border-slate-200",
+  }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-bold ${toneClass}`}>
+      {label}
+    </span>
+  );
 }

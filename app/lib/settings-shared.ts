@@ -40,6 +40,7 @@ export type ChildSettings = {
   taskCategories: TaskCategory[];
   notifications: NotificationPrefs;
   ai: AiChildPrefs;
+  gradesEnabled: boolean;
 };
 
 export const BUILTIN_TASK_CATEGORIES: TaskCategory[] = [
@@ -110,6 +111,7 @@ export function defaultChildSettings(): ChildSettings {
     taskCategories: [...BUILTIN_TASK_CATEGORIES],
     notifications: defaultNotificationPrefs(),
     ai: defaultAiPrefs(),
+    gradesEnabled: true,
   };
 }
 
@@ -184,6 +186,7 @@ export function getChildSettings(settings: any, childId: ChildId): ChildSettings
     taskCategories: normalizeTaskCategories(root.taskCategories),
     notifications: normalizeNotificationPrefs(root.notifications),
     ai: normalizeAiPrefs(root.ai),
+    gradesEnabled: root.gradesEnabled !== undefined ? !!root.gradesEnabled : childId === 'ali',
   };
 }
 
@@ -195,5 +198,6 @@ export function buildChildSettings(settings: any, childId: ChildId, updates: Par
     taskCategories: updates.taskCategories ? normalizeTaskCategories(updates.taskCategories) : current.taskCategories,
     notifications: updates.notifications ? normalizeNotificationPrefs(updates.notifications) : current.notifications,
     ai: updates.ai ? normalizeAiPrefs(updates.ai) : current.ai,
+    gradesEnabled: updates.gradesEnabled !== undefined ? !!updates.gradesEnabled : current.gradesEnabled,
   };
 }

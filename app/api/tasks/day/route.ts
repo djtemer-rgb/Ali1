@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       ? templates.filter((t: any) =>
           t.active &&
           (t.childId === childId || t.childId === 'both') &&
-          t.repeatDays.includes(dayOfWeek)
+          isTemplateScheduledForDate(t, date, dayOfWeek)
         )
       : [];
 
@@ -80,6 +80,7 @@ function createTaskInstance(template: any, childId: string, date: string) {
     requiresOpenDetails: template.requiresOpenDetails || false,
     detailsText: template.detailsText || '',
     subtasksMode: template.subtasksMode || 'none',
+    oneTimeDate: template.oneTimeDate || null,
     subtasks: Array.isArray(template.subtasks)
       ? template.subtasks.map((st: any, index: number) => ({
           id: st.id || `subtask-${index}`,
@@ -124,6 +125,7 @@ function reconcileDayTasks(dayTasks: any[], templates: any[], childId: string, d
       requiresOpenDetails: !!template.requiresOpenDetails,
       detailsText: template.detailsText || '',
       subtasksMode: template.subtasksMode || 'none',
+      oneTimeDate: template.oneTimeDate || task.oneTimeDate || null,
       subtasks: mergedSubtasks,
       askDifficultyAfterDone: !!template.askDifficultyAfterDone,
       updatedAt: new Date().toISOString()
@@ -142,4 +144,21 @@ function mergeSubtasks(current: any[], templateSubtasks: any[]) {
       done: existing ? !!existing.done : !!templateSubtask.done
     };
   });
+}
+
+function isTemplateScheduledForDate(template: any, date: string, dayOfWeek: number) {
+  const repeatDays = Array.isArray(template?.repeatDays) ? template.repeatDays : [];
+  if (repeatDays.length > 0) {
+    return repeatDays.includes(dayOfWeek);
+  }
+
+  const oneTimeDate = normalizeDate(template?.oneTimeDate || template?.createdAt);
+  return !!oneTimeDate && oneTimeDate === date;
+}
+
+function normalizeDate(value?: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().split('T')[0];
 }

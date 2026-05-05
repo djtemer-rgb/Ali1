@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useChild } from "@/app/lib/ChildContext";
 import GradeInput from "../components/GradeInput";
 import { formatStarAmount } from "@/app/lib/reporting";
+import { getChildSettings } from "@/app/lib/settings-shared";
 
 interface GradeRecord { id: string; subjectName: string; grade: number; starsAwarded: number; createdAt: string; }
 type GradeMapping = Record<string, number>;
@@ -23,6 +24,7 @@ export default function GradesPage() {
   const [grades, setGrades] = useState<GradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [gradeToStars, setGradeToStars] = useState<GradeMapping>({ '5': 5, '4': 2, '3': 0, '2': 0 });
+  const [gradesEnabled, setGradesEnabled] = useState(currentChild.id === 'ali');
 
   const loadGrades = async () => {
     setLoading(true);
@@ -34,6 +36,8 @@ export default function GradesPage() {
       const d = await gradesRes.json();
       const settings = await settingsRes.json();
       if (settings?.gradeToStars) setGradeToStars(settings.gradeToStars);
+      const childSettings = getChildSettings(settings, currentChild.id as 'ali' | 'said');
+      setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
       const ordered = Array.isArray(d) ? [...d].reverse() : [];
       setGrades(ordered.slice(0, 20));
     } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -54,13 +58,23 @@ export default function GradesPage() {
       <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 text-center py-4 md:py-5">Оценки</h1>
 
       <main className="max-w-3xl mx-auto px-4 md:px-6 space-y-4">
-        <GradeInput childId={currentChild.id} onGradeAdded={loadGrades} />
+        {gradesEnabled ? (
+          <GradeInput childId={currentChild.id} onGradeAdded={loadGrades} />
+        ) : (
+          <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+            <p className="text-slate-500 text-sm text-center py-6">
+              Оценки скрыты для этого ребёнка. Включите их в настройках, если нужно показывать дневник.
+            </p>
+          </section>
+        )}
 
         <section className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
           <h2 className="text-base font-extrabold flex items-center gap-2 text-slate-800 mb-4">
             <BookOpen size={18} className="text-blue-500" /> Дневник
           </h2>
-          {loading ? (
+          {!gradesEnabled ? (
+            <p className="text-slate-400 text-center py-6 text-sm">Дневник скрыт для этого ребёнка</p>
+          ) : loading ? (
             <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-slate-100 animate-pulse" />)}</div>
           ) : grades.length === 0 ? (
             <p className="text-slate-400 text-center py-6 text-sm">Пока нет оценок</p>

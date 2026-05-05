@@ -103,7 +103,20 @@ function normalizeTemplates(input: any) {
         }))
       : [],
     askDifficultyAfterDone: !!template.askDifficultyAfterDone,
+    oneTimeDate: normalizeOneTimeDate(template),
     createdAt: template.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }));
+}
+
+function normalizeOneTimeDate(template: any) {
+  const repeatDays = Array.isArray(template?.repeatDays) ? template.repeatDays : [];
+  if (repeatDays.length > 0) return undefined;
+
+  const candidate = template?.oneTimeDate || template?.createdAt || new Date().toISOString();
+  const parsed = new Date(candidate);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString().split('T')[0];
+  }
+  return parsed.toISOString().split('T')[0];
 }

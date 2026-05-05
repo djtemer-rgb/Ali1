@@ -54,12 +54,14 @@ export async function POST(request: Request) {
       ali: {
         taskCategories: normalizeTaskCategories(incomingChildSettings?.ali?.taskCategories),
         notifications: normalizeNotificationPrefs(incomingChildSettings?.ali?.notifications),
-        ai: normalizeAiPrefs(incomingChildSettings?.ali?.ai)
+        ai: normalizeAiPrefs(incomingChildSettings?.ali?.ai),
+        gradesEnabled: incomingChildSettings?.ali?.gradesEnabled !== undefined ? !!incomingChildSettings.ali.gradesEnabled : true
       },
       said: {
         taskCategories: normalizeTaskCategories(incomingChildSettings?.said?.taskCategories),
         notifications: normalizeNotificationPrefs(incomingChildSettings?.said?.notifications),
-        ai: normalizeAiPrefs(incomingChildSettings?.said?.ai)
+        ai: normalizeAiPrefs(incomingChildSettings?.said?.ai),
+        gradesEnabled: incomingChildSettings?.said?.gradesEnabled !== undefined ? !!incomingChildSettings.said.gradesEnabled : false
       }
     };
     const settings = {
