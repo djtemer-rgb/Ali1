@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Check, Filter, CircleCheckBig, Ban } from "lucide-react";
+import { Trash2, Check, Filter, CircleCheckBig, Ban, Star } from "lucide-react";
+import { formatStarAmount } from "@/app/lib/reporting";
 
 interface ParentEvent {
   id: string;
@@ -26,6 +27,9 @@ interface ParentEvent {
     subtasks?: Array<{ id?: string; title?: string; done?: boolean }>;
     subtaskSummary?: string | null;
     detailsText?: string;
+    rewardTitle?: string;
+    costStars?: number;
+    status?: 'available' | 'selected' | 'fulfilled';
   };
 }
 
@@ -121,6 +125,7 @@ export default function ParentInbox() {
       'reward-selected': 'Награда выбрана',
       'day-completed': 'День завершен',
       'task-completed': 'Задача выполнена',
+      'task-reverted': 'Задача отменена',
       'grade-added': 'Оценка добавлена',
       'system': 'Система'
     };
@@ -131,6 +136,7 @@ export default function ParentInbox() {
 
   const confirmReward = async (event: ParentEvent) => {
     if (!event.rewardId) return;
+    const reward = rewardById(event.rewardId);
     await fetch('/api/rewards/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -143,7 +149,13 @@ export default function ParentInbox() {
         childId: event.childId,
         type: 'system',
         title: 'Награда подтверждена',
-        body: `${getChildName(event.childId)} получил подтверждение на награду: ${rewardById(event.rewardId)?.title || 'Награда'}`
+        body: `${getChildName(event.childId)} подтвердил награду: ${reward?.title || 'Награда'}${reward ? ` (${formatStarAmount(-reward.costStars)})` : ''}`,
+        details: {
+          childName: getChildName(event.childId),
+          rewardTitle: reward?.title || 'Награда',
+          costStars: reward?.costStars,
+          status: 'fulfilled'
+        }
       })
     });
     loadEvents();
@@ -177,9 +189,54 @@ export default function ParentInbox() {
         childId: event.childId,
         type: 'system',
         title: 'Награда отменена',
-        body: `${getChildName(event.childId)}: награда отменена${reward ? `, звёзды возвращены (+${reward.costStars})` : ''}`
+        body: `${getChildName(event.childId)}: награда отменена${reward ? `, звёзды возвращены (${formatStarAmount(reward.costStars)})` : ''}`,
+        details: {
+          childName: getChildName(event.childId),
+          rewardTitle: reward?.title || 'Награда',
+          costStars: reward?.costStars,
+          status: 'available'
+        }
       })
     });
+    loadEvents();
+  };
+
+  const revertTask = async (event: ParentEvent) => {
+    if (!event.details?.taskId) return;
+    const taskTitle = event.details.taskTitle || event.body || 'Задача';
+    const date = event.details.completedAt ? new Date(event.details.completedAt).toISOString().split('T')[0] : new Date(event.createdAt).toISOString().split('T')[0];
+    const ok = window.confirm(`Отменить выполнение задачи "${taskTitle}" и вернуть её в невыполненные?`);
+    if (!ok) return;
+
+    const revertRes = await fetch('/api/tasks/revert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: event.childId, date, taskId: event.details.taskId })
+    });
+    const revertData = await revertRes.json();
+    if (!revertRes.ok) {
+      alert(revertData?.error || 'Не удалось отменить задачу');
+      return;
+    }
+
+    await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: event.childId,
+        type: 'system',
+        title: 'Задача отменена',
+        body: `${getChildName(event.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
+        details: {
+          childName: getChildName(event.childId),
+          taskId: event.details.taskId,
+          taskTitle,
+          stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
+          completedAt: event.details.completedAt || event.createdAt,
+        }
+      })
+    });
+
     loadEvents();
   };
 
@@ -281,6 +338,26 @@ export default function ParentInbox() {
                     </div>
                     <h3 className="font-bold text-slate-800">{event.title}</h3>
                     <p className="text-sm text-slate-600 mt-1">{event.body}</p>
+                    {event.rewardId && (event.type === 'reward-selected' || event.type === 'reward-fulfilled' || event.type === 'system') && (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                          <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                            {rewardById(event.rewardId)?.title || event.details?.rewardTitle || 'Награда'}
+                          </span>
+                          {typeof event.details?.costStars === 'number' && (
+                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1">
+                              <Star size={11} className="fill-blue-500" />
+                              {formatStarAmount(-Math.abs(event.details.costStars), false)}
+                            </span>
+                          )}
+                          {event.details?.status && (
+                            <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                              {event.details.status === 'selected' ? 'Резерв' : event.details.status === 'fulfilled' ? 'Подтверждено' : 'Доступно'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {event.type === 'task-completed' && event.details && (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
@@ -305,7 +382,7 @@ export default function ParentInbox() {
                             Подзадачи: {event.details.subtaskSummary}
                           </p>
                         )}
-                        {Array.isArray(event.details.subtasks) && event.details.subtasks.length > 0 && (
+                          {Array.isArray(event.details.subtasks) && event.details.subtasks.length > 0 && (
                           <details className="mt-2">
                             <summary className="cursor-pointer select-none text-[11px] font-bold text-slate-500">
                               Показать подзадачи
@@ -341,23 +418,34 @@ export default function ParentInbox() {
                       {new Date(event.createdAt).toLocaleString('ru-RU')}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {!event.read && (
+                  <div className="flex flex-col items-end gap-2 ml-4 shrink-0">
+                    <div className="flex items-center gap-2">
+                      {!event.read && (
+                        <button
+                          onClick={() => markAsRead(event.id)}
+                          className="text-blue-500 hover:text-blue-600 transition-colors"
+                          title="Отметить прочитанным"
+                        >
+                          <Check size={18} />
+                        </button>
+                      )}
                       <button
-                        onClick={() => markAsRead(event.id)}
-                        className="text-blue-500 hover:text-blue-600 transition-colors"
-                        title="Отметить прочитанным"
+                        onClick={() => deleteEvent(event.id)}
+                        className="text-slate-400 hover:text-red-500 transition-colors"
+                        title="Удалить"
                       >
-                        <Check size={18} />
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                    {event.type === 'task-completed' && event.details && (
+                      <button
+                        onClick={() => revertTask(event)}
+                        className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-[11px] font-bold hover:bg-red-100 transition-colors"
+                        title="Отменить выполнение задачи"
+                      >
+                        <Ban size={12} /> Отменить
                       </button>
                     )}
-                    <button
-                      onClick={() => deleteEvent(event.id)}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
-                      title="Удалить"
-                    >
-                      <Trash2 size={18} />
-                    </button>
                   </div>
                 </div>
               </div>

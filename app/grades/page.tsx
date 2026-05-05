@@ -5,8 +5,10 @@ import { ArrowLeft, BookOpen, Star } from "lucide-react";
 import Link from "next/link";
 import { useChild } from "@/app/lib/ChildContext";
 import GradeInput from "../components/GradeInput";
+import { formatStarAmount } from "@/app/lib/reporting";
 
 interface GradeRecord { id: string; subjectName: string; grade: number; starsAwarded: number; createdAt: string; }
+type GradeMapping = Record<string, number>;
 
 function formatFullDate(dateInput: string) {
   return new Date(dateInput).toLocaleDateString('ru-RU', {
@@ -20,12 +22,18 @@ export default function GradesPage() {
   const { currentChild } = useChild();
   const [grades, setGrades] = useState<GradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gradeToStars, setGradeToStars] = useState<GradeMapping>({ '5': 5, '4': 2, '3': 0, '2': 0 });
 
   const loadGrades = async () => {
     setLoading(true);
     try {
-      const [gradesRes] = await Promise.all([fetch(`/api/grades?type=grades&childId=${currentChild.id}`)]);
+      const [gradesRes, settingsRes] = await Promise.all([
+        fetch(`/api/grades?type=grades&childId=${currentChild.id}`),
+        fetch('/api/settings')
+      ]);
       const d = await gradesRes.json();
+      const settings = await settingsRes.json();
+      if (settings?.gradeToStars) setGradeToStars(settings.gradeToStars);
       const ordered = Array.isArray(d) ? [...d].reverse() : [];
       setGrades(ordered.slice(0, 20));
     } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -66,8 +74,13 @@ export default function GradesPage() {
                       <p className="font-bold text-slate-800 text-sm">{g.subjectName} <span className="text-[11px] text-slate-400 font-medium">({formatFullDate(g.createdAt)})</span></p>
                     </div>
                   </div>
-                    <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
-                      +{g.grade === 5 ? 5 : g.grade === 4 ? 2 : 0} <Star size={11} className="fill-amber-400" />
+                  <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                      {formatStarAmount(
+                        typeof g.starsAwarded === 'number'
+                          ? g.starsAwarded
+                          : (gradeToStars[String(g.grade)] ?? 0),
+                        false
+                      )} <Star size={11} className="fill-amber-400" />
                     </div>
                 </div>
               ))}
@@ -78,10 +91,10 @@ export default function GradesPage() {
         <section className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
           <p className="text-xs font-bold text-slate-500 mb-2">Как начисляются звёзды</p>
           <div className="flex gap-3 text-xs flex-wrap">
-            <span><span className="font-bold text-green-600">5</span> = +5 ⭐</span>
-            <span><span className="font-bold text-blue-600">4</span> = +2 ⭐</span>
-            <span><span className="font-bold text-amber-600">3</span> = +0 ⭐</span>
-            <span><span className="font-bold text-red-600">2</span> = +0 ⭐</span>
+            <span><span className="font-bold text-green-600">5</span> = {formatStarAmount(5, false)} <Star size={10} className="inline fill-amber-400" /></span>
+            <span><span className="font-bold text-blue-600">4</span> = {formatStarAmount(2, false)} <Star size={10} className="inline fill-amber-400" /></span>
+            <span><span className="font-bold text-amber-600">3</span> = {formatStarAmount(0, false)} <Star size={10} className="inline fill-amber-400" /></span>
+            <span><span className="font-bold text-red-600">2</span> = {formatStarAmount(gradeToStars['2'] ?? 0, false)} <Star size={10} className="inline fill-amber-400" /></span>
           </div>
         </section>
       </main>

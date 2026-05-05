@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Star, X, AlertTriangle, Circle, Check } from 'lucide-react';
+import { Star, X, Circle, Check } from 'lucide-react';
 
 interface Subtask {
   id: string;
@@ -33,13 +33,13 @@ interface TaskCardProps {
   onComplete: (taskId: string, difficulty?: 'easy' | 'normal' | 'hard') => void;
   onDetailsOpened: (taskId: string) => void;
   onSubtasksUpdate: (taskId: string, subtasks: Subtask[]) => void;
+  onRevert?: (taskId: string) => void;
 }
 
-export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasksUpdate }: TaskCardProps) {
+export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasksUpdate, onRevert }: TaskCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(task.subtasks || []);
   const [showDifficulty, setShowDifficulty] = useState(false);
-  const [showWarning, setShowWarning] = useState(false);
   const [detailsOpened, setDetailsOpened] = useState(task.detailsOpened);
 
   useEffect(() => {
@@ -50,6 +50,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   const allSubtasksDone = localSubtasks.length === 0 || localSubtasks.every(st => st.done);
   const subtasksEnabled = task.subtasksMode !== 'none' && localSubtasks.length > 0;
   const requiresDetails = task.requiresOpenDetails && !detailsOpened;
+  const needsConfirmation = requiresDetails || (subtasksEnabled && !allSubtasksDone);
   const cardSubtitle = useMemo(() => {
     if (requiresDetails) return 'Сначала открой условия квеста';
     if (subtasksEnabled && !allSubtasksDone) return 'Есть подзадачи';
@@ -58,11 +59,11 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
 
   const handleClick = () => {
     if (!task.completed) {
-      setIsModalOpen(true);
-      if (requiresDetails) {
-        setShowWarning(true);
-        setTimeout(() => setShowWarning(false), 1200);
+      if (!needsConfirmation) {
+        completeTask();
+        return;
       }
+      setIsModalOpen(true);
     }
   };
 
@@ -103,12 +104,12 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
     onSubtasksUpdate(task.id, updated);
   };
 
-  const needsModal = task.requiresOpenDetails || localSubtasks.length > 0;
   const categoryLabel = task.customCategory || task.category;
 
   return (
     <>
       <div
+        data-task-id={task.id}
         className={`relative border rounded-2xl p-3 md:p-4 flex items-stretch gap-3 cursor-pointer transition-all ${
           task.completed
             ? 'border-green-200 bg-green-50'
@@ -117,10 +118,11 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
       >
         <button
           type="button"
+          data-task-primary-action="true"
           onClick={(e) => {
             e.stopPropagation();
             if (task.completed) return;
-            if (needsModal) {
+            if (needsConfirmation) {
               handleClick();
               return;
             }
@@ -169,24 +171,26 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
         </button>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-full text-[10px] md:text-[11px]">
-            +{task.stars} <Star size={11} className="fill-amber-400" />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1 font-extrabold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-full text-[10px] md:text-[11px]">
+              +{task.stars} <Star size={11} className="fill-amber-400" />
+            </div>
+            {task.completed && onRevert && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRevert(task.id);
+                }}
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                aria-label="Отменить выполнение"
+              >
+                <X size={10} />
+                Отменить
+              </button>
+            )}
           </div>
-        </div>
-
-        <AnimatePresence>
-          {showWarning && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-sm"
-            >
-              <AlertTriangle size={12} className="inline mr-1" />
-              Сначала открой условия квеста 🙂
-            </motion.div>
-          )}
-        </AnimatePresence>
+      </div>
       </div>
 
       {/* Task Modal */}

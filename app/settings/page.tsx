@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X, Bell, CheckCheck, ChevronUp, ChevronDown, CheckCircle2, Wifi, Crown, BellRing, ArrowUp, ArrowDown, ToggleLeft, ToggleRight, ShieldCheck, Webhook } from "lucide-react";
+import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X, Bell, CheckCheck, ChevronUp, ChevronDown, CheckCircle2, Wifi, Crown, BellRing, ArrowUp, ArrowDown, ToggleLeft, ToggleRight, ShieldCheck, Webhook, Ban } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useChild } from "@/app/lib/ChildContext";
 import AccordionSection from "../components/AccordionSection";
@@ -9,6 +9,7 @@ import { COLOR_ICONS, MINIMAL_ICONS, getIconDisplay } from "../lib/icons";
 import { Switch } from "@/components/ui/switch";
 import { BUILTIN_TASK_CATEGORIES, NOTIFICATION_EVENT_KEYS, NOTIFICATION_EVENT_LABELS, defaultAiPrefs, defaultNotificationPrefs, getChildSettings } from "@/app/lib/settings-shared";
 import type { TaskCategory } from "@/app/lib/settings-shared";
+import { formatStarAmount } from "@/app/lib/reporting";
 
 interface Subject { id: string; name: string; order: number; }
 interface Reward { id: string; childId?: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; sortOrderByChild?: Record<string, number>; }
@@ -42,6 +43,23 @@ interface ParentEvent {
   read: boolean;
   createdAt: string;
   rewardId?: string;
+  details?: {
+    childName?: string;
+    taskId?: string;
+    taskTitle?: string;
+    stars?: number;
+    difficulty?: 'easy' | 'normal' | 'hard';
+    difficultyLabel?: string | null;
+    category?: string;
+    customCategory?: string;
+    completedAt?: string;
+    subtasks?: Array<{ id?: string; title?: string; done?: boolean }>;
+    subtaskSummary?: string | null;
+    detailsText?: string;
+    rewardTitle?: string;
+    costStars?: number;
+    status?: 'available' | 'selected' | 'fulfilled';
+  };
 }
 interface ChildSettingsForm {
   taskCategories: TaskCategory[];
@@ -120,6 +138,9 @@ export default function SettingsPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCategoryPanel, setShowCategoryPanel] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPrefs());
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState('');
 
   // Tasks (schedule)
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -167,7 +188,7 @@ export default function SettingsPage() {
       if (setData.systemPrompt) setSystemPrompt(setData.systemPrompt);
       if (setData.gradeToStars) {
         const g = setData.gradeToStars;
-        setGradeMapping({ '5': `+${g['5']}`, '4': `+${g['4']}`, '3': `${g['3'] >= 0 ? '+' : ''}${g['3']}`, '2': `${g['2'] >= 0 ? '+' : ''}${g['2']}` });
+        setGradeMapping({ '5': `${g['5'] >= 0 ? '+' : ''}${g['5']}`, '4': `${g['4'] >= 0 ? '+' : ''}${g['4']}`, '3': `${g['3'] >= 0 ? '+' : ''}${g['3']}`, '2': `${g['2'] >= 0 ? '+' : ''}${g['2']}` });
       }
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
       if (setData.resetEnabled !== undefined) setResetEnabled(setData.resetEnabled);
@@ -263,6 +284,48 @@ export default function SettingsPage() {
     loadEvents();
   };
 
+  const getChildName = (id: 'ali' | 'said') => (id === 'ali' ? 'Али' : 'Саид');
+
+  const revertTask = async (event: ParentEvent) => {
+    if (!event.details?.taskId) return;
+    const taskTitle = event.details.taskTitle || event.body || 'Задача';
+    const date = event.details.completedAt ? new Date(event.details.completedAt).toISOString().split('T')[0] : new Date(event.createdAt).toISOString().split('T')[0];
+    const ok = window.confirm(`Отменить выполнение задачи "${taskTitle}" и вернуть её в невыполненные?`);
+    if (!ok) return;
+
+    const revertRes = await fetch('/api/tasks/revert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: event.childId, date, taskId: event.details.taskId })
+    });
+    const revertData = await revertRes.json();
+    if (!revertRes.ok) {
+      alert(revertData?.error || 'Не удалось отменить задачу');
+      return;
+    }
+
+    await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: event.childId,
+        type: 'system',
+        title: 'Задача отменена',
+        body: `${getChildName(event.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
+        details: {
+          childName: getChildName(event.childId),
+          taskId: event.details.taskId,
+          taskTitle,
+          stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
+          completedAt: event.details.completedAt || event.createdAt,
+        }
+      })
+    });
+
+    showSaved('Задача отменена');
+    loadEvents();
+  };
+
   const showSaved = (msg: string) => { setSaved(msg); setTimeout(() => setSaved(''), 2000); };
 
   // Subjects
@@ -280,7 +343,14 @@ export default function SettingsPage() {
   };
 
   const saveGradeMapping = async () => {
-    const parseVal = (s: string) => { const n = parseFloat(s.replace(/[+]/g, '')); return isNaN(n) ? 0 : n; };
+    const parseVal = (s: string) => {
+      const cleaned = s
+        .replace(/[−–]/g, '-')
+        .replace(/[^0-9.-]/g, '')
+        .trim();
+      const n = parseFloat(cleaned);
+      return Number.isFinite(n) ? n : 0;
+    };
     const gradeToStars = { '5': parseVal(gradeMapping['5']), '4': parseVal(gradeMapping['4']), '3': parseVal(gradeMapping['3']), '2': parseVal(gradeMapping['2']) };
     const settings = await (await fetch('/api/settings')).json();
     settings.gradeToStars = gradeToStars;
@@ -985,7 +1055,7 @@ export default function SettingsPage() {
                   <span className="font-bold text-sm">{g}</span>
                   <span className="text-slate-300 text-xs">=</span>
                   <input value={gradeMapping[String(g)]} onChange={e => setGradeMapping(prev => ({ ...prev, [String(g)]: e.target.value }))}
-                    className="flex-1 min-w-0 text-sm font-bold text-center outline-none bg-transparent" />
+                    className="flex-1 min-w-0 text-sm font-bold text-center outline-none bg-transparent tabular-nums" />
                   <Star size={12} className="fill-amber-400 text-amber-400 shrink-0" />
                 </div>
               ))}
@@ -1026,8 +1096,8 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
               <div>
-                <p className="text-sm font-bold text-slate-700">Звёзды как валюта</p>
-                <p className="text-xs text-slate-400">При покупке награды звёзды списываются</p>
+                <p className="text-sm font-bold text-slate-700">Списание звёзд при наградах</p>
+                <p className="text-xs text-slate-400">При покупке награды звёзды списываются и могут вернуться при отмене</p>
               </div>
               <Switch checked={currencyEnabled} onCheckedChange={setCurrencyEnabled} />
             </div>
@@ -1095,7 +1165,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span className="text-xs font-extrabold text-amber-600">{r.costStars} ⭐</span>
+                  <span className="text-xs font-extrabold text-amber-600">{formatStarAmount(r.costStars)}</span>
                   <button
                     onClick={() => moveReward(idx, -1)}
                     disabled={idx === 0}
@@ -1318,7 +1388,7 @@ export default function SettingsPage() {
         <AccordionSection id="system" title="Система" accentColor="border-t-4 border-t-slate-500"
           icon={<RefreshCw size={18} className="text-slate-500" />}>
           <div className="space-y-2">
-            <button onClick={async () => { await fetch('/api/cleanup', { method: 'POST' }); showSaved('Очистка выполнена'); }}
+            <button onClick={() => setShowCleanupModal(true)}
               className="w-full bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors text-left">
               🗑 Очистить старые данные (90+ дней)
             </button>
@@ -1372,7 +1442,10 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1 text-amber-500 font-bold text-xs shrink-0 ml-3">
-                        +{g.starsAwarded || (g.grade === 5 ? 5 : g.grade === 4 ? 2 : 0)} <Star size={11} className="fill-amber-400" />
+                        {typeof g.starsAwarded === 'number'
+                          ? formatStarAmount(g.starsAwarded, false)
+                          : formatStarAmount(g.grade === 5 ? 5 : g.grade === 4 ? 2 : 0, false)}
+                        <Star size={11} className="fill-amber-400" />
                       </div>
                     </div>
                   ))
@@ -1436,21 +1509,143 @@ export default function SettingsPage() {
                         </div>
                         <h3 className="font-bold text-slate-800 leading-tight">{event.title}</h3>
                         <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{event.body}</p>
+                        {event.rewardId && event.details && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                {event.details.rewardTitle || 'Награда'}
+                              </span>
+                              {typeof event.details.costStars === 'number' && (
+                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  {event.details.status === 'selected' ? 'Резерв' : event.details.status === 'fulfilled' ? 'Подтверждено' : 'Доступно'} · {formatStarAmount(-Math.abs(event.details.costStars), false)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {event.type === 'task-completed' && event.details && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              {event.details.difficultyLabel && (
+                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  Сложность: {event.details.difficultyLabel}
+                                </span>
+                              )}
+                              {typeof event.details.stars === 'number' && (
+                                <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                  <Star size={11} className="fill-amber-400" />
+                                  +{event.details.stars} ⭐
+                                </span>
+                              )}
+                              {event.details.category && (
+                                <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                  Категория: {event.details.customCategory || event.details.category}
+                                </span>
+                              )}
+                            </div>
+                            {event.details.subtaskSummary && (
+                              <p className="mt-2 text-[11px] leading-relaxed">
+                                Подзадачи: {event.details.subtaskSummary}
+                              </p>
+                            )}
+                          </div>
+                        )}
                         <p className="text-xs text-slate-400 mt-2">{new Date(event.createdAt).toLocaleString('ru-RU')}</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {!event.read && (
-                          <button onClick={() => markEventRead(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-blue-500 hover:bg-blue-50 flex items-center justify-center" title="Прочитано">
-                            <CheckCheck size={16} />
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <div className="flex items-center gap-2">
+                          {!event.read && (
+                            <button onClick={() => markEventRead(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-blue-500 hover:bg-blue-50 flex items-center justify-center" title="Прочитано">
+                              <CheckCheck size={16} />
+                            </button>
+                          )}
+                          <button onClick={() => deleteEvent(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center" title="Удалить">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        {event.type === 'task-completed' && event.details && (
+                          <button
+                            onClick={() => revertTask(event)}
+                            className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-[11px] font-bold hover:bg-red-100 transition-colors"
+                            title="Отменить выполнение задачи"
+                          >
+                            <Ban size={12} /> Отменить
                           </button>
                         )}
-                        <button onClick={() => deleteEvent(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center" title="Удалить">
-                          <Trash2 size={16} />
-                        </button>
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCleanupModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => !cleanupLoading && setShowCleanupModal(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6"
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-800">Очистить старые данные?</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Будут удалены записи старше 90 дней: дни, оценки, ledger и события.
+                  </p>
+                </div>
+                <button
+                  onClick={() => !cleanupLoading && setShowCleanupModal(false)}
+                  className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 flex items-center justify-center disabled:opacity-50"
+                  disabled={cleanupLoading}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {cleanupMessage && (
+                <div className="mb-4 rounded-2xl bg-green-50 border border-green-100 text-green-700 text-sm px-4 py-3">
+                  {cleanupMessage}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setCleanupLoading(true);
+                    setCleanupMessage('');
+                    try {
+                      const res = await fetch('/api/cleanup', { method: 'POST' });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        throw new Error(data?.error || 'Cleanup failed');
+                      }
+                      setCleanupMessage(data?.message || 'Очистка выполнена');
+                      showSaved(data?.message || 'Очистка выполнена');
+                    } catch (error) {
+                      const message = error instanceof Error ? error.message : 'Не удалось очистить данные';
+                      setCleanupMessage(message);
+                    } finally {
+                      setCleanupLoading(false);
+                    }
+                  }}
+                  disabled={cleanupLoading}
+                  className="flex-1 bg-red-500 text-white px-4 py-3 rounded-2xl font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {cleanupLoading ? 'Удаление...' : 'Удалить'}
+                </button>
+                <button
+                  onClick={() => !cleanupLoading && setShowCleanupModal(false)}
+                  disabled={cleanupLoading}
+                  className="flex-1 bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Отмена
+                </button>
               </div>
             </motion.div>
           </div>

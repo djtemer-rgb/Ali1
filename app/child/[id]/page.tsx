@@ -8,6 +8,7 @@ import GradeInput from "../../components/GradeInput";
 import TaskCard from "../../components/TaskCard";
 import confetti from "canvas-confetti";
 import { buildTaskCompletionBundle } from "@/app/lib/reporting";
+import { formatStarAmount } from "@/app/lib/reporting";
 
 interface Subtask {
   id: string;
@@ -17,6 +18,7 @@ interface Subtask {
 
 interface Task {
   id: string;
+  templateId?: string;
   title: string;
   stars: number;
   completed: boolean;
@@ -228,7 +230,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
             childId,
             amount: -cost,
             source: 'reward-purchase',
-            reason: `Покупка награды: ${title}`
+            reason: `Покупка награды: ${title} (${formatStarAmount(-cost)})`
           })
         });
 
@@ -239,14 +241,20 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
             childId,
             type: 'reward-selected',
             title: 'Награда выбрана',
-            body: `${currentChild?.name || childId} выбрал награду: ${title}`
+            body: `${currentChild?.name || childId} выбрал награду: ${title} (${formatStarAmount(-cost)})`,
+            details: {
+              childName: currentChild?.name || childId,
+              rewardTitle: title,
+              costStars: cost,
+              status: 'selected'
+            }
           })
         });
       } catch (err) {
         console.error('Error buying reward:', err);
       }
     } else {
-      alert(`Не хватает звезд! Нужно еще ${cost - stars} ⭐️`);
+      alert(`Не хватает звезд! Нужно еще ${formatStarAmount(cost - stars)}`);
     }
   };
 
@@ -379,7 +387,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
                   <div className={`rounded-xl px-3 py-1.5 md:py-2 flex justify-center items-center gap-1 font-extrabold transition-colors text-sm md:text-base mt-0 md:mt-auto ${
                     canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'
                   }`}>
-                    {reward.costStars} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                    {formatStarAmount(reward.costStars, false)} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
                   </div>
                 </div>
               );

@@ -1,0 +1,86 @@
+import { NextResponse } from 'next/server';
+import { getJson, setJson } from '../../upstash';
+import { invalidateReportCache } from '../../report-cache';
+
+type RevertTaskBody = {
+  childId?: 'ali' | 'said';
+  date?: string;
+  taskId?: string;
+};
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as RevertTaskBody;
+    const childId = body.childId || 'ali';
+    const date = body.date || new Date().toISOString().split('T')[0];
+    const taskId = body.taskId;
+
+    if (!taskId) {
+      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
+    }
+
+    const dayKey = `aq:day:${childId}:${date}`;
+    const rawTasks = await getJson(dayKey);
+    const tasks = Array.isArray(rawTasks) ? rawTasks : [];
+    const taskIndex = tasks.findIndex((task: any) => task?.id === taskId);
+
+    if (taskIndex < 0) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    const currentTask = tasks[taskIndex];
+    const revertedTask = normalizeRevertedTask(currentTask);
+    if (!currentTask?.completed) {
+      return NextResponse.json({ task: revertedTask, removedStars: 0, balance: await getCurrentBalance(childId) });
+    }
+
+    tasks[taskIndex] = revertedTask;
+    await setJson(dayKey, tasks);
+
+    const ledgerKey = `aq:star-ledger:${childId}`;
+    const rawLedger = await getJson(ledgerKey);
+    const ledger = Array.isArray(rawLedger) ? rawLedger : [];
+    const removedEntries = ledger.filter((item: any) => item?.source === 'task' && item?.sourceId === taskId);
+    const remainingLedger = ledger.filter((item: any) => !(item?.source === 'task' && item?.sourceId === taskId));
+
+    await setJson(ledgerKey, remainingLedger);
+    await invalidateReportCache(childId);
+
+    const removedStars = removedEntries.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
+    const balance = remainingLedger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
+
+    return NextResponse.json({
+      task: revertedTask,
+      removedStars,
+      balance,
+    });
+  } catch (error) {
+    console.error('Error reverting task:', error);
+    return NextResponse.json({ error: 'Failed to revert task' }, { status: 500 });
+  }
+}
+
+function normalizeRevertedTask(task: any) {
+  return {
+    ...task,
+    completed: false,
+    completedAt: null,
+    difficulty: null,
+    detailsOpened: false,
+    subtasks: Array.isArray(task?.subtasks)
+      ? task.subtasks.map((subtask: any, index: number) => ({
+          id: subtask?.id || `subtask-${index}`,
+          title: subtask?.title || '',
+          done: false,
+        }))
+      : [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function getCurrentBalance(childId: string) {
+  const ledger = await getJson(`aq:star-ledger:${childId}`);
+  return Array.isArray(ledger)
+    ? ledger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0)
+    : 0;
+}

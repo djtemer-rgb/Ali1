@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Lock, KeyRound } from "lucide-react";
 
 export default function ParentLogin() {
@@ -10,6 +11,7 @@ export default function ParentLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [useRecovery, setUseRecovery] = useState(false);
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,7 +29,7 @@ export default function ParentLogin() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        router.push('/parent');
+        router.push(searchParams.get('redirect') || '/parent');
       } else {
         setError(data.error || 'Ошибка входа');
       }

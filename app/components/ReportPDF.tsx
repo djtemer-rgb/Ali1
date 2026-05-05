@@ -1,10 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import {
-  formatDifficultyLabel,
   formatLongDate,
   formatShortDate,
+  formatStarAmount,
   getCategoryLabel,
   shortenText,
 } from "@/app/lib/reporting";
@@ -62,6 +63,10 @@ type ReportPdfData = {
     difficultyLabel?: string | null;
     subtaskSummary?: string | null;
   }>;
+  settings?: {
+    gradeHistoryLimit?: number;
+    gradeToStars?: Record<string, number>;
+  };
 };
 
 type ReportPdfProps = {
@@ -75,6 +80,7 @@ const theme = {
   blue: "#3b82f6",
   amber: "#f59e0b",
   green: "#16a34a",
+  red: "#ef4444",
   slate: "#64748b",
   border: "#e2e8f0",
   bg: "#f8fafc",
@@ -83,138 +89,170 @@ const theme = {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 28,
+    padding: 22,
     backgroundColor: "#ffffff",
     fontFamily: "Arial",
     color: theme.text,
-    fontSize: 10,
-    lineHeight: 1.45,
+    fontSize: 9.5,
+    lineHeight: 1.35,
   },
   header: {
-    marginBottom: 14,
+    marginBottom: 10,
   },
   title: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: 700,
     color: theme.navy,
-    marginBottom: 3,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: theme.slate,
     marginBottom: 2,
   },
+  titleChild: {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: theme.slate,
+    marginBottom: 1,
+  },
   period: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: "#94a3b8",
   },
   summaryRow: {
     flexDirection: "row",
-    gap: 6,
-    marginTop: 10,
-    marginBottom: 10,
+    gap: 5,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  card: {
+  summaryCard: {
     flexGrow: 1,
     flexBasis: 0,
     backgroundColor: theme.bg,
     borderRadius: 8,
-    padding: 10,
+    padding: 8,
     borderWidth: 1,
     borderColor: theme.border,
   },
-  cardLabel: {
-    fontSize: 7,
+  summaryLabel: {
+    fontSize: 6.8,
     color: "#94a3b8",
     fontWeight: 700,
     textTransform: "uppercase",
-    marginBottom: 3,
+    marginBottom: 2,
   },
-  cardValue: {
-    fontSize: 18,
+  summaryValue: {
+    fontSize: 16,
     fontWeight: 700,
     color: theme.navy,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: theme.navy,
-    marginBottom: 6,
-  },
-  section: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.border,
   },
   insightRow: {
     flexDirection: "row",
-    gap: 6,
+    gap: 5,
   },
   insightCard: {
     flexGrow: 1,
     flexBasis: 0,
     backgroundColor: "#ffffff",
     borderRadius: 8,
-    padding: 8,
+    padding: 7,
     borderWidth: 1,
     borderColor: theme.border,
   },
   insightLabel: {
-    fontSize: 7,
+    fontSize: 6.8,
     color: "#94a3b8",
     fontWeight: 700,
     textTransform: "uppercase",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   insightValue: {
-    fontSize: 10,
+    fontSize: 9.2,
     fontWeight: 700,
     color: theme.text,
   },
   insightSubtitle: {
-    fontSize: 8,
+    fontSize: 7.6,
     color: theme.slate,
-    marginTop: 2,
+    marginTop: 1,
+  },
+  section: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: theme.navy,
+    marginBottom: 5,
+  },
+  chartWrap: {
+    marginTop: 3,
+    minHeight: 78,
+    position: "relative",
+  },
+  chartBaseline: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "50%",
+    height: 1,
+    backgroundColor: theme.border,
   },
   chartRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 4,
-    minHeight: 82,
-    marginTop: 4,
+    alignItems: "stretch",
+    gap: 2,
+    minHeight: 78,
   },
   chartColumn: {
     flexGrow: 1,
     flexBasis: 0,
     alignItems: "center",
     justifyContent: "flex-end",
-    minWidth: 14,
+    minWidth: 10,
   },
   chartBars: {
     width: 8,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 1.5,
-    minHeight: 58,
+    height: 62,
+    position: "relative",
+  },
+  chartTaskBar: {
+    position: "absolute",
+    left: 0,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: theme.blue,
+  },
+  chartStarBarPositive: {
+    position: "absolute",
+    left: 0,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: theme.amber,
+  },
+  chartStarBarNegative: {
+    position: "absolute",
+    left: 0,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: theme.red,
   },
   chartLabel: {
-    marginTop: 3,
-    fontSize: 6.5,
+    marginTop: 2,
+    fontSize: 6.2,
     color: "#94a3b8",
     textAlign: "center",
-    height: 8,
+    height: 7,
   },
   legend: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 6,
+    gap: 9,
+    marginTop: 4,
   },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    fontSize: 8,
+    gap: 3,
+    fontSize: 7.5,
     color: theme.slate,
   },
   legendDot: {
@@ -228,64 +266,43 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   chip: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 999,
-    fontSize: 7,
-    borderWidth: 1,
-    borderColor: theme.border,
-    color: theme.text,
-    backgroundColor: theme.bg,
-  },
-  list: {
-    gap: 5,
-  },
-  taskCard: {
-    backgroundColor: theme.bg,
-    borderRadius: 8,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: theme.border,
-    marginBottom: 5,
-  },
-  taskTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 6,
-  },
-  taskTitle: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: theme.navy,
-    flexGrow: 1,
-    flexBasis: 0,
-  },
-  taskMeta: {
-    fontSize: 7.5,
-    color: theme.slate,
-    marginTop: 2,
-  },
-  taskReason: {
-    fontSize: 8,
-    color: theme.text,
-    marginTop: 4,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginTop: 4,
-  },
-  badge: {
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 999,
     fontSize: 7,
     borderWidth: 1,
+    borderColor: theme.border,
+    color: theme.text,
+    backgroundColor: theme.bg,
+  },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  denseCard: {
+    width: "24%",
+    backgroundColor: theme.bg,
+    borderRadius: 8,
+    padding: 7,
+    borderWidth: 1,
+    borderColor: theme.border,
+    minHeight: 56,
+  },
+  denseCardTitle: {
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: theme.navy,
+    marginBottom: 2,
+  },
+  denseCardMeta: {
+    fontSize: 7,
+    color: theme.slate,
+    marginTop: 1,
   },
   footer: {
-    marginTop: 14,
-    fontSize: 7.5,
+    marginTop: 10,
+    fontSize: 7.2,
     color: "#cbd5e1",
     textAlign: "center",
   },
@@ -293,16 +310,16 @@ const styles = StyleSheet.create({
 
 export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
   const chartLabels = compressLabels(data.chart.labels, days);
-  const chartTaskMax = Math.max(...data.chart.tasksCompleted, 1);
-  const chartStarMax = Math.max(...data.chart.starsEarned, 1);
-  const gradeLimit = data.grades.length;
+  const maxTasks = Math.max(...data.chart.tasksCompleted, 1);
+  const maxStarMagnitude = Math.max(...data.chart.starsEarned.map((value) => Math.abs(value)), 1);
+  const gradeToStars = data.settings?.gradeToStars || { "5": 5, "4": 2, "3": 0, "2": 0 };
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Путь героя — Отчёт</Text>
-          <Text style={styles.subtitle}>{childName}</Text>
+          <Text style={styles.title}>Путь героя — Отчёт — {childName}</Text>
+          <Text style={styles.titleChild}>Ребёнок: {childName}</Text>
           <Text style={styles.period}>
             {formatLongDate(data.period.startDate)} — {formatLongDate(data.period.endDate)} ({days} дней)
           </Text>
@@ -310,15 +327,15 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
 
         <View style={styles.summaryRow}>
           <PdfCard label="Задач" value={data.summary.totalTasksCompleted} />
-          <PdfCard label="Звёзд" value={`+${data.summary.totalStarsEarned}`} accent={theme.amber} />
+          <PdfCard label="Звёзд" value={formatStarAmount(data.summary.totalStarsEarned)} accent={theme.amber} />
           <PdfCard label="Серия" value={`${data.summary.streakDays} дн.`} accent={theme.green} />
-          <PdfCard label="Баланс" value={data.summary.currentBalance} accent={theme.blue} />
+          <PdfCard label="Баланс" value={formatStarAmount(data.summary.currentBalance)} accent={theme.blue} />
         </View>
 
         <View style={styles.insightRow}>
           <InsightCard
             title="Лучший день"
-            value={data.insights.bestDay ? `${data.insights.bestDay.label} · +${data.insights.bestDay.starsEarned}` : "Нет данных"}
+            value={data.insights.bestDay ? `${data.insights.bestDay.label} · ${formatStarAmount(data.insights.bestDay.starsEarned)}` : "Нет данных"}
             subtitle={data.insights.bestDay ? `${data.insights.bestDay.tasksCompleted} задач` : undefined}
           />
           <InsightCard
@@ -329,36 +346,35 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
           <InsightCard
             title="Топ-квест"
             value={data.insights.topTask ? shortenText(data.insights.topTask.title, 28) : "Нет данных"}
-            subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || "Без сложности"} · +${data.insights.topTask.stars} ⭐` : undefined}
+            subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || "Без сложности"} · ${formatStarAmount(data.insights.topTask.stars)}` : undefined}
           />
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Активность по дням</Text>
-          <View style={styles.chartRow}>
-            {data.chart.labels.map((label, index) => (
-              <View key={`${label}-${index}`} style={styles.chartColumn}>
-                <View style={styles.chartBars}>
-                  <View
-                    style={{
-                      width: 7,
-                      height: scaleBar(data.chart.starsEarned[index], chartStarMax, 40),
-                      borderRadius: 4,
-                      backgroundColor: theme.amber,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 7,
-                      height: scaleBar(data.chart.tasksCompleted[index], chartTaskMax, 40),
-                      borderRadius: 4,
-                      backgroundColor: theme.blue,
-                    }}
-                  />
-                </View>
-                <Text style={styles.chartLabel}>{chartLabels[index]}</Text>
-              </View>
-            ))}
+          <View style={styles.chartWrap}>
+            <View style={styles.chartBaseline} />
+            <View style={styles.chartRow}>
+              {data.chart.labels.map((label, index) => {
+                const taskHeight = Math.max((data.chart.tasksCompleted[index] / maxTasks) * 30, data.chart.tasksCompleted[index] > 0 ? 4 : 0);
+                const starHeight = Math.max((Math.abs(data.chart.starsEarned[index]) / maxStarMagnitude) * 30, data.chart.starsEarned[index] !== 0 ? 4 : 0);
+                const starValue = data.chart.starsEarned[index];
+
+                return (
+                  <View key={`${label}-${index}`} style={styles.chartColumn}>
+                    <View style={styles.chartBars}>
+                      <View style={[styles.chartTaskBar, { bottom: "50%", height: taskHeight }]} />
+                      {starValue >= 0 ? (
+                        <View style={[styles.chartStarBarPositive, { bottom: "50%", height: starHeight }]} />
+                      ) : (
+                        <View style={[styles.chartStarBarNegative, { top: "50%", height: starHeight }]} />
+                      )}
+                    </View>
+                    <Text style={styles.chartLabel}>{chartLabels[index]}</Text>
+                  </View>
+                );
+              })}
+            </View>
           </View>
           <View style={styles.legend}>
             <View style={styles.legendItem}>
@@ -367,7 +383,11 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: theme.amber }]} />
-              <Text>Звёзды</Text>
+              <Text>Плюс звёзды</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: theme.red }]} />
+              <Text>Минус звёзды</Text>
             </View>
           </View>
         </View>
@@ -387,90 +407,77 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Последние выполненные задачи</Text>
-          {data.recentTasks.length === 0 ? (
+        <DenseSection title="Последние выполненные задачи">
+          {data.recentTasks.slice(0, 4).length === 0 ? (
             <Text style={{ color: theme.slate }}>Пока нет выполненных задач</Text>
           ) : (
-            <View style={styles.list}>
-              {data.recentTasks.slice(0, 8).map((task) => (
-                <View key={task.id} style={styles.taskCard}>
-                  <View style={styles.taskTitleRow}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: 700, color: theme.green }}>+{task.stars} ⭐</Text>
-                  </View>
-                  <Text style={styles.taskMeta}>{formatShortDate(task.completedAt)}</Text>
-                  <View style={styles.badgeRow}>
-                    {task.difficultyLabel && <PdfBadge tone="blue" label={`Сложность: ${task.difficultyLabel}`} />}
-                    {task.subtaskSummary && <PdfBadge tone="slate" label={`Подзадачи: ${shortenText(task.subtaskSummary, 42)}`} />}
-                    {task.detailsText && <PdfBadge tone="amber" label={shortenText(task.detailsText, 42)} />}
-                  </View>
+            <View style={styles.cardGrid}>
+              {data.recentTasks.slice(0, 4).map((task) => (
+                <View key={task.id} style={styles.denseCard}>
+                  <Text style={styles.denseCardTitle}>{shortenText(task.title, 32)}</Text>
+                  <Text style={styles.denseCardMeta}>{formatShortDate(task.completedAt)}</Text>
+                  <Text style={{ fontSize: 8, fontWeight: 700, color: theme.green, marginTop: 2 }}>
+                    {formatStarAmount(task.stars)}
+                  </Text>
+                  {task.difficultyLabel ? <Text style={styles.denseCardMeta}>Сложность: {task.difficultyLabel}</Text> : null}
+                  {task.subtaskSummary ? (
+                    <Text style={styles.denseCardMeta}>Подзадачи: {shortenText(task.subtaskSummary, 36)}</Text>
+                  ) : null}
                 </View>
               ))}
             </View>
           )}
-        </View>
+        </DenseSection>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>История звёзд</Text>
-          {data.recentStarEntries.length === 0 ? (
+        <DenseSection title="История звёзд">
+          {data.recentStarEntries.slice(0, 4).length === 0 ? (
             <Text style={{ color: theme.slate }}>Пока нет записей</Text>
           ) : (
-            <View style={styles.list}>
-              {data.recentStarEntries.slice(0, 8).map((entry) => (
-                <View key={entry.id} style={styles.taskCard}>
-                  <View style={styles.taskTitleRow}>
-                    <Text style={styles.taskTitle}>{entry.taskTitle || entry.sourceLabel}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: 700, color: entry.amount >= 0 ? theme.green : "#dc2626" }}>
-                      {entry.amount >= 0 ? "+" : ""}
-                      {entry.amount} ⭐
-                    </Text>
-                  </View>
-                  <Text style={styles.taskMeta}>
+            <View style={styles.cardGrid}>
+              {data.recentStarEntries.slice(0, 4).map((entry) => (
+                <View key={entry.id} style={styles.denseCard}>
+                  <Text style={styles.denseCardTitle}>{shortenText(entry.taskTitle || entry.sourceLabel, 32)}</Text>
+                  <Text style={styles.denseCardMeta}>
                     {entry.sourceLabel} · {formatShortDate(entry.createdAt)}
                   </Text>
-                  <Text style={styles.taskReason}>{shortenText(entry.reason, 120)}</Text>
-                  <View style={styles.badgeRow}>
-                    {entry.difficultyLabel && <PdfBadge tone="blue" label={`Сложность: ${entry.difficultyLabel}`} />}
-                    {entry.subtaskSummary && <PdfBadge tone="slate" label={`Подзадачи: ${shortenText(entry.subtaskSummary, 42)}`} />}
-                  </View>
+                  <Text style={{ fontSize: 8, fontWeight: 700, color: entry.amount >= 0 ? theme.green : theme.red, marginTop: 2 }}>
+                    {formatStarAmount(entry.amount)}
+                  </Text>
+                  <Text style={styles.denseCardMeta}>{shortenText(entry.reason, 64)}</Text>
                 </View>
               ))}
             </View>
           )}
-        </View>
+        </DenseSection>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Последние оценки</Text>
-          {data.grades.length === 0 ? (
+        <DenseSection title="Последние оценки">
+          {data.grades.slice(0, 4).length === 0 ? (
             <Text style={{ color: theme.slate }}>Пока нет оценок</Text>
           ) : (
-            <View style={styles.list}>
-              {data.grades.slice(0, 8).map((grade) => (
-                <View key={grade.id} style={styles.taskCard}>
-                  <View style={styles.taskTitleRow}>
-                    <Text style={styles.taskTitle}>{grade.subjectName}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: 700, color: grade.grade >= 4 ? theme.green : grade.grade === 3 ? theme.amber : "#dc2626" }}>
-                      {grade.grade}
-                    </Text>
-                  </View>
-                  <Text style={styles.taskMeta}>
-                    {grade.createdAt ? formatLongDate(grade.createdAt) : "Без даты"} {typeof grade.starsAwarded === "number" ? `· +${grade.starsAwarded} ⭐` : ""}
+            <View style={styles.cardGrid}>
+              {data.grades.slice(0, 4).map((grade) => (
+                <View key={grade.id} style={styles.denseCard}>
+                  <Text style={styles.denseCardTitle}>{shortenText(grade.subjectName, 32)}</Text>
+                  <Text style={styles.denseCardMeta}>{grade.createdAt ? formatLongDate(grade.createdAt) : "Без даты"}</Text>
+                  <Text style={{ fontSize: 8.3, fontWeight: 700, color: grade.grade >= 4 ? theme.green : grade.grade === 3 ? theme.amber : theme.red, marginTop: 2 }}>
+                    Оценка {grade.grade}
+                  </Text>
+                  <Text style={{ fontSize: 8, fontWeight: 700, color: typeof grade.starsAwarded === "number" && grade.starsAwarded < 0 ? theme.red : theme.amber, marginTop: 2 }}>
+                    {formatStarAmount(
+                      typeof grade.starsAwarded === "number"
+                        ? grade.starsAwarded
+                        : (gradeToStars[String(grade.grade)] ?? 0)
+                    )}
                   </Text>
                 </View>
               ))}
             </View>
           )}
-        </View>
+        </DenseSection>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Награды</Text>
-          <Text style={{ color: theme.text }}>
-            Выбрано: {data.rewards.selected} • Получено: {data.rewards.fulfilled}
-          </Text>
-          <Text style={{ color: theme.slate, marginTop: 3 }}>
-            Лимит оценок в отчёте: {gradeLimit}
-          </Text>
+          <Text style={{ color: theme.text }}>Выбрано: {data.rewards.selected} • Получено: {data.rewards.fulfilled}</Text>
         </View>
 
         <Text style={styles.footer}>
@@ -483,9 +490,9 @@ export default function ReportPDF({ childName, days, data }: ReportPdfProps) {
 
 function PdfCard({ label, value, accent = theme.navy }: { label: string; value: string | number; accent?: string }) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardLabel}>{label}</Text>
-      <Text style={[styles.cardValue, { color: accent }]}>{value}</Text>
+    <View style={styles.summaryCard}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, { color: accent }]}>{value}</Text>
     </View>
   );
 }
@@ -500,20 +507,13 @@ function InsightCard({ title, value, subtitle }: { title: string; value: string;
   );
 }
 
-function PdfBadge({ label, tone }: { label: string; tone: "amber" | "blue" | "slate" }) {
-  const palette = {
-    amber: { backgroundColor: "#fffbeb", color: "#b45309", borderColor: "#fde68a" },
-    blue: { backgroundColor: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" },
-    slate: { backgroundColor: "#f1f5f9", color: "#475569", borderColor: "#cbd5e1" },
-  }[tone];
-
-  return <Text style={[styles.badge, palette]}>{label}</Text>;
-}
-
-function scaleBar(value: number, maxValue: number, maxHeight: number) {
-  const safeMax = Math.max(maxValue, 1);
-  const scaled = Math.round((Math.max(value, 0) / safeMax) * maxHeight);
-  return Math.max(scaled, value > 0 ? 4 : 2);
+function DenseSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
 }
 
 function compressLabels(labels: string[], days: number) {

@@ -9,6 +9,7 @@ import {
   formatDifficultyLabel,
   formatLongDate,
   formatShortDate,
+  formatStarAmount,
   shortenText,
 } from "@/app/lib/reporting";
 
@@ -58,7 +59,7 @@ interface ReportData {
     difficultyLabel?: string | null;
     subtaskSummary?: string | null;
   }>;
-  settings?: { gradeHistoryLimit?: number };
+  settings?: { gradeHistoryLimit?: number; gradeToStars?: Record<string, number> };
 }
 
 export default function ReportsPage() {
@@ -159,8 +160,10 @@ export default function ReportsPage() {
     setShowExport(false);
   };
 
-  const maxVal = data ? Math.max(...data.chart.tasksCompleted, ...data.chart.starsEarned, 1) : 1;
+  const maxTasks = data ? Math.max(...data.chart.tasksCompleted, 1) : 1;
+  const maxStarMagnitude = data ? Math.max(...data.chart.starsEarned.map((value) => Math.abs(value)), 1) : 1;
   const gradeLimit = data?.settings?.gradeHistoryLimit || 20;
+  const gradeToStars = data?.settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
@@ -234,9 +237,9 @@ export default function ReportsPage() {
           ) : (
             <>
               <StatCard label="Задач" value={data.summary.totalTasksCompleted} accent="text-slate-800" icon={<FileText size={16} />} />
-              <StatCard label="Звёзд" value={data.summary.totalStarsEarned} accent="text-amber-500" icon={<Star size={16} className="fill-amber-400" />} />
+              <StatCard label="Звёзд" value={formatStarAmount(data.summary.totalStarsEarned)} accent="text-amber-500" icon={<Star size={16} className="fill-amber-400" />} />
               <StatCard label="Серия" value={`${data.summary.streakDays} дн.`} accent="text-green-500" icon={<Sparkles size={16} />} />
-              <StatCard label="Баланс" value={data.summary.currentBalance} accent="text-blue-500" icon={<Trophy size={16} />} />
+              <StatCard label="Баланс" value={formatStarAmount(data.summary.currentBalance)} accent="text-blue-500" icon={<Trophy size={16} />} />
               <StatCard label="Оценок" value={data.summary.totalGradesCount} accent="text-indigo-500" icon={<BadgeInfo size={16} />} />
               <StatCard label="Наград" value={`${data.rewards.selected}/${data.rewards.fulfilled}`} accent="text-purple-500" icon={<Gift size={16} />} />
             </>
@@ -252,7 +255,7 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <InsightPill
                 title="Лучший день"
-                value={data.insights.bestDay ? `${data.insights.bestDay.label} · +${data.insights.bestDay.starsEarned}` : 'Нет данных'}
+                value={data.insights.bestDay ? `${data.insights.bestDay.label} · ${formatStarAmount(data.insights.bestDay.starsEarned)}` : 'Нет данных'}
                 subtitle={data.insights.bestDay ? `${data.insights.bestDay.tasksCompleted} задач` : undefined}
               />
               <InsightPill
@@ -263,7 +266,7 @@ export default function ReportsPage() {
               <InsightPill
                 title="Топ-квест"
                 value={data.insights.topTask ? data.insights.topTask.title : 'Нет данных'}
-                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · +${data.insights.topTask.stars} ⭐` : undefined}
+                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · ${formatStarAmount(data.insights.topTask.stars)}` : undefined}
               />
             </div>
           </section>
@@ -274,16 +277,22 @@ export default function ReportsPage() {
             <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
               <h2 className="text-base font-extrabold text-slate-800 mb-4">Активность</h2>
               <div className="overflow-x-auto -mx-4 px-4 pb-2">
-                <div className="flex gap-1.5 items-end h-40" style={{ minWidth: `${Math.max(data.chart.labels.length * 14, 260)}px` }}>
+                <div className="relative flex gap-1.5 items-stretch h-44" style={{ minWidth: `${Math.max(data.chart.labels.length * 14, 260)}px` }}>
+                  <div className="absolute left-4 right-4 top-1/2 h-px bg-slate-200" />
                   {data.chart.labels.map((label, i) => {
-                    const tasksHeight = Math.max((data.chart.tasksCompleted[i] / maxVal) * 100, 4);
-                    const starsHeight = Math.max((data.chart.starsEarned[i] / maxVal) * 100, 4);
+                    const tasksHeight = Math.max((data.chart.tasksCompleted[i] / maxTasks) * 72, data.chart.tasksCompleted[i] > 0 ? 4 : 0);
+                    const starsHeight = Math.max((Math.abs(data.chart.starsEarned[i]) / maxStarMagnitude) * 72, data.chart.starsEarned[i] !== 0 ? 4 : 0);
+                    const starValue = data.chart.starsEarned[i];
                     const showLabel = data.chart.labels.length <= 31 || i % 3 === 0 || i === data.chart.labels.length - 1;
                     return (
-                      <div key={`${label}-${i}`} className="flex-1 flex flex-col items-center gap-1" style={{ minWidth: '14px' }}>
-                        <div className="w-full flex flex-col justify-end items-center h-28 gap-0.5">
-                          <div className="w-2 md:w-2.5 rounded-full bg-amber-400 transition-all" style={{ height: `${starsHeight}%` }} />
-                          <div className="w-2 md:w-2.5 rounded-full bg-blue-400 transition-all" style={{ height: `${tasksHeight}%` }} />
+                      <div key={`${label}-${i}`} className="relative flex-1 flex flex-col items-center gap-1" style={{ minWidth: '14px' }}>
+                        <div className="relative w-full h-32">
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-1/2 w-2 md:w-2.5 rounded-full bg-blue-400 transition-all" style={{ height: `${tasksHeight}px` }} />
+                          {starValue >= 0 ? (
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-1/2 w-2 md:w-2.5 rounded-full bg-amber-400 transition-all" style={{ height: `${starsHeight}px` }} />
+                          ) : (
+                            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 w-2 md:w-2.5 rounded-full bg-red-400 transition-all" style={{ height: `${starsHeight}px` }} />
+                          )}
                         </div>
                         <span className="text-[7px] text-slate-400 font-medium truncate w-full text-center h-3">
                           {showLabel ? label : ' '}
@@ -295,7 +304,8 @@ export default function ReportsPage() {
               </div>
               <div className="flex gap-4 mt-2 text-[11px] text-slate-500">
                 <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-blue-400" /> Задачи</span>
-                <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-amber-400" /> Звёзды</span>
+                <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-amber-400" /> Плюс звёзды</span>
+                <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-red-400" /> Минус звёзды</span>
               </div>
             </section>
 
@@ -314,14 +324,14 @@ export default function ReportsPage() {
               )}
             </section>
 
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
               <CompactListSection
                 title="Последние выполненные задачи"
                 icon={<FileText size={18} className="text-blue-500" />}
                 emptyLabel="Пока нет выполненных задач"
               >
-                {data.recentTasks.map((task) => (
-                  <div key={task.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                {data.recentTasks.slice(0, 4).map((task) => (
+                  <div key={task.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-slate-800 text-sm leading-tight">{task.title}</p>
@@ -329,7 +339,7 @@ export default function ReportsPage() {
                           {formatLongDate(task.completedAt)}
                         </p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          <MiniBadge label={`+${task.stars} ⭐`} tone="amber" />
+                          <MiniBadge label={formatStarAmount(task.stars)} tone="amber" />
                           {task.difficultyLabel && <MiniBadge label={`Сложность: ${task.difficultyLabel}`} tone="blue" />}
                           {task.subtaskSummary && <MiniBadge label={`Подзадачи: ${task.subtaskSummary}`} tone="slate" />}
                         </div>
@@ -360,8 +370,8 @@ export default function ReportsPage() {
                 icon={<Star size={18} className="fill-amber-400 text-amber-400" />}
                 emptyLabel="Пока нет записей"
               >
-                {data.recentStarEntries.map((entry) => (
-                  <div key={entry.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                {data.recentStarEntries.slice(0, 4).map((entry) => (
+                  <div key={entry.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -371,53 +381,54 @@ export default function ReportsPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">{formatShortDate(entry.createdAt)}</p>
-                        <p className="text-[12px] text-slate-600 mt-2 leading-relaxed">{entry.reason}</p>
+                        <p className="text-[12px] text-slate-600 mt-2 leading-relaxed">{shortenText(entry.reason, 110)}</p>
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {entry.difficultyLabel && <MiniBadge label={`Сложность: ${entry.difficultyLabel}`} tone="blue" />}
                           {entry.subtaskSummary && <MiniBadge label={`Подзадачи: ${entry.subtaskSummary}`} tone="slate" />}
                         </div>
                       </div>
                       <div className={`shrink-0 text-sm font-extrabold ${entry.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        {entry.amount >= 0 ? '+' : ''}{entry.amount} ⭐
+                        {formatStarAmount(entry.amount)}
                       </div>
                     </div>
                   </div>
                 ))}
               </CompactListSection>
-            </section>
 
-            {data.grades.length > 0 && (
-              <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
-                <div className="flex items-end justify-between gap-3 mb-3">
-                  <div>
-                    <h2 className="text-base font-extrabold text-slate-800">Последние оценки</h2>
-                    <p className="text-xs text-slate-400">Показываем последние {gradeLimit} записей</p>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {data.summary.totalGradesCount} в периоде
-                  </span>
-                </div>
-                <div className="max-h-[22rem] overflow-y-auto space-y-1.5 pr-1">
-                  {data.grades.map((grade: any) => (
-                    <div key={grade.id} className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <CompactListSection
+                title="Последние оценки"
+                icon={<BadgeInfo size={18} className="text-indigo-500" />}
+                emptyLabel="Пока нет оценок"
+              >
+                {data.grades.slice(0, 4).map((grade: any) => (
+                  <div key={grade.id} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 h-full">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-slate-700">{grade.subjectName}</span>
-                          <span className="text-[11px] text-slate-400">
-                            {grade.createdAt ? `(${formatLongDate(grade.createdAt)})` : ''}
-                          </span>
-                        </div>
+                        <p className="text-sm font-bold text-slate-700 truncate">{grade.subjectName}</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          {grade.starsAwarded > 0 ? `+${grade.starsAwarded} ⭐` : 'Без звёзд'}
+                          {grade.createdAt ? formatLongDate(grade.createdAt) : ''}
                         </p>
                       </div>
-                      <span className={`text-sm font-extrabold shrink-0 ml-2 ${grade.grade >= 4 ? 'text-green-600' : grade.grade === 3 ? 'text-amber-600' : 'text-red-600'}`}>
+                      <span className={`text-sm font-extrabold shrink-0 ${grade.grade >= 4 ? 'text-green-600' : grade.grade === 3 ? 'text-amber-600' : 'text-red-600'}`}>
                         {grade.grade}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </section>
+                    <p className={`text-[11px] mt-2 font-bold ${Number(grade.starsAwarded) >= 0 ? 'text-amber-600' : 'text-red-500'}`}>
+                      {formatStarAmount(
+                        typeof grade.starsAwarded === 'number'
+                          ? grade.starsAwarded
+                          : (gradeToStars[String(grade.grade)] ?? 0)
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </CompactListSection>
+            </section>
+
+            {data.grades.length > 4 && (
+              <p className="text-[11px] text-slate-400 text-center -mt-1">
+                Показаны 4 последних оценки из {data.summary.totalGradesCount}
+              </p>
             )}
 
             {showPdfError && (
@@ -458,7 +469,7 @@ export default function ReportsPage() {
                       <p className="font-bold text-slate-800 text-sm truncate">{reward.title}</p>
                       {reward.description && <p className="text-xs text-slate-400 truncate">{reward.description}</p>}
                     </div>
-                    <span className="text-xs font-extrabold text-amber-500 shrink-0">{reward.costStars} ⭐</span>
+                    <span className="text-xs font-extrabold text-amber-500 shrink-0">{formatStarAmount(reward.costStars)}</span>
                   </div>
                 ))}
               </div>
@@ -501,7 +512,7 @@ function CompactListSection({ title, icon, emptyLabel, children }: { title: stri
         {title}
       </div>
       {hasContent ? (
-        <div className="max-h-[22rem] overflow-y-auto space-y-2 pr-1">{children}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">{children}</div>
       ) : (
         <p className="text-slate-400 text-sm">{emptyLabel}</p>
       )}

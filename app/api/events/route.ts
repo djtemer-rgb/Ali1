@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 import { getChildSettings, NOTIFICATION_EVENT_KEYS } from '@/app/lib/settings-shared';
 import { sendTelegramIfEnabled, sendWebPushToChild } from '@/app/lib/notifications';
-import { buildSubtaskSummary, formatDifficultyLabel } from '@/app/lib/reporting';
+import { buildSubtaskSummary, formatDifficultyLabel, formatStarAmount } from '@/app/lib/reporting';
 
 function escapeHtml(input: string) {
   return input
@@ -24,10 +24,14 @@ function buildTaskNotificationTexts(event: any) {
   const difficultyLabel = details.difficultyLabel || formatDifficultyLabel(details.difficulty) || null;
   const subtasks = Array.isArray(details.subtasks) ? details.subtasks : [];
   const subtaskBundle = buildSubtaskSummary(subtasks, 8);
+  const starSummary = typeof details.stars === 'number' ? formatStarAmount(details.stars) : null;
 
   const telegramParts = [
     `<b>${escapeHtml(childName)} выполнил задачу:</b> ${escapeHtml(taskTitle)}`,
     difficultyLabel ? `Сложность: ${escapeHtml(difficultyLabel)}` : null,
+    details.category || details.customCategory ? `Категория: ${escapeHtml(details.customCategory || details.category)}` : null,
+    details.detailsText ? `Заметка: ${escapeHtml(String(details.detailsText))}` : null,
+    starSummary ? `Звёзды: ${escapeHtml(starSummary)}` : null,
     subtaskBundle.count > 0
       ? `Подзадачи:\n${subtasks.map((subtask: any) => `• ${escapeHtml(String(subtask.title || ''))}${subtask.done ? ' ✅' : ''}`).join('\n')}`
       : null,
@@ -36,7 +40,33 @@ function buildTaskNotificationTexts(event: any) {
   const pushParts = [
     taskTitle,
     difficultyLabel ? `Сложность: ${difficultyLabel}` : null,
-    typeof details.stars === 'number' ? `+${details.stars} ⭐` : null,
+    typeof details.stars === 'number' ? formatStarAmount(details.stars) : null,
+  ].filter(Boolean);
+
+  return {
+    telegram: telegramParts.join('\n'),
+    push: pushParts.join(' · '),
+  };
+}
+
+function buildRewardNotificationTexts(event: any) {
+  const details = event?.details || {};
+  const childName = details.childName || getChildName(event.childId);
+  const rewardTitle = details.rewardTitle || event.body || event.title || 'Награда';
+  const costStars = typeof details.costStars === 'number' ? details.costStars : null;
+  const status = details.status || event.type;
+  const reserved = costStars ? formatStarAmount(-Math.abs(costStars)) : null;
+
+  const telegramParts = [
+    `<b>${escapeHtml(childName)} выбрал награду:</b> ${escapeHtml(rewardTitle)}`,
+    reserved ? `Резерв: ${escapeHtml(reserved)}` : null,
+    status === 'selected' ? 'Статус: выбрано' : (status === 'reward-fulfilled' || status === 'fulfilled' ? 'Статус: подтверждено' : null),
+  ].filter(Boolean);
+
+  const pushParts = [
+    rewardTitle,
+    reserved ? `Резерв: ${reserved}` : null,
+    status === 'selected' ? 'Статус: выбрано' : (status === 'reward-fulfilled' || status === 'fulfilled' ? 'Статус: подтверждено' : null),
   ].filter(Boolean);
 
   return {
@@ -94,14 +124,17 @@ export async function POST(request: Request) {
     const childSettings = getChildSettings(settings, newEvent.childId);
     const defaultMessage = `🔔 <b>Новое событие!</b>\n\n<b>${escapeHtml(newEvent.title)}</b>\n${escapeHtml(newEvent.body)}`;
     const taskMessages = newEvent.type === 'task-completed' ? buildTaskNotificationTexts(newEvent) : null;
-    const message = taskMessages?.telegram || defaultMessage;
+    const rewardMessages = newEvent.type === 'reward-selected' || newEvent.type === 'reward-fulfilled'
+      ? buildRewardNotificationTexts(newEvent)
+      : null;
+    const message = taskMessages?.telegram || rewardMessages?.telegram || defaultMessage;
 
     if (NOTIFICATION_EVENT_KEYS.includes(newEvent.type)) {
       await sendTelegramIfEnabled(settings, newEvent.childId, newEvent.type as any, message);
       if (childSettings.notifications.webPush.enabled && childSettings.notifications.webPush.events[newEvent.type as any]) {
         await sendWebPushToChild(newEvent.childId, {
           title: newEvent.title,
-          body: taskMessages?.push || newEvent.body,
+          body: taskMessages?.push || rewardMessages?.push || newEvent.body,
           tag: newEvent.type,
           url: '/parent/inbox',
           data: {

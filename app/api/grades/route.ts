@@ -21,9 +21,16 @@ export async function GET(request: Request) {
       const childId = url.searchParams.get('childId') || 'ali';
       const date = url.searchParams.get('date');
       const grades = await getJson('aq:grades') || DEFAULT_GRADES;
+      const settings = await getJson('aq:settings');
+      const gradeToStars = settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
       let filtered = grades.filter((g: any) => g.childId === childId);
       if (date) filtered = filtered.filter((g: any) => g.date === date);
-      return NextResponse.json(filtered);
+      return NextResponse.json(filtered.map((grade: any) => ({
+        ...grade,
+        starsAwarded: typeof grade.starsAwarded === 'number'
+          ? grade.starsAwarded
+          : (gradeToStars[String(grade.grade)] ?? 0)
+      })));
     }
     
     // Return subjects by default
@@ -57,14 +64,15 @@ export async function POST(request: Request) {
     const settings = await getJson('aq:settings');
     const gradeToStars = settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
     const starsAwarded = gradeToStars[body.grade.toString()] || 0;
+    newGrade.starsAwarded = starsAwarded;
     
-    if (starsAwarded > 0) {
+    if (starsAwarded !== 0) {
       await addStarLedgerItem({
         childId: body.childId,
         amount: starsAwarded,
         source: 'grade',
         sourceId: newGrade.id,
-        reason: `Оценка ${body.grade} по предмету ${body.subjectName}`
+        reason: `Оценка ${body.grade} по предмету ${body.subjectName} (${starsAwarded >= 0 ? '+' : ''}${starsAwarded} ⭐)`
       });
     }
 
@@ -78,7 +86,7 @@ export async function POST(request: Request) {
         childId: body.childId,
         type: 'grade-added',
         title: 'Оценка добавлена',
-        body: `${body.childId === 'ali' ? 'Али' : 'Саид'} получил оценку ${body.grade} по предмету ${body.subjectName}${starsAwarded > 0 ? ` (+${starsAwarded} ⭐)` : ''}`,
+        body: `${body.childId === 'ali' ? 'Али' : 'Саид'} получил оценку ${body.grade} по предмету ${body.subjectName}${starsAwarded !== 0 ? ` (${starsAwarded >= 0 ? '+' : ''}${starsAwarded} ⭐)` : ''}`,
         read: false,
         createdAt: new Date().toISOString()
       });

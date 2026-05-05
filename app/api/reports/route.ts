@@ -62,6 +62,29 @@ export async function GET(request: Request) {
       starsEarned: number;
     }> = [];
 
+    const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
+    const ledgerEntries = Array.isArray(ledger)
+      ? ledger
+          .filter((item: any) => isInRange(item.createdAt || item.date, periodStartMs, periodEndMs))
+          .map((item: any) => ({
+            ...item,
+            amount: Number(item?.amount) || 0,
+            createdAt: item.createdAt || item.date || new Date().toISOString(),
+          }))
+      : [];
+
+    const ledgerByDate = new Map<string, { net: number; positive: number; negative: number }>();
+    for (const item of ledgerEntries) {
+      const dateKey = (item.createdAt || item.date || '').split('T')[0];
+      if (!dateKey) continue;
+      const current = ledgerByDate.get(dateKey) || { net: 0, positive: 0, negative: 0 };
+      current.net += item.amount;
+      if (item.amount > 0) current.positive += item.amount;
+      if (item.amount < 0) current.negative += Math.abs(item.amount);
+      ledgerByDate.set(dateKey, current);
+      if (item.amount > 0) totalStarsEarned += item.amount;
+    }
+
     for (let i = 0; i < dayKeys.length; i++) {
       const raw = rawDays[i];
       let dayTasks: any[] = [];
@@ -70,13 +93,12 @@ export async function GET(request: Request) {
       }
 
       let dayCompleted = 0;
-      let dayStars = 0;
+      const dayLedger = ledgerByDate.get(dayKeys[i].split(':').pop() || '') || { net: 0, positive: 0, negative: 0 };
 
       if (Array.isArray(dayTasks)) {
         for (const task of dayTasks) {
           if (task.completed) {
             dayCompleted++;
-            dayStars += task.stars || 0;
             const cat = getCategoryLabel(task.category || 'other', task.customCategory || '');
             categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
             recentTasks.push(
@@ -90,15 +112,14 @@ export async function GET(request: Request) {
       }
 
       chartTasks.push(dayCompleted);
-      chartStars.push(dayStars);
+      chartStars.push(dayLedger.net);
       completedDayItems.push({
         label: dateLabels[i],
         date: dayKeys[i].split(':').pop() || '',
         tasksCompleted: dayCompleted,
-        starsEarned: dayStars,
+        starsEarned: dayLedger.net,
       });
       totalTasksCompleted += dayCompleted;
-      totalStarsEarned += dayStars;
 
       if (dayCompleted > 0) { currentStreak++; streakDays = Math.max(streakDays, currentStreak); }
       else { currentStreak = 0; }
@@ -119,13 +140,26 @@ export async function GET(request: Request) {
 
     // Get grades — batch read all grades and filter locally
     const allGrades = await getJson('aq:grades');
-    const periodGrades = Array.isArray(allGrades)
+    const periodGradesAll = Array.isArray(allGrades)
       ? allGrades.filter((g: any) =>
           g.childId === childId &&
           isInRange(g.createdAt, periodStartMs, periodEndMs)
-        ).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, gradeHistoryLimit)
+        ).map((grade: any) => ({
+          ...grade,
+          starsAwarded: (() => {
+            const mapped = settings?.gradeToStars?.[String(grade.grade)] ?? (
+              grade.grade === 5 ? 5 : grade.grade === 4 ? 2 : 0
+            );
+            if (typeof grade.starsAwarded === 'number') {
+              if (grade.starsAwarded !== 0) return grade.starsAwarded;
+              if (grade.grade === 3) return 0;
+            }
+            return mapped;
+          })()
+        })).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : [];
-    const totalGradesCount = periodGrades.length;
+    const totalGradesCount = periodGradesAll.length;
+    const periodGrades = periodGradesAll.slice(0, gradeHistoryLimit);
 
     // Get reward statuses
     const rewardStatuses = await getJson(`aq:reward-status:${childId}`) || [];
@@ -135,7 +169,6 @@ export async function GET(request: Request) {
       ? rewardStatuses.filter((s: any) => s.status === 'fulfilled').length : 0;
 
     // Get current balance
-    const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
     const currentBalance = Array.isArray(ledger)
       ? ledger.reduce((sum: number, item: any) => sum + (item.amount || 0), 0) : 0;
     const recentStarEntries = Array.isArray(ledger)
@@ -195,7 +228,7 @@ export async function GET(request: Request) {
       grades: periodGrades,
       recentTasks: recentTaskEntries,
       recentStarEntries,
-      settings: { gradeHistoryLimit },
+      settings: { gradeHistoryLimit, gradeToStars: settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 } },
     };
 
     // Cache for 5 minutes

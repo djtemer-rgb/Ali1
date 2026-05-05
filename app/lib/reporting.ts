@@ -102,6 +102,11 @@ export function formatLongDate(isoDate?: string | null) {
   });
 }
 
+export function formatStarAmount(amount: number, includeIcon = true) {
+  const prefix = amount >= 0 ? '+' : '';
+  return includeIcon ? `${prefix}${amount} ⭐` : `${prefix}${amount}`;
+}
+
 export function getCategoryLabel(category?: string, customCategory = '') {
   if (customCategory.trim()) return customCategory.trim();
   const labels: Record<string, string> = {

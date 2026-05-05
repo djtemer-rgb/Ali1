@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles } from "lucide-react";
+import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles, Circle, CheckCircle2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -10,10 +10,10 @@ import TaskCard from "./components/TaskCard";
 import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
-import { buildTaskCompletionBundle } from "@/app/lib/reporting";
+import { buildTaskCompletionBundle, formatStarAmount } from "@/app/lib/reporting";
 
 interface Task {
-  id: string; title: string; stars: number; completed: boolean; completedAt?: string;
+  id: string; templateId?: string; title: string; stars: number; completed: boolean; completedAt?: string;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list'; subtasks: { id: string; title: string; done: boolean }[];
   requiresOpenDetails: boolean; detailsOpened: boolean; detailsText?: string;
   difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string; customCategory?: string;
@@ -149,12 +149,12 @@ export default function Home() {
       setStars(prev => prev - reward.costStars);
       confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
       await Promise.all([
-        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title}` }) }),
+        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})` }) }),
         fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }) }),
-        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title}`, rewardId: reward.id }) })
+        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`, rewardId: reward.id, details: { childName: currentChild.name, rewardTitle: reward.title, costStars: reward.costStars, status: 'selected' } }) })
       ]);
     } else {
-      setModalMessage(`Не хватает звёзд! Нужно ещё ${reward.costStars - stars} ⭐`);
+      setModalMessage(`Не хватает звёзд! Нужно ещё ${formatStarAmount(reward.costStars - stars)}`);
     }
   };
 
@@ -254,7 +254,7 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-4 md:px-6 space-y-4">
 
         {/* ЗАДАЧИ НА СЕГОДНЯ */}
-        <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
+        <section id="today-tasks" className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
           <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-slate-800 mb-4">
             <span>🚀</span> Задачи на сегодня
           </h2>
@@ -262,8 +262,8 @@ export default function Home() {
             {loadingTasks && <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-slate-100 animate-pulse" />)}</>}
             {!loadingTasks && tasks.length === 0 && <p className="text-slate-400 text-center py-6 text-sm">Нет задач на сегодня</p>}
             {!loadingTasks && tasks.map(task => (
-              <TaskCard key={task.id} task={task} onComplete={completeTask} onDetailsOpened={handleDetailsOpened} onSubtasksUpdate={handleSubtasksUpdate} />
-            ))}
+            <TaskCard key={task.id} task={task} onComplete={completeTask} onDetailsOpened={handleDetailsOpened} onSubtasksUpdate={handleSubtasksUpdate} />
+          ))}
           </div>
         </section>
 
@@ -276,8 +276,47 @@ export default function Home() {
             <div className="space-y-2">
               {templates.map(t => {
                 const repeatInfo = getNextRepeatInfo(t.repeatDays);
+                const currentTask = tasks.find(task => task.templateId === t.id);
+                const canRunNow = !!currentTask && !currentTask.completed && repeatInfo.label === 'Сегодня';
                 return (
-                  <div key={t.id} className="flex items-start gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      if (!canRunNow || !currentTask) {
+                        if (currentTask) {
+                          document.querySelector(`[data-task-id="${currentTask.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } else {
+                          document.getElementById('today-tasks')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        return;
+                      }
+                      const actionButton = document.querySelector(
+                        `[data-task-id="${currentTask.id}"] [data-task-primary-action="true"]`
+                      ) as HTMLButtonElement | null;
+                      if (actionButton) {
+                        actionButton.click();
+                        return;
+                      }
+                      document.querySelector(`[data-task-id="${currentTask.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    disabled={!canRunNow}
+                    title={canRunNow ? 'Нажмите, чтобы выполнить задачу' : 'Задача доступна только в свой день'}
+                    className={`w-full flex items-start gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100 text-left transition-colors ${
+                      canRunNow ? 'hover:bg-slate-100 cursor-pointer' : 'opacity-70 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-start pt-0.5 shrink-0">
+                      {currentTask ? (
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 ${currentTask.completed ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-300 text-slate-300'}`}>
+                          {currentTask.completed ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center border-2 bg-white border-slate-200 text-slate-200">
+                          <Circle size={13} />
+                        </div>
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <span
                         className="font-bold text-slate-800 text-sm leading-tight block overflow-hidden"
@@ -285,6 +324,16 @@ export default function Home() {
                       >
                         {t.title}
                       </span>
+                      {currentTask && (
+                        <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${currentTask.completed ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {currentTask.completed ? 'Выполнена сегодня' : 'На сегодня'}
+                        </span>
+                      )}
+                      {!currentTask && repeatInfo.label !== 'Сегодня' && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-500">
+                          Откроется {repeatInfo.label}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 max-w-[55%]">
                       <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-600 whitespace-nowrap">
@@ -297,7 +346,7 @@ export default function Home() {
                       )}
                     </div>
                     <span className="text-[11px] font-bold text-amber-500 shrink-0 ml-1 whitespace-nowrap">+{t.stars} ⭐</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -320,7 +369,7 @@ export default function Home() {
                   {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
                   <div className="flex items-center gap-2 mt-auto">
                     <div className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs ${canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'}`}>
-                      {reward.costStars} <Star size={11} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                      {formatStarAmount(reward.costStars, false)} <Star size={11} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
                     </div>
                   </div>
                 </div>

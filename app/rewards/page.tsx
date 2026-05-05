@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Star, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
+import { formatStarAmount } from "@/app/lib/reporting";
 
 interface Reward {
   id: string;
@@ -73,7 +74,7 @@ export default function RewardsPage() {
           amount: reward.costStars,
           source: 'adjustment',
           sourceId: reward.id,
-          reason: `Отмена выбора награды: ${reward.title}`
+          reason: `Отмена выбора награды: ${reward.title} (${formatStarAmount(reward.costStars)})`
         })
       });
       await fetch('/api/rewards/status', {
@@ -90,7 +91,7 @@ export default function RewardsPage() {
     }
 
     if (stars < reward.costStars) {
-      alert(`Не хватает звезд! Нужно еще ${reward.costStars - stars} ⭐️`);
+      alert(`Не хватает звезд! Нужно еще ${formatStarAmount(reward.costStars - stars)}`);
       return;
     }
 
@@ -104,7 +105,7 @@ export default function RewardsPage() {
         childId: currentChild.id,
         amount: -reward.costStars,
         source: 'reward-purchase',
-        reason: `Покупка награды: ${reward.title}`
+        reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})`
       })
     });
 
@@ -122,8 +123,14 @@ export default function RewardsPage() {
         childId: currentChild.id,
         type: 'reward-selected',
         title: 'Награда выбрана',
-        body: `${currentChild.name} выбрал награду: ${reward.title}`,
-        rewardId: reward.id
+        body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`,
+        rewardId: reward.id,
+        details: {
+          childName: currentChild.name,
+          rewardTitle: reward.title,
+          costStars: reward.costStars,
+          status: 'selected'
+        }
       })
     });
   };
@@ -140,7 +147,7 @@ export default function RewardsPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-slate-500 font-medium">{currentChild.name}</span>
           <div className="bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] px-3 py-1.5 rounded-xl font-extrabold flex items-center gap-1.5 shadow-sm">
-            <Star className="fill-amber-400 w-4 h-4" /> {stars}
+            <Star className="fill-amber-400 w-4 h-4" /> {formatStarAmount(stars, false)}
           </div>
         </div>
       </header>
@@ -189,7 +196,7 @@ export default function RewardsPage() {
                   onClick={() => toggleSelectReward(reward)}
                   className={`bg-white rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col ${
                     isSelected
-                      ? 'border-green-400 bg-green-50 shadow-lg shadow-green-100'
+                      ? 'border-blue-400 bg-blue-50 shadow-lg shadow-blue-100'
                       : canAfford
                       ? 'border-slate-100 hover:border-blue-300 hover:shadow-md'
                       : 'border-slate-100 opacity-60 hover:border-slate-200'
@@ -201,16 +208,16 @@ export default function RewardsPage() {
                     <p className="text-xs text-slate-500 mt-2 text-center line-clamp-2">{reward.description}</p>
                   )}
                   <div className="mt-auto pt-4 flex justify-center">
-                    <div className={`rounded-xl px-4 py-2 flex items-center gap-1 font-extrabold text-sm ${
+                  <div className={`rounded-xl px-4 py-2 flex items-center gap-1 font-extrabold text-sm ${
                       isSelected
-                        ? 'bg-green-500 text-white'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
                         : isFulfilled
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-green-500 text-white'
                         : canAfford
                         ? 'bg-amber-50 text-amber-600'
                         : 'bg-slate-100 text-slate-400'
                     }`}>
-                      {isFulfilled ? 'Получено' : isSelected ? 'Отменить выбор' : `${reward.costStars} ⭐`}
+                      {isFulfilled ? 'Получено' : isSelected ? formatStarAmount(-reward.costStars) : formatStarAmount(reward.costStars)}
                     </div>
                   </div>
                 </div>
