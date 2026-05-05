@@ -1,0 +1,214 @@
+export type TaskSubtask = {
+  id: string;
+  title: string;
+  done: boolean;
+};
+
+export type TaskCompletionSnapshot = {
+  id: string;
+  title: string;
+  stars: number;
+  category?: string;
+  customCategory?: string;
+  completedAt?: string;
+  difficulty?: 'easy' | 'normal' | 'hard';
+  subtasksMode?: 'none' | 'checkboxes' | 'plain-list';
+  subtasks?: TaskSubtask[];
+  detailsText?: string;
+};
+
+export type TaskCompletionBundle = {
+  eventBody: string;
+  telegramBody: string;
+  pushBody: string;
+  ledgerReason: string;
+  details: {
+    childName?: string;
+    taskId: string;
+    taskTitle: string;
+    stars: number;
+    difficulty?: 'easy' | 'normal' | 'hard';
+    difficultyLabel: string | null;
+    category?: string;
+    customCategory?: string;
+    completedAt?: string;
+    subtasks: TaskSubtask[];
+    subtaskSummary: string | null;
+    detailsText?: string;
+  };
+};
+
+export type ReportTaskEntry = {
+  id: string;
+  title: string;
+  stars: number;
+  completedAt: string;
+  difficulty?: 'easy' | 'normal' | 'hard';
+  difficultyLabel: string | null;
+  category: string;
+  customCategory?: string;
+  subtaskSummary: string | null;
+  subtaskCount: number;
+  detailsText?: string;
+  source: 'task';
+};
+
+export type ReportStarEntry = {
+  id: string;
+  amount: number;
+  source: string;
+  sourceLabel: string;
+  reason: string;
+  createdAt: string;
+  taskTitle?: string;
+  difficultyLabel?: string | null;
+  subtaskSummary?: string | null;
+};
+
+const DIFFICULTY_LABELS: Record<'easy' | 'normal' | 'hard', string> = {
+  easy: 'Легко',
+  normal: 'Нормально',
+  hard: 'Сложно',
+};
+
+const STAR_SOURCE_LABELS: Record<string, string> = {
+  task: 'Задача',
+  grade: 'Оценка',
+  manual: 'Ручное',
+  'reward-purchase': 'Награда',
+  reset: 'Сброс',
+  adjustment: 'Корректировка',
+};
+
+export function formatDifficultyLabel(difficulty?: 'easy' | 'normal' | 'hard') {
+  if (!difficulty) return null;
+  return DIFFICULTY_LABELS[difficulty] || null;
+}
+
+export function formatShortDate(isoDate?: string | null) {
+  if (!isoDate) return '';
+  return new Date(isoDate).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+export function formatLongDate(isoDate?: string | null) {
+  if (!isoDate) return '';
+  return new Date(isoDate).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+export function getCategoryLabel(category?: string, customCategory = '') {
+  if (customCategory.trim()) return customCategory.trim();
+  const labels: Record<string, string> = {
+    study: 'Учёба',
+    sport: 'Спорт',
+    boxing: 'Бокс',
+    chess: 'Шахматы',
+    reading: 'Чтение',
+    order: 'Порядок',
+    'home-help': 'Помощь',
+    rest: 'Отдых',
+    other: 'Другое',
+  };
+  return labels[category || 'other'] || category || 'Другое';
+}
+
+export function buildSubtaskSummary(subtasks?: TaskSubtask[], limit = 3) {
+  const items = Array.isArray(subtasks) ? subtasks.filter((item) => !!item?.title) : [];
+  if (items.length === 0) {
+    return {
+      list: [] as string[],
+      summary: null as string | null,
+      count: 0,
+      hasMore: false,
+    };
+  }
+
+  const list = items.map((item) => item.title.trim()).filter(Boolean);
+  const preview = list.slice(0, limit);
+  const hasMore = list.length > limit;
+  return {
+    list,
+    summary: `${preview.join(' • ')}${hasMore ? ` • +${list.length - limit}` : ''}`,
+    count: list.length,
+    hasMore,
+  };
+}
+
+export function buildTaskCompletionBundle(task: TaskCompletionSnapshot, childName: string): TaskCompletionBundle {
+  const difficultyLabel = formatDifficultyLabel(task.difficulty);
+  const subtaskBundle = buildSubtaskSummary(task.subtasks, 3);
+  const childLabel = childName?.trim() || 'Ребёнок';
+
+  const baseTaskLine = `${childLabel} выполнил задачу: ${task.title}`;
+  const detailsLines = [
+    `Сложность: ${difficultyLabel || 'не указана'}`,
+    task.category || task.customCategory ? `Категория: ${getCategoryLabel(task.category, task.customCategory || '')}` : null,
+    subtaskBundle.count > 0 ? `Подзадачи: ${subtaskBundle.list.join(' • ')}` : null,
+  ].filter(Boolean) as string[];
+
+  const telegramBody = [baseTaskLine, ...detailsLines].join('\n');
+  const pushBodyParts = [
+    task.title,
+    difficultyLabel ? `Сложность: ${difficultyLabel}` : null,
+    typeof task.stars === 'number' ? `+${task.stars} ⭐` : null,
+  ].filter(Boolean);
+
+  return {
+    eventBody: baseTaskLine,
+    telegramBody,
+    pushBody: pushBodyParts.join(' · '),
+    ledgerReason: [
+      `Выполнена задача: ${task.title}`,
+      difficultyLabel ? `Сложность: ${difficultyLabel}` : null,
+      subtaskBundle.summary ? `Подзадачи: ${subtaskBundle.summary}` : null,
+    ].filter(Boolean).join(' — '),
+    details: {
+      childName,
+      taskId: task.id,
+      taskTitle: task.title,
+      stars: task.stars,
+      difficulty: task.difficulty,
+      difficultyLabel,
+      category: task.category,
+      customCategory: task.customCategory,
+      completedAt: task.completedAt,
+      subtasks: Array.isArray(task.subtasks) ? task.subtasks.filter((item) => !!item?.title) : [],
+      subtaskSummary: subtaskBundle.summary,
+      detailsText: task.detailsText,
+    },
+  };
+}
+
+export function formatStarSourceLabel(source: string) {
+  return STAR_SOURCE_LABELS[source] || source || 'Другое';
+}
+
+export function buildReportTaskEntry(task: TaskCompletionSnapshot): ReportTaskEntry {
+  const subtaskBundle = buildSubtaskSummary(task.subtasks, 4);
+  return {
+    id: task.id,
+    title: task.title,
+    stars: task.stars,
+    completedAt: task.completedAt || new Date().toISOString(),
+    difficulty: task.difficulty,
+    difficultyLabel: formatDifficultyLabel(task.difficulty),
+    category: getCategoryLabel(task.category, task.customCategory || ''),
+    customCategory: task.customCategory,
+    subtaskSummary: subtaskBundle.summary,
+    subtaskCount: subtaskBundle.count,
+    detailsText: task.detailsText,
+    source: 'task',
+  };
+}
+
+export function shortenText(text: string, max = 90) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1).trimEnd()}…`;
+}

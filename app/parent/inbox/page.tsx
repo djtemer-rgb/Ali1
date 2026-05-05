@@ -13,6 +13,20 @@ interface ParentEvent {
   read: boolean;
   createdAt: string;
   rewardId?: string;
+  details?: {
+    childName?: string;
+    taskId?: string;
+    taskTitle?: string;
+    stars?: number;
+    difficulty?: 'easy' | 'normal' | 'hard';
+    difficultyLabel?: string | null;
+    category?: string;
+    customCategory?: string;
+    completedAt?: string;
+    subtasks?: Array<{ id?: string; title?: string; done?: boolean }>;
+    subtaskSummary?: string | null;
+    detailsText?: string;
+  };
 }
 
 interface RewardItem {
@@ -267,6 +281,46 @@ export default function ParentInbox() {
                     </div>
                     <h3 className="font-bold text-slate-800">{event.title}</h3>
                     <p className="text-sm text-slate-600 mt-1">{event.body}</p>
+                    {event.type === 'task-completed' && event.details && (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                          {event.details.difficultyLabel && (
+                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                              Сложность: {event.details.difficultyLabel}
+                            </span>
+                          )}
+                          {typeof event.details.stars === 'number' && (
+                            <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                              +{event.details.stars} ⭐
+                            </span>
+                          )}
+                          {event.details.category && (
+                            <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                              Категория: {event.details.customCategory || event.details.category}
+                            </span>
+                          )}
+                        </div>
+                        {event.details.subtaskSummary && (
+                          <p className="mt-2 text-[11px] leading-relaxed">
+                            Подзадачи: {event.details.subtaskSummary}
+                          </p>
+                        )}
+                        {Array.isArray(event.details.subtasks) && event.details.subtasks.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer select-none text-[11px] font-bold text-slate-500">
+                              Показать подзадачи
+                            </summary>
+                            <ul className="mt-2 space-y-1 pl-4 list-disc">
+                              {event.details.subtasks.map((subtask, index) => (
+                                <li key={subtask.id || `${event.id}-subtask-${index}`} className={subtask.done ? 'text-slate-500 line-through' : 'text-slate-700'}>
+                                  {subtask.title || 'Без названия'}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
+                    )}
                     {event.type === 'reward-selected' && event.rewardId && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button

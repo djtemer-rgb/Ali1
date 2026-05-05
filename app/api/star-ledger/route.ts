@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { childId, amount, source, sourceId, reason } = body;
+    const { childId, amount, source, sourceId, reason, details } = body;
     
     const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
     
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
       source,
       sourceId,
       reason,
+      details,
       createdAt: new Date().toISOString()
     };
     

@@ -7,6 +7,7 @@ import { Star, Loader2, Home, BookOpen, Calendar, Settings } from "lucide-react"
 import GradeInput from "../../components/GradeInput";
 import TaskCard from "../../components/TaskCard";
 import confetti from "canvas-confetti";
+import { buildTaskCompletionBundle } from "@/app/lib/reporting";
 
 interface Subtask {
   id: string;
@@ -110,6 +111,15 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
     const task = tasks.find(t => t.id === taskId);
     if (!task || task.completed) return;
 
+    const completion = buildTaskCompletionBundle(
+      {
+        ...task,
+        completedAt: new Date().toISOString(),
+        difficulty: difficulty || task.difficulty,
+      },
+      currentChild?.name || childId,
+    );
+
     const updatedTasks = tasks.map(t => {
       if (t.id === taskId) {
         return {
@@ -141,7 +151,8 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
           amount: task.stars,
           source: 'task',
           sourceId: taskId,
-          reason: `Выполнена задача: ${task.title}`
+          reason: completion.ledgerReason,
+          details: completion.details
         })
       });
 
@@ -152,7 +163,8 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
           childId,
           type: 'task-completed',
           title: 'Задача выполнена',
-          body: `${currentChild?.name || childId} выполнил задачу: ${task.title}`
+          body: completion.eventBody,
+          details: { ...completion.details, childName: currentChild?.name || childId }
         })
       });
 

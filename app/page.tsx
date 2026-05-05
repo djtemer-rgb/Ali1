@@ -10,6 +10,7 @@ import TaskCard from "./components/TaskCard";
 import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
+import { buildTaskCompletionBundle } from "@/app/lib/reporting";
 
 interface Task {
   id: string; title: string; stars: number; completed: boolean; completedAt?: string;
@@ -107,14 +108,23 @@ export default function Home() {
     const task = tasks.find(t => t.id === taskId);
     if (!task || task.completed) return;
 
+    const completion = buildTaskCompletionBundle(
+      {
+        ...task,
+        completedAt: new Date().toISOString(),
+        difficulty: difficulty || task.difficulty,
+      },
+      currentChild.name,
+    );
+
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), difficulty: difficulty || t.difficulty, detailsOpened: true } : t);
     setTasks(updatedTasks);
     const allDone = updatedTasks.every(t => t.completed);
 
     await Promise.all([
       fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
-      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: `Выполнена задача: ${task.title}` }) }),
-      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: `${currentChild.name} выполнил задачу: ${task.title}` }) }),
+      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }) }),
+      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }) }),
       ...(allDone ? [fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'day-completed', title: 'День завершён', body: `${currentChild.name} выполнил все задачи на сегодня! 🎉` }) })] : [])
     ]);
     setStars(prev => prev + task.stars);

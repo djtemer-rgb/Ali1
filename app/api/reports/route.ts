@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
 import { redis, getJson, setJson } from '../upstash';
+import {
+  buildReportTaskEntry,
+  buildSubtaskSummary,
+  formatDifficultyLabel,
+  formatStarSourceLabel,
+  getCategoryLabel,
+} from '@/app/lib/reporting';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,16 +14,27 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const childId = url.searchParams.get('childId') || 'ali';
-    const days = parseInt(url.searchParams.get('days') || '7');
+    const days = Number.parseInt(url.searchParams.get('days') || '7', 10);
+
+    const settings = await getJson('aq:settings') as any || {};
+    const gradeHistoryLimit = clamp(
+      Number.isFinite(Number(settings?.gradeHistoryLimit))
+        ? Number(settings.gradeHistoryLimit)
+        : 20,
+      20,
+      50,
+    );
 
     // Check cache
-    const cacheKey = `aq:report:cache:${childId}:${days}`;
+    const cacheKey = `aq:report:cache:${childId}:${days}:grades-${gradeHistoryLimit}`;
     const cached = await getJson(cacheKey);
     if (cached) return NextResponse.json(cached);
 
     const today = new Date();
     const startDate = new Date(today);
     startDate.setDate(startDate.getDate() - days);
+    const periodStartMs = startDate.getTime();
+    const periodEndMs = today.getTime();
 
     // Generate all day keys
     const dayKeys: string[] = [];
@@ -26,8 +44,8 @@ export async function GET(request: Request) {
       dateLabels.push(d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }));
     }
 
-    // Batch read all days in ONE mget call
-    const rawDays = await redis.mget(...dayKeys) as (string | null)[];
+    // Batch read days so large ranges stay stable on Redis
+    const rawDays = await readDaysInBatches(dayKeys, 30);
 
     let totalTasksCompleted = 0;
     let totalStarsEarned = 0;
@@ -36,6 +54,13 @@ export async function GET(request: Request) {
     const categoryCounts: Record<string, number> = {};
     const chartTasks: number[] = [];
     const chartStars: number[] = [];
+    const recentTasks: any[] = [];
+    const completedDayItems: Array<{
+      label: string;
+      date: string;
+      tasksCompleted: number;
+      starsEarned: number;
+    }> = [];
 
     for (let i = 0; i < dayKeys.length; i++) {
       const raw = rawDays[i];
@@ -54,12 +79,24 @@ export async function GET(request: Request) {
             dayStars += task.stars || 0;
             const cat = getCategoryLabel(task.category || 'other', task.customCategory || '');
             categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            recentTasks.push(
+              buildReportTaskEntry({
+                ...task,
+                completedAt: task.completedAt || `${dayKeys[i].split(':').pop()}T23:59:59.999Z`,
+              })
+            );
           }
         }
       }
 
       chartTasks.push(dayCompleted);
       chartStars.push(dayStars);
+      completedDayItems.push({
+        label: dateLabels[i],
+        date: dayKeys[i].split(':').pop() || '',
+        tasksCompleted: dayCompleted,
+        starsEarned: dayStars,
+      });
       totalTasksCompleted += dayCompleted;
       totalStarsEarned += dayStars;
 
@@ -67,14 +104,26 @@ export async function GET(request: Request) {
       else { currentStreak = 0; }
     }
 
+    const bestDay = completedDayItems.reduce((best, item) => {
+      if (!best) return item;
+      if (item.starsEarned > best.starsEarned) return item;
+      if (item.starsEarned === best.starsEarned && item.tasksCompleted > best.tasksCompleted) return item;
+      return best;
+    }, null as null | (typeof completedDayItems)[number]);
+
+    const topCategoryEntry = Object.entries(categoryCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    const topTask = [...recentTasks]
+      .sort((a, b) => (b.stars || 0) - (a.stars || 0) || new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0] || null;
+
     // Get grades — batch read all grades and filter locally
     const allGrades = await getJson('aq:grades');
     const periodGrades = Array.isArray(allGrades)
       ? allGrades.filter((g: any) =>
           g.childId === childId &&
-          new Date(g.createdAt) >= startDate &&
-          new Date(g.createdAt) <= today
-        ).slice(-10).reverse()
+          isInRange(g.createdAt, periodStartMs, periodEndMs)
+        ).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, gradeHistoryLimit)
       : [];
     const totalGradesCount = periodGrades.length;
 
@@ -89,14 +138,64 @@ export async function GET(request: Request) {
     const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
     const currentBalance = Array.isArray(ledger)
       ? ledger.reduce((sum: number, item: any) => sum + (item.amount || 0), 0) : 0;
+    const recentStarEntries = Array.isArray(ledger)
+      ? ledger
+          .filter((item: any) => isInRange(item.createdAt || item.date, periodStartMs, periodEndMs))
+          .map((item: any) => {
+            const details = item.details || {};
+            const taskTitle = details.taskTitle || extractTaskTitleFromReason(item.reason);
+            const subtaskBundle = buildSubtaskSummary(details.subtasks, 4);
+            return {
+              id: item.id,
+              amount: item.amount || 0,
+              source: item.source || 'manual',
+              sourceLabel: formatStarSourceLabel(item.source || 'manual'),
+              reason: item.reason || '',
+              createdAt: item.createdAt || item.date || new Date().toISOString(),
+              taskTitle,
+              difficultyLabel: details.difficultyLabel || formatDifficultyLabel(details.difficulty) || null,
+              subtaskSummary: details.subtaskSummary || subtaskBundle.summary,
+            };
+          })
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 12)
+      : [];
+
+    const recentTaskEntries = [...recentTasks]
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+      .slice(0, 12);
 
     const report = {
       period: { days, startDate: startDate.toISOString().split('T')[0], endDate: today.toISOString().split('T')[0] },
       summary: { totalTasksCompleted, totalStarsEarned, totalGradesCount, streakDays, currentBalance },
+      insights: {
+        bestDay: bestDay
+          ? {
+              label: bestDay.label,
+              date: bestDay.date,
+              tasksCompleted: bestDay.tasksCompleted,
+              starsEarned: bestDay.starsEarned,
+            }
+          : null,
+        topCategory: topCategoryEntry
+          ? { name: topCategoryEntry[0], count: topCategoryEntry[1] }
+          : null,
+        topTask: topTask
+          ? {
+              title: topTask.title,
+              stars: topTask.stars,
+              completedAt: topTask.completedAt,
+              difficultyLabel: topTask.difficultyLabel || null,
+            }
+          : null,
+      },
       chart: { labels: dateLabels, tasksCompleted: chartTasks, starsEarned: chartStars },
       categories: categoryCounts,
       rewards: { selected, fulfilled },
       grades: periodGrades,
+      recentTasks: recentTaskEntries,
+      recentStarEntries,
+      settings: { gradeHistoryLimit },
     };
 
     // Cache for 5 minutes
@@ -110,11 +209,29 @@ export async function GET(request: Request) {
   }
 }
 
-function getCategoryLabel(cat: string, customLabel = ''): string {
-  if (customLabel.trim()) return customLabel.trim();
-  const labels: Record<string, string> = {
-    study: 'Учёба', sport: 'Спорт', boxing: 'Бокс', chess: 'Шахматы',
-    reading: 'Чтение', order: 'Порядок', 'home-help': 'Помощь', rest: 'Отдых', other: 'Другое'
-  };
-  return labels[cat] || cat;
+function extractTaskTitleFromReason(reason?: string) {
+  if (!reason) return undefined;
+  const match = reason.match(/Выполнена задача:\s*(.+?)(?:\s*—|\s*\(|$)/i);
+  return match?.[1]?.trim();
+}
+
+async function readDaysInBatches(keys: string[], batchSize: number) {
+  const results: (string | null)[] = [];
+  for (let index = 0; index < keys.length; index += batchSize) {
+    const slice = keys.slice(index, index + batchSize);
+    if (slice.length === 0) continue;
+    const batch = await redis.mget(...slice) as (string | null)[];
+    results.push(...batch);
+  }
+  return results;
+}
+
+function isInRange(value: string | undefined, startMs: number, endMs: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && time >= startMs && time <= endMs;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
