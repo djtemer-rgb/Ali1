@@ -487,29 +487,37 @@ export default function Home() {
                   onClick={() => buyReward(reward)}
                   className={`group relative isolate overflow-hidden border rounded-2xl p-3 flex flex-col gap-2 transition-all duration-500 cursor-pointer ${
                     canAfford
-                      ? 'bg-white/28 border-white/42 hover:bg-white/34 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_9px_20px_rgba(251,191,36,0.10)]'
-                      : 'bg-white/6 border-white/10 opacity-76 hover:bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_7px_16px_rgba(96,165,250,0.05)]'
+                      ? 'bg-white/30 border-white/45 hover:bg-white/35 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_9px_20px_rgba(251,191,36,0.10)]'
+                      : 'bg-white/7 border-white/12 opacity-80 hover:bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_7px_16px_rgba(96,165,250,0.05)]'
                   }`}
                 >
                   <div
                     className={`pointer-events-none absolute inset-[1px] rounded-[1rem] ${
                       canAfford
-                        ? 'bg-[radial-gradient(circle_at_26%_20%,rgba(255,255,255,0.60),rgba(255,255,255,0.16)_28%,rgba(251,191,36,0.06)_50%,transparent_72%)] animate-reward-glow'
-                        : 'bg-[radial-gradient(circle_at_20%_18%,rgba(186,230,253,0.20),rgba(186,230,253,0.06)_24%,rgba(147,197,253,0.03)_48%,transparent_72%)] animate-reward-glow'
+                        ? 'bg-[linear-gradient(115deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_18%,rgba(255,255,255,0.01)_40%,rgba(255,255,255,0.04)_66%,rgba(255,255,255,0.07)_100%)]'
+                        : 'bg-[linear-gradient(115deg,rgba(255,255,255,0.04)_0%,rgba(191,219,254,0.08)_18%,rgba(255,255,255,0.03)_38%,rgba(191,219,254,0.12)_62%,rgba(255,255,255,0.04)_100%)]'
                     }`}
                   />
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl mix-blend-screen">
-                    <div
-                      className={`absolute top-1/2 left-[-18%] w-[18%] h-4 -translate-y-1/2 rounded-full blur-md ${
-                        canAfford
-                          ? 'bg-gradient-to-r from-transparent via-white/45 to-transparent animate-reward-shimmer'
-                          : 'bg-gradient-to-r from-transparent via-sky-200/28 to-transparent animate-reward-shimmer-cool'
-                      }`}
-                    />
-                  </div>
+                  {canAfford ? (
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                      <div className="absolute inset-y-[9%] left-[12%] w-[18%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.00)_0%,rgba(255,255,255,0.18)_24%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.16)_76%,rgba(255,255,255,0.00)_100%)] opacity-28 blur-[5px]" />
+                      <div className="absolute inset-y-[10%] left-[39%] w-[22%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.00)_0%,rgba(255,255,255,0.14)_24%,rgba(255,255,255,0.04)_50%,rgba(255,255,255,0.15)_76%,rgba(255,255,255,0.00)_100%)] opacity-24 blur-[6px]" />
+                      <div className="absolute inset-y-[11%] left-[66%] w-[16%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.00)_0%,rgba(255,255,255,0.16)_24%,rgba(255,255,255,0.05)_50%,rgba(255,255,255,0.14)_76%,rgba(255,255,255,0.00)_100%)] opacity-26 blur-[5px]" />
+                    </div>
+                  ) : (
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                      <div className="absolute inset-y-[8%] left-[-34%] w-[14%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(191,219,254,0.00)_0%,rgba(191,219,254,0.40)_20%,rgba(255,255,255,0.28)_50%,rgba(191,219,254,0.44)_78%,rgba(191,219,254,0.00)_100%)] blur-[2px] animate-reward-shimmer-cool opacity-100" />
+                      <div className="absolute inset-y-[10%] left-[-26%] w-[12%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(191,219,254,0.00)_0%,rgba(191,219,254,0.34)_20%,rgba(255,255,255,0.22)_50%,rgba(191,219,254,0.40)_78%,rgba(191,219,254,0.00)_100%)] blur-[1.5px] animate-reward-shimmer-cool [animation-delay:0.9s] opacity-100" />
+                      <div className="absolute inset-y-[12%] left-[-18%] w-[10%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(191,219,254,0.00)_0%,rgba(191,219,254,0.30)_24%,rgba(255,255,255,0.18)_50%,rgba(191,219,254,0.34)_78%,rgba(191,219,254,0.00)_100%)] blur-[1px] animate-reward-shimmer-cool [animation-delay:1.8s] opacity-95" />
+                    </div>
+                  )}
                   <div className="relative z-10 flex flex-col gap-2 h-full">
                     <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
-                    {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
+                    {reward.description && (
+                      <p className={canAfford ? 'text-white text-[11px] leading-tight line-clamp-2' : 'text-white/60 text-[11px] leading-tight line-clamp-2'}>
+                        {reward.description}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-auto">
                       <div
                         className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs transition-colors ${
