@@ -1,5 +1,18 @@
 export type ChildId = 'ali' | 'said';
 
+export type Subject = {
+  id: string;
+  name: string;
+  order: number;
+};
+
+export type GradeToStars = {
+  '5': number;
+  '4': number;
+  '3': number;
+  '2': number;
+};
+
 export type TaskCategory = {
   id: string;
   label: string;
@@ -43,6 +56,8 @@ export type ChildSettings = {
   notifications: NotificationPrefs;
   ai: AiChildPrefs;
   gradesEnabled: boolean;
+  subjects: Subject[];
+  gradeToStars: GradeToStars;
 };
 
 export const BUILTIN_TASK_CATEGORIES: TaskCategory[] = [
@@ -110,12 +125,61 @@ export function defaultAiPrefs(): AiChildPrefs {
   };
 }
 
-export function defaultChildSettings(): ChildSettings {
+export function defaultChildSettings(childId: ChildId = 'ali'): ChildSettings {
   return {
     taskCategories: [...BUILTIN_TASK_CATEGORIES],
     notifications: defaultNotificationPrefs(),
     ai: defaultAiPrefs(),
-    gradesEnabled: true,
+    gradesEnabled: childId === 'ali',
+    subjects: defaultSubjects(),
+    gradeToStars: defaultGradeToStars(),
+  };
+}
+
+export function defaultSubjects(): Subject[] {
+  return [
+    { id: 'subj-1', name: 'Математика', order: 0 },
+    { id: 'subj-2', name: 'Русский язык', order: 1 },
+    { id: 'subj-3', name: 'Чтение', order: 2 },
+    { id: 'subj-4', name: 'Окружающий мир', order: 3 },
+    { id: 'subj-5', name: 'Английский язык', order: 4 },
+  ];
+}
+
+export function defaultGradeToStars(): GradeToStars {
+  return {
+    '5': 5,
+    '4': 2,
+    '3': 0,
+    '2': 0,
+  };
+}
+
+export function normalizeSubjects(input: any[] | undefined | null): Subject[] {
+  const subjects = Array.isArray(input) ? input : [];
+  return subjects
+    .filter((subject) => !!subject?.name)
+    .map((subject, index) => ({
+      id: String(subject?.id || `subj-${index}`),
+      name: String(subject?.name || ''),
+      order: Number.isFinite(Number(subject?.order)) ? Number(subject.order) : index,
+    }))
+    .sort((a, b) => {
+      const orderA = Number.isFinite(Number(a.order)) ? Number(a.order) : 9999;
+      const orderB = Number.isFinite(Number(b.order)) ? Number(b.order) : 9999;
+      return orderA - orderB || a.name.localeCompare(b.name, 'ru');
+    })
+    .map((subject, index) => ({ ...subject, order: index }));
+}
+
+export function normalizeGradeToStars(input: any): GradeToStars {
+  const defaults = defaultGradeToStars();
+  if (!input || typeof input !== 'object') return defaults;
+  return {
+    '5': Number.isFinite(Number(input['5'])) ? Number(input['5']) : defaults['5'],
+    '4': Number.isFinite(Number(input['4'])) ? Number(input['4']) : defaults['4'],
+    '3': Number.isFinite(Number(input['3'])) ? Number(input['3']) : defaults['3'],
+    '2': Number.isFinite(Number(input['2'])) ? Number(input['2']) : defaults['2'],
   };
 }
 
@@ -188,11 +252,15 @@ export function normalizeAiPrefs(ai: any) {
 
 export function getChildSettings(settings: any, childId: ChildId): ChildSettings {
   const root = settings?.childSettings?.[childId] || {};
+  const legacySubjects = childId === 'ali' ? settings?.subjects : undefined;
+  const legacyGradeToStars = childId === 'ali' ? settings?.gradeToStars : undefined;
   return {
     taskCategories: normalizeTaskCategories(root.taskCategories),
     notifications: normalizeNotificationPrefs(root.notifications),
     ai: normalizeAiPrefs(root.ai),
     gradesEnabled: root.gradesEnabled !== undefined ? !!root.gradesEnabled : childId === 'ali',
+    subjects: normalizeSubjects(root.subjects ?? legacySubjects ?? defaultSubjects()),
+    gradeToStars: normalizeGradeToStars(root.gradeToStars ?? legacyGradeToStars ?? defaultGradeToStars()),
   };
 }
 
@@ -205,5 +273,7 @@ export function buildChildSettings(settings: any, childId: ChildId, updates: Par
     notifications: updates.notifications ? normalizeNotificationPrefs(updates.notifications) : current.notifications,
     ai: updates.ai ? normalizeAiPrefs(updates.ai) : current.ai,
     gradesEnabled: updates.gradesEnabled !== undefined ? !!updates.gradesEnabled : current.gradesEnabled,
+    subjects: updates.subjects ? normalizeSubjects(updates.subjects) : current.subjects,
+    gradeToStars: updates.gradeToStars ? normalizeGradeToStars(updates.gradeToStars) : current.gradeToStars,
   };
 }

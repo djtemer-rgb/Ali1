@@ -19,11 +19,11 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
 
   useEffect(() => {
     loadSubjects();
-  }, []);
+  }, [childId]);
 
   const loadSubjects = async () => {
     try {
-      const res = await fetch('/api/grades');
+      const res = await fetch(`/api/grades?childId=${childId}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         const ordered = [...data].sort((a, b) => {

@@ -7,11 +7,10 @@ import { useChild } from "@/app/lib/ChildContext";
 import AccordionSection from "../components/AccordionSection";
 import { COLOR_ICONS, MINIMAL_ICONS, getIconDisplay } from "../lib/icons";
 import { Switch } from "@/components/ui/switch";
-import { BUILTIN_TASK_CATEGORIES, NOTIFICATION_EVENT_KEYS, NOTIFICATION_EVENT_LABELS, defaultAiPrefs, defaultNotificationPrefs, getChildSettings } from "@/app/lib/settings-shared";
-import type { TaskCategory } from "@/app/lib/settings-shared";
+import { BUILTIN_TASK_CATEGORIES, NOTIFICATION_EVENT_KEYS, NOTIFICATION_EVENT_LABELS, defaultAiPrefs, defaultNotificationPrefs, getChildSettings, normalizeGradeToStars, normalizeSubjects } from "@/app/lib/settings-shared";
+import type { TaskCategory, Subject } from "@/app/lib/settings-shared";
 import { formatRewardReserveLabel, formatStarAmount, getCategoryLabel, getInboxEventTypeLabel, getRewardStatusLabel, normalizeInboxText } from "@/app/lib/reporting";
 
-interface Subject { id: string; name: string; order: number; }
 interface Reward { id: string; childId?: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; sortOrderByChild?: Record<string, number>; }
 interface TaskTemplate {
   id: string;
@@ -92,9 +91,10 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
+  const [settingsData, setSettingsData] = useState<any>(null);
 
   // Subjects
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string; order: number }[]>([]);
   const [newSubject, setNewSubject] = useState('');
   const [gradeMapping, setGradeMapping] = useState({ '5': '+5', '4': '+2', '3': '0', '2': '0' });
 
@@ -191,28 +191,32 @@ export default function SettingsPage() {
     setLoading(true);
     try {
       const [subjRes, rewRes, authRes, setRes, tplRes] = await Promise.all([
-        fetch('/api/grades'), fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`), fetch('/api/auth/parent/settings'),
+        fetch(`/api/grades?childId=${settingsChildId}`), fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`), fetch('/api/auth/parent/settings'),
         fetch('/api/settings'), fetch('/api/tasks/templates')
       ]);
-      const subjData = await subjRes.json(); if (Array.isArray(subjData)) setSubjects(normalizeSubjects(subjData));
+      const subjData = await subjRes.json();
       const rewData = await rewRes.json(); setRewards(Array.isArray(rewData) ? rewData : []);
       setPinStatus(await authRes.json());
       const setData = await setRes.json();
+      const childSettings = getChildSettings(setData, settingsChildId);
       if (setData.systemPrompt) setSystemPrompt(setData.systemPrompt);
-      if (setData.gradeToStars) {
-        const g = setData.gradeToStars;
-        setGradeMapping({ '5': `${g['5'] >= 0 ? '+' : ''}${g['5']}`, '4': `${g['4'] >= 0 ? '+' : ''}${g['4']}`, '3': `${g['3'] >= 0 ? '+' : ''}${g['3']}`, '2': `${g['2'] >= 0 ? '+' : ''}${g['2']}` });
-      }
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
       if (setData.resetEnabled !== undefined) setResetEnabled(setData.resetEnabled);
       if (setData.resetDays) setResetDays(String(setData.resetDays));
       if (setData.gradeHistoryLimit !== undefined) setGradeHistoryLimit(String(setData.gradeHistoryLimit));
-      const childSettings = getChildSettings(setData, settingsChildId);
+      if (Array.isArray(subjData)) setSubjects(normalizeSubjects(subjData));
       setChildCategories(childSettings.taskCategories);
       setNotificationPrefs(childSettings.notifications);
       setAiEnabled(childSettings.ai.enabled);
       setAiRichMode(childSettings.ai.richMode);
       setGradesEnabled(childSettings.gradesEnabled ?? settingsChildId === 'ali');
+      setSubjects(childSettings.subjects);
+      setGradeMapping({
+        '5': `${childSettings.gradeToStars['5'] >= 0 ? '+' : ''}${childSettings.gradeToStars['5']}`,
+        '4': `${childSettings.gradeToStars['4'] >= 0 ? '+' : ''}${childSettings.gradeToStars['4']}`,
+        '3': `${childSettings.gradeToStars['3'] >= 0 ? '+' : ''}${childSettings.gradeToStars['3']}`,
+        '2': `${childSettings.gradeToStars['2'] >= 0 ? '+' : ''}${childSettings.gradeToStars['2']}`,
+      });
       setOpenRouterUrl(childSettings.ai.openRouterUrl || setData.openRouterUrl || 'https://openrouter.ai/api/v1');
       setAiModel(childSettings.ai.aiModel || setData.aiModel || 'openai/gpt-4o-mini');
       setAiModelFallback(childSettings.ai.aiModelFallback || setData.aiModelFallback || 'openai/gpt-4o-mini');
@@ -229,6 +233,7 @@ export default function SettingsPage() {
         if (said?.avatarUrl) setAvatarSaid(said.avatarUrl);
       }
       const tplData = await tplRes.json();
+      setSettingsData(setData);
       setTemplates(Array.isArray(tplData)
         ? tplData
             .filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both')
@@ -449,7 +454,14 @@ export default function SettingsPage() {
     };
     const gradeToStars = { '5': parseVal(gradeMapping['5']), '4': parseVal(gradeMapping['4']), '3': parseVal(gradeMapping['3']), '2': parseVal(gradeMapping['2']) };
     const settings = await (await fetch('/api/settings')).json();
-    settings.gradeToStars = gradeToStars;
+    settings.childSettings = settings.childSettings || {};
+    settings.childSettings[settingsChildId] = {
+      ...getChildSettings(settings, settingsChildId),
+      gradeToStars: normalizeGradeToStars(gradeToStars),
+    };
+    if (settingsChildId === 'ali') {
+      settings.gradeToStars = settings.childSettings[settingsChildId].gradeToStars;
+    }
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     showSaved('Маппинг оценок сохранён');
   };
@@ -481,21 +493,6 @@ export default function SettingsPage() {
     return builtin?.label || categoryId;
   };
 
-  function normalizeSubjects(items: Subject[]) {
-    return [...items]
-      .map((subject, index) => ({
-        id: subject.id || `subj-${index}`,
-        name: subject.name || '',
-        order: Number.isFinite(Number(subject.order)) ? Number(subject.order) : index,
-      }))
-      .sort((a, b) => {
-        const orderA = Number.isFinite(Number(a.order)) ? Number(a.order) : 9999;
-        const orderB = Number.isFinite(Number(b.order)) ? Number(b.order) : 9999;
-        return orderA - orderB || a.name.localeCompare(b.name, 'ru');
-      })
-      .map((subject, index) => ({ ...subject, order: index }));
-  }
-
   const sortedRewards = [...rewards].sort((a, b) => {
     const orderA = Number.isFinite(Number(a.sortOrderByChild?.[settingsChildId])) ? Number(a.sortOrderByChild?.[settingsChildId]) : 9999;
     const orderB = Number.isFinite(Number(b.sortOrderByChild?.[settingsChildId])) ? Number(b.sortOrderByChild?.[settingsChildId]) : 9999;
@@ -522,7 +519,7 @@ export default function SettingsPage() {
   };
 
   const refreshSubjects = async () => {
-    const res = await fetch('/api/grades');
+    const res = await fetch(`/api/grades?childId=${settingsChildId}`);
     const data = await res.json();
     setSubjects(Array.isArray(data) ? normalizeSubjects(data) : []);
   };
@@ -546,18 +543,12 @@ export default function SettingsPage() {
   };
 
   const saveSubjects = async (nextSubjects: Subject[]) => {
-    const normalized = nextSubjects
-      .filter((subject) => !!subject?.name)
-      .map((subject, index) => ({
-        id: subject.id || `subj-${index}`,
-        name: subject.name || '',
-        order: index,
-      }));
+    const normalized = normalizeSubjects(nextSubjects);
     setSubjects(normalized);
     await fetch('/api/grades', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subjects: normalized })
+      body: JSON.stringify({ childId: settingsChildId, subjects: normalized })
     });
     await refreshSubjects();
   };
@@ -574,6 +565,19 @@ export default function SettingsPage() {
       ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
     };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+    setSettingsData(settings);
+  };
+
+  const saveChildGradesEnabled = async (childId: 'ali' | 'said', enabled: boolean) => {
+    const settings = await (await fetch('/api/settings')).json();
+    const currentChild = getChildSettings(settings, childId);
+    settings.childSettings = settings.childSettings || {};
+    settings.childSettings[childId] = {
+      ...currentChild,
+      gradesEnabled: enabled,
+    };
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
+    setSettingsData(settings);
   };
 
   const saveNotifications = async () => {
@@ -1649,64 +1653,64 @@ export default function SettingsPage() {
               const isAli = id === 'ali';
               const avatar = isAli ? avatarAli : avatarSaid;
               const label = isAli ? 'Али' : 'Саид';
+              const childGradesEnabled = settingsData ? getChildSettings(settingsData, id).gradesEnabled : (id === 'ali');
               return (
-                <div key={id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl">
-                  <div className="relative">
-                    {avatar ? (
-                      <img src={avatar} alt={label} className="w-14 h-14 rounded-full object-cover border-2 border-slate-200" />
-                    ) : (
-                      <div className="w-14 h-14 bg-blue-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
-                        {isAli ? 'А' : 'С'}
-                      </div>
-                    )}
+                <div key={id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {avatar ? (
+                        <img src={avatar} alt={label} className="w-14 h-14 rounded-full object-cover border-2 border-slate-200" />
+                      ) : (
+                        <div className="w-14 h-14 bg-blue-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                          {isAli ? 'А' : 'С'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-700">{label}</p>
+                      <p className="text-xs text-slate-400 mb-2">Фото профиля</p>
+                      <label className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-300 cursor-pointer transition-colors">
+                        <Camera size={14} />
+                        {avatar ? 'Изменить' : 'Загрузить'}
+                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
+                          const reader = new FileReader();
+                          reader.onload = async (ev) => {
+                            const dataUrl = ev.target?.result as string;
+                            if (isAli) setAvatarAli(dataUrl); else setAvatarSaid(dataUrl);
+                            await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: dataUrl }) });
+                            showSaved(`Фото ${label} обновлено`);
+                          };
+                          reader.readAsDataURL(file);
+                        }} />
+                      </label>
+                      {avatar && (
+                        <button onClick={async () => {
+                          if (isAli) setAvatarAli(null); else setAvatarSaid(null);
+                          await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: null }) });
+                          showSaved(`Фото ${label} удалено`);
+                        }} className="ml-2 text-xs text-red-400 hover:text-red-600 font-medium">Удалить</button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-slate-700">{label}</p>
-                    <p className="text-xs text-slate-400 mb-2">Фото профиля</p>
-                    <label className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-300 cursor-pointer transition-colors">
-                      <Camera size={14} />
-                      {avatar ? 'Изменить' : 'Загрузить'}
-                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
-                        const reader = new FileReader();
-                        reader.onload = async (ev) => {
-                          const dataUrl = ev.target?.result as string;
-                          if (isAli) setAvatarAli(dataUrl); else setAvatarSaid(dataUrl);
-                          await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: dataUrl }) });
-                          showSaved(`Фото ${label} обновлено`);
-                        };
-                        reader.readAsDataURL(file);
-                      }} />
-                    </label>
-                    {avatar && (
-                      <button onClick={async () => {
-                        if (isAli) setAvatarAli(null); else setAvatarSaid(null);
-                        await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: null }) });
-                        showSaved(`Фото ${label} удалено`);
-                      }} className="ml-2 text-xs text-red-400 hover:text-red-600 font-medium">Удалить</button>
-                    )}
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">Показывать оценки</p>
+                    </div>
+                    <Switch
+                      checked={childGradesEnabled}
+                      onCheckedChange={async (checked) => {
+                        if (id === settingsChildId) setGradesEnabled(checked);
+                        await saveChildGradesEnabled(id, checked);
+                        showSaved(`${label}: оценки ${checked ? 'включены' : 'скрыты'}`);
+                      }}
+                    />
                   </div>
                 </div>
               );
             })}
-            <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <div>
-                <p className="text-sm font-bold text-slate-700">Показывать оценки</p>
-                <p className="text-xs text-slate-400">
-                  Для Али включено по умолчанию, для Саида скрыто до ручного включения
-                </p>
-              </div>
-              <Switch
-                checked={gradesEnabled}
-                onCheckedChange={async (checked) => {
-                  setGradesEnabled(checked);
-                  await saveChildSettings({ gradesEnabled: checked });
-                  showSaved(checked ? 'Оценки включены' : 'Оценки скрыты');
-                }}
-              />
-            </div>
           </div>
         </AccordionSection>
 

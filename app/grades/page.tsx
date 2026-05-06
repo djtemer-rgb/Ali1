@@ -35,8 +35,8 @@ export default function GradesPage() {
       ]);
       const d = await gradesRes.json();
       const settings = await settingsRes.json();
-      if (settings?.gradeToStars) setGradeToStars(settings.gradeToStars);
       const childSettings = getChildSettings(settings, currentChild.id as 'ali' | 'said');
+      setGradeToStars(childSettings.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 });
       setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
       const ordered = Array.isArray(d) ? [...d].reverse() : [];
       setGrades(ordered.slice(0, 20));

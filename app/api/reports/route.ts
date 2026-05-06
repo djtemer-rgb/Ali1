@@ -8,6 +8,7 @@ import {
   getCategoryLabel,
   type ReportInsightSource,
 } from '@/app/lib/reporting';
+import { getChildSettings } from '@/app/lib/settings-shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     const days = Number.parseInt(url.searchParams.get('days') || '7', 10);
 
     const settings = await getJson('aq:settings') as any || {};
+    const childSettings = getChildSettings(settings, childId as 'ali' | 'said');
     const gradeHistoryLimit = clamp(
       Number.isFinite(Number(settings?.gradeHistoryLimit))
         ? Number(settings.gradeHistoryLimit)
@@ -170,7 +172,7 @@ export async function GET(request: Request) {
         ).map((grade: any) => ({
           ...grade,
           starsAwarded: (() => {
-            const mapped = settings?.gradeToStars?.[String(grade.grade)] ?? (
+            const mapped = childSettings.gradeToStars?.[String(grade.grade)] ?? (
               grade.grade === 5 ? 5 : grade.grade === 4 ? 2 : 0
             );
             if (typeof grade.starsAwarded === 'number') {
@@ -252,7 +254,7 @@ export async function GET(request: Request) {
       grades: periodGrades,
       recentTasks: recentTaskEntries,
       recentStarEntries,
-      settings: { gradeHistoryLimit, gradeToStars: settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 } },
+      settings: { gradeHistoryLimit, gradeToStars: childSettings.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 } },
     };
 
     // Cache for 5 minutes
