@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
+import { invalidateReportCache } from '../report-cache';
 
 const DEFAULT_REWARDS = [
   {
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const childId = url.searchParams.get('childId') || 'ali';
+    const includeInactive = url.searchParams.get('includeInactive') === '1' || url.searchParams.get('includeInactive') === 'true';
     
     let rewards = await getJson('aq:rewards');
     if (!rewards || !Array.isArray(rewards)) {
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
     
     // Filter rewards for this child (include 'both' rewards)
     const filtered = rewards
-      .filter((r: any) => r.active && (r.childId === childId || r.childId === 'both'))
+      .filter((r: any) => (includeInactive || r.active) && (r.childId === childId || r.childId === 'both'))
       .sort((a: any, b: any) => getRewardOrder(a, childId) - getRewardOrder(b, childId) || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
     return NextResponse.json(filtered);
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
     if (Array.isArray(body.rewards)) {
       const normalized = body.rewards.map((reward: any, index: number) => ({
         ...reward,
+        active: reward.active !== false,
         sortOrderByChild: reward.sortOrderByChild || {},
         updatedAt: new Date().toISOString()
       }));
@@ -89,6 +92,7 @@ export async function POST(request: Request) {
     const newReward = {
       id: `reward-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       ...body,
+      active: body.active !== false,
       sortOrderByChild: {
         ...(body.sortOrderByChild || {}),
         [childId]: Number.isFinite(Number(body.sortOrderByChild?.[childId])) ? Number(body.sortOrderByChild[childId]) : nextOrder
@@ -113,22 +117,35 @@ export async function PUT(request: Request) {
     const updatesList = Array.isArray(body.updates) ? body.updates : null;
     if (updatesList) {
       let rewards = await getJson('aq:rewards') || [];
+      const reactivatedIds: string[] = [];
       rewards = rewards.map((r: any) => {
         const update = updatesList.find((item: any) => item.id === r.id);
-        return update ? { ...r, ...update, updatedAt: new Date().toISOString() } : r;
+        if (!update) return r;
+        if (update.active === true && r.active === false) {
+          reactivatedIds.push(r.id);
+        }
+        return { ...r, ...update, active: update.active !== undefined ? !!update.active : r.active, updatedAt: new Date().toISOString() };
       });
       await setJson('aq:rewards', rewards);
+      if (reactivatedIds.length > 0) {
+        await resetFulfilledRewardStatuses(reactivatedIds);
+      }
       return NextResponse.json(rewards);
     }
 
     const { id, ...updates } = body;
     
     let rewards = await getJson('aq:rewards') || [];
+    const previous = rewards.find((r: any) => r.id === id);
+    const nextActive = updates.active !== undefined ? !!updates.active : previous?.active;
     rewards = rewards.map((r: any) => 
-      r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r
+      r.id === id ? { ...r, ...updates, active: updates.active !== undefined ? !!updates.active : r.active, updatedAt: new Date().toISOString() } : r
     );
     
     await setJson('aq:rewards', rewards);
+    if (previous && previous.active === false && nextActive === true) {
+      await resetFulfilledRewardStatuses([id]);
+    }
     return NextResponse.json(rewards);
   } catch (error) {
     console.error('Error updating reward:', error);
@@ -142,6 +159,30 @@ function getRewardOrder(reward: any, childId: string) {
     : Number.isFinite(Number(reward?.sortOrderByChild?.both))
       ? Number(reward.sortOrderByChild.both)
       : 9999;
+}
+
+async function resetFulfilledRewardStatuses(rewardIds: string[]) {
+  const rewardIdSet = new Set(rewardIds.filter(Boolean));
+  if (rewardIdSet.size === 0) return;
+  for (const childId of ['ali', 'said'] as const) {
+    const statuses = await getJson(`aq:reward-status:${childId}`) || [];
+    if (!Array.isArray(statuses) || statuses.length === 0) continue;
+    let changed = false;
+    const nextStatuses = statuses.map((status: any) => {
+      if (!rewardIdSet.has(status?.rewardId) || status.status !== 'fulfilled') return status;
+      changed = true;
+      return {
+        ...status,
+        status: 'available',
+        selectedAt: undefined,
+        fulfilledAt: undefined,
+      };
+    });
+    if (changed) {
+      await setJson(`aq:reward-status:${childId}`, nextStatuses);
+      await invalidateReportCache(childId);
+    }
+  }
 }
 
 export async function DELETE(request: Request) {

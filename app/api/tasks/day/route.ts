@@ -10,38 +10,49 @@ export async function GET(request: Request) {
     const force = url.searchParams.get('force') === 'true';
 
     const key = `aq:day:${childId}:${date}`;
-    let dayTasks = await getJson(key);
+    const rawDayTasks = await getJson(key);
+    const existingDayTasks = Array.isArray(rawDayTasks) ? rawDayTasks : [];
     const dayOfWeek = new Date(date).getDay();
 
-    // Get all active templates for this child
-    const templates = await getJson('aq:task-templates') || [];
-    const relevantTemplates = Array.isArray(templates)
-      ? templates.filter((t: any) =>
-          t.active &&
-          (t.childId === childId || t.childId === 'both') &&
-          isTemplateScheduledForDate(t, date, dayOfWeek)
-        )
-      : [];
+    const rawTemplates = await getJson('aq:task-templates') || [];
+    const templates = Array.isArray(rawTemplates) ? normalizeTemplates(rawTemplates) : [];
+    const relevantTemplates = templates.filter((template: any) =>
+      template.active &&
+      (template.childId === childId || template.childId === 'both') &&
+      isTemplateScheduledForDate(template, date, dayOfWeek)
+    );
 
-    if (!dayTasks || !Array.isArray(dayTasks) || force) {
-      dayTasks = relevantTemplates.map((t: any) => createTaskInstance(t, childId, date));
-      await setJson(key, dayTasks);
+    let nextDayTasks: any[] = [];
+
+    if (!existingDayTasks.length || force) {
+      nextDayTasks = relevantTemplates.map((template: any) => createTaskInstance(template, childId, date));
     } else {
-      dayTasks = reconcileDayTasks(dayTasks, relevantTemplates, childId, date);
+      const reconciled = reconcileDayTasks(existingDayTasks, relevantTemplates, childId, date);
       const existingTemplateIds = new Set(
-        dayTasks.map((t: any) => t.templateId).filter(Boolean)
+        reconciled
+          .map((task: any) => task?.templateId)
+          .filter(Boolean)
       );
-      const newTemplates = relevantTemplates.filter(
-        (t: any) => !existingTemplateIds.has(t.id)
-      );
-      if (newTemplates.length > 0) {
-        const newTasks = newTemplates.map((t: any) => createTaskInstance(t, childId, date));
-        dayTasks = [...dayTasks, ...newTasks];
-        await setJson(key, dayTasks);
-      }
+      const missingTemplates = relevantTemplates.filter((template: any) => !existingTemplateIds.has(template.id));
+      nextDayTasks = [
+        ...reconciled,
+        ...missingTemplates.map((template: any) => createTaskInstance(template, childId, date)),
+      ];
     }
 
-    return NextResponse.json(dayTasks);
+    const normalizedNext = sortDayTasks(
+      nextDayTasks.map(normalizeTaskState),
+      templates,
+    );
+    const normalizedExisting = sortDayTasks(
+      existingDayTasks.map(normalizeTaskState),
+      templates,
+    );
+    if (JSON.stringify(normalizedNext) !== JSON.stringify(normalizedExisting)) {
+      await setJson(key, normalizedNext);
+    }
+
+    return NextResponse.json(normalizedNext);
   } catch (error) {
     console.error('Error getting day tasks:', error);
     return NextResponse.json([]);
@@ -64,6 +75,7 @@ export async function POST(request: Request) {
 }
 
 function createTaskInstance(template: any, childId: string, date: string) {
+  const repeatDays = Array.isArray(template.repeatDays) ? template.repeatDays : [];
   return {
     id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     templateId: template.id,
@@ -80,7 +92,7 @@ function createTaskInstance(template: any, childId: string, date: string) {
     requiresOpenDetails: template.requiresOpenDetails || false,
     detailsText: template.detailsText || '',
     subtasksMode: template.subtasksMode || 'none',
-    oneTimeDate: template.oneTimeDate || null,
+    oneTimeDate: repeatDays.length === 0 ? template.oneTimeDate || date : null,
     subtasks: Array.isArray(template.subtasks)
       ? template.subtasks.map((st: any, index: number) => ({
           id: st.id || `subtask-${index}`,
@@ -90,13 +102,17 @@ function createTaskInstance(template: any, childId: string, date: string) {
       : [],
     askDifficultyAfterDone: template.askDifficultyAfterDone || false,
     difficulty: null,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 }
 
 function normalizeTaskState(task: any) {
   return {
     ...task,
+    completed: !!task.completed,
+    completedAt: task.completedAt || null,
+    detailsOpened: !!task.detailsOpened,
     subtasks: Array.isArray(task.subtasks)
       ? task.subtasks.map((st: any, index: number) => ({
           id: st.id || `subtask-${index}`,
@@ -107,30 +123,94 @@ function normalizeTaskState(task: any) {
   };
 }
 
+function sortDayTasks(tasks: any[], templates: any[]) {
+  const templateOrder = new Map(
+    (Array.isArray(templates) ? templates : []).map((template: any) => [
+      template.id,
+      Number.isFinite(Number(template?.sortOrder)) ? Number(template.sortOrder) : 9999,
+    ]),
+  );
+
+  return [...tasks].sort((a: any, b: any) => {
+    const orderA = a?.templateId && templateOrder.has(a.templateId)
+      ? Number(templateOrder.get(a.templateId))
+      : 9999;
+    const orderB = b?.templateId && templateOrder.has(b.templateId)
+      ? Number(templateOrder.get(b.templateId))
+      : 9999;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const timeA = new Date(a?.oneTimeDate || a?.createdAt || 0).getTime();
+    const timeB = new Date(b?.oneTimeDate || b?.createdAt || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+
+    return String(a?.title || '').localeCompare(String(b?.title || ''), 'ru');
+  });
+}
+
 function reconcileDayTasks(dayTasks: any[], templates: any[], childId: string, date: string) {
   const templateMap = new Map(templates.map((template: any) => [template.id, template]));
-  return dayTasks.map((task: any) => {
-    const template = task.templateId ? templateMap.get(task.templateId) : null;
-    if (!template) return normalizeTaskState(task);
-    const mergedSubtasks = mergeSubtasks(task.subtasks, template.subtasks);
-    return {
-      ...task,
-      childId,
-      date,
-      title: template.title,
-      category: template.category,
-      customCategory: template.customCategory || '',
-      stars: template.stars,
-      dueTime: template.dueTime || null,
-      requiresOpenDetails: !!template.requiresOpenDetails,
-      detailsText: template.detailsText || '',
-      subtasksMode: template.subtasksMode || 'none',
-      oneTimeDate: template.oneTimeDate || task.oneTimeDate || null,
-      subtasks: mergedSubtasks,
-      askDifficultyAfterDone: !!template.askDifficultyAfterDone,
-      updatedAt: new Date().toISOString()
-    };
-  });
+  return dayTasks
+    .map((task: any) => {
+      const normalizedTask = normalizeTaskState(task);
+      const template = normalizedTask.templateId ? templateMap.get(normalizedTask.templateId) : null;
+
+      if (!template) {
+        return normalizedTask.completed ? normalizedTask : null;
+      }
+
+      const templateStillRelevant = isTemplateScheduledForDate(template, date, new Date(date).getDay());
+      if (!templateStillRelevant && !normalizedTask.completed) {
+        return null;
+      }
+
+      if (normalizedTask.completed) {
+        return {
+          ...normalizedTask,
+          childId,
+          date,
+          updatedAt: normalizedTask.updatedAt || new Date().toISOString(),
+        };
+      }
+
+      const mergedSubtasks = mergeSubtasks(normalizedTask.subtasks, template.subtasks);
+      return {
+        ...normalizedTask,
+        childId,
+        date,
+        title: template.title,
+        category: template.category,
+        customCategory: template.customCategory || '',
+        stars: template.stars,
+        dueTime: template.dueTime || null,
+        requiresOpenDetails: !!template.requiresOpenDetails,
+        detailsText: template.detailsText || '',
+        subtasksMode: template.subtasksMode || 'none',
+        oneTimeDate: template.oneTimeDate || normalizedTask.oneTimeDate || null,
+        subtasks: mergedSubtasks,
+        askDifficultyAfterDone: !!template.askDifficultyAfterDone,
+        updatedAt: new Date().toISOString()
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeTemplates(input: any[]) {
+  return input
+    .map((template, index) => ({
+      ...template,
+      sortOrder: Number.isFinite(Number(template?.sortOrder)) ? Number(template.sortOrder) : index,
+      active: template?.active !== false,
+      inactiveAt: template?.inactiveAt || null,
+      oneTimeDate: normalizeOneTimeDate(template),
+      createdAt: template?.createdAt || new Date().toISOString(),
+      updatedAt: template?.updatedAt || new Date().toISOString()
+    }))
+    .sort((a, b) => {
+      const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 9999;
+      const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 9999;
+      return orderA - orderB || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
 }
 
 function mergeSubtasks(current: any[], templateSubtasks: any[]) {
@@ -154,6 +234,15 @@ function isTemplateScheduledForDate(template: any, date: string, dayOfWeek: numb
 
   const oneTimeDate = normalizeDate(template?.oneTimeDate || template?.createdAt);
   return !!oneTimeDate && oneTimeDate === date;
+}
+
+function normalizeOneTimeDate(template: any) {
+  const repeatDays = Array.isArray(template?.repeatDays) ? template.repeatDays : [];
+  if (repeatDays.length > 0) return template?.oneTimeDate || undefined;
+
+  const candidate = template?.oneTimeDate || template?.createdAt || new Date().toISOString();
+  const normalized = normalizeDate(candidate);
+  return normalized || new Date().toISOString().split('T')[0];
 }
 
 function normalizeDate(value?: string) {

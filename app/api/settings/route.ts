@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   aiModel: '',
   aiModelFallback: '',
   systemPrompt: 'Ты — герой-наставник для ребенка. Мотивируй, хвали за усилия, поддерживай. Не используй стыд или наказания.',
+  deepPrompt: 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.',
   childSettings: {
     ali: defaultChildSettings(),
     said: defaultChildSettings()

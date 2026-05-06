@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles, Circle, CheckCircle2 } from "lucide-react";
+import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -10,17 +10,18 @@ import TaskCard from "./components/TaskCard";
 import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
-import { buildTaskCompletionBundle, formatStarAmount } from "@/app/lib/reporting";
+import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
 interface Task {
   id: string; templateId?: string; title: string; stars: number; completed: boolean; completedAt?: string;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list'; subtasks: { id: string; title: string; done: boolean }[];
-  requiresOpenDetails: boolean; detailsOpened: boolean; detailsText?: string;
+  requiresOpenDetails: boolean; detailsOpened: boolean; detailsText?: string; oneTimeDate?: string | null;
   difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string; customCategory?: string;
+  createdAt?: string; updatedAt?: string;
 }
 interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
-interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; oneTimeDate?: string; }
+interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; oneTimeDate?: string; sortOrder?: number; createdAt?: string; }
 
 const DAY_NAMES_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -77,6 +78,75 @@ function getRewardOrder(reward: any, childId: string) {
       : 9999;
 }
 
+function sortTasksByTemplateOrder(tasks: Task[], templates: TaskTemplate[]) {
+  const templateOrder = new Map(
+    templates.map((template) => [
+      template.id,
+      Number.isFinite(Number(template.sortOrder)) ? Number(template.sortOrder) : 9999,
+    ]),
+  );
+
+  return [...tasks].sort((a, b) => {
+    const orderA = a.templateId && templateOrder.has(a.templateId)
+      ? Number(templateOrder.get(a.templateId))
+      : 9999;
+    const orderB = b.templateId && templateOrder.has(b.templateId)
+      ? Number(templateOrder.get(b.templateId))
+      : 9999;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const timeA = new Date(a.oneTimeDate || a.completedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.oneTimeDate || b.completedAt || b.createdAt || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+
+    return String(a.title || '').localeCompare(String(b.title || ''), 'ru');
+  });
+}
+
+function getScheduleSortKey(template: Pick<TaskTemplate, 'repeatDays' | 'oneTimeDate' | 'sortOrder' | 'createdAt'>, from = new Date()) {
+  const repeatDays = Array.isArray(template.repeatDays) ? template.repeatDays : [];
+  if (repeatDays.length === 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const today = new Date(from);
+  today.setHours(0, 0, 0, 0);
+  const currentDay = today.getDay();
+
+  if (repeatDays.includes(currentDay)) {
+    return today.getTime();
+  }
+
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const candidate = new Date(today);
+    candidate.setDate(today.getDate() + offset);
+    if (repeatDays.includes(candidate.getDay())) {
+      return candidate.getTime();
+    }
+  }
+
+  const oneTimeDate = template.oneTimeDate ? new Date(template.oneTimeDate) : null;
+  if (oneTimeDate && !Number.isNaN(oneTimeDate.getTime())) {
+    return oneTimeDate.getTime();
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function sortScheduleTemplates(list: TaskTemplate[]) {
+  return [...list].sort((a, b) => {
+    const orderA = getScheduleSortKey(a);
+    const orderB = getScheduleSortKey(b);
+    if (orderA !== orderB) return orderA - orderB;
+
+    const manualA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 9999;
+    const manualB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 9999;
+    if (manualA !== manualB) return manualA - manualB;
+
+    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  });
+}
+
 export default function Home() {
   const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
@@ -91,6 +161,8 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
   const [gradesEnabled, setGradesEnabled] = useState(true);
+  const [currencyEnabled, setCurrencyEnabled] = useState(true);
+  const [reserveStars, setReserveStars] = useState(0);
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
@@ -101,29 +173,47 @@ export default function Home() {
       const today = new Date().toISOString().split('T')[0];
       setLoadingTasks(true); setLoadingRewards(true);
       try {
-        const [tasksRes, starsRes, rewardsRes, tplRes] = await Promise.all([
+        const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes] = await Promise.all([
           fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`),
           fetch(`/api/star-ledger?childId=${currentChild.id}`),
           fetch(`/api/rewards?childId=${currentChild.id}`),
-          fetch(`/api/tasks/templates`)
+          fetch(`/api/tasks/templates`),
+          fetch(`/api/rewards/status?childId=${currentChild.id}`)
         ]);
         const [tasksData, starsData, rewardsData, tplData] = await Promise.all([
           tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json()
         ]);
         const settingsRes = await fetch('/api/settings');
         const settingsData = await settingsRes.json();
-        setTasks(Array.isArray(tasksData) ? tasksData : []);
+        const rewardStatusData = await rewardStatusRes.json();
+        const allTemplates = Array.isArray(tplData) ? tplData : [];
+        const templateIds = new Set(allTemplates.map((template: any) => template.id));
+        setTasks(Array.isArray(tasksData)
+          ? sortTasksByTemplateOrder(
+              tasksData.filter((task: any) => !task.templateId || templateIds.has(task.templateId)),
+              Array.isArray(allTemplates) ? allTemplates : [],
+            )
+          : []);
         setStars(starsData.balance || 0);
-        setRewards(Array.isArray(rewardsData) ? [...rewardsData].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)) : []);
+        const childRewards = Array.isArray(rewardsData) ? rewardsData : [];
+        const reserve = Array.isArray(rewardStatusData)
+          ? rewardStatusData.reduce((sum: number, status: any) => {
+              if (status?.status !== 'selected') return sum;
+              const reward = childRewards.find((item: any) => item.id === status.rewardId);
+              return sum + (Number(reward?.costStars) || 0);
+            }, 0)
+          : 0;
+        setReserveStars(reserve);
+        setRewards([...childRewards].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)));
         const childSettings = getChildSettings(settingsData, currentChild.id);
         setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
-        const todayKey = today;
+        setCurrencyEnabled(settingsData?.currencyEnabled !== false);
         setTemplates(Array.isArray(tplData)
-          ? tplData.filter((t: any) => {
-              if (t.childId !== currentChild.id && t.childId !== 'both') return false;
-              if (Array.isArray(t.repeatDays) && t.repeatDays.length > 0) return true;
-              return normalizeDate(t.oneTimeDate || t.createdAt) === todayKey;
-            })
+          ? sortScheduleTemplates(tplData.filter((t: any) =>
+              (t.childId === currentChild.id || t.childId === 'both') &&
+              Array.isArray(t.repeatDays) &&
+              t.repeatDays.length > 0
+            ))
           : []);
       } catch (e) { console.error(e); }
       finally { setLoadingTasks(false); setLoadingRewards(false); }
@@ -148,6 +238,7 @@ export default function Home() {
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), difficulty: difficulty || t.difficulty, detailsOpened: true } : t);
     setTasks(updatedTasks);
     const allDone = updatedTasks.every(t => t.completed);
+    const isOneTimeTask = !!task.oneTimeDate;
 
     await Promise.all([
       fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
@@ -155,6 +246,34 @@ export default function Home() {
       fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }) }),
       ...(allDone ? [fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'day-completed', title: 'День завершён', body: `${currentChild.name} выполнил все задачи на сегодня! 🎉` }) })] : [])
     ]);
+
+    if (isOneTimeTask && task.templateId) {
+      try {
+        const templatesRes = await fetch('/api/tasks/templates');
+        const allTemplates = await templatesRes.json();
+        if (Array.isArray(allTemplates)) {
+          const updatedTemplates = allTemplates.map((template: any) => {
+            if (template.id !== task.templateId) return template;
+            const repeatDays = Array.isArray(template.repeatDays) ? template.repeatDays : [];
+            if (repeatDays.length > 0) return template;
+            return {
+              ...template,
+              active: false,
+              inactiveAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+          });
+          await fetch('/api/tasks/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedTemplates),
+          });
+        }
+      } catch (error) {
+        console.error('Failed to archive one-time template:', error);
+      }
+    }
+
     setStars(prev => prev + task.stars);
   };
 
@@ -238,6 +357,11 @@ export default function Home() {
             className="relative bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] px-3 py-1.5 rounded-xl font-extrabold text-sm md:text-base flex items-center gap-1.5 shadow-sm hover:bg-amber-100 transition-colors cursor-pointer">
             <Star className="fill-amber-400 text-amber-400 w-4 h-4" /> {stars}
           </button>
+          {currencyEnabled && reserveStars > 0 && (
+            <span className="bg-white/90 border border-amber-200 text-amber-500 px-2.5 py-1 rounded-xl font-extrabold text-sm md:text-base shadow-sm">
+              {formatRewardReserveLabel(reserveStars, true, false)}
+            </span>
+          )}
 
           <button onClick={() => setShowPinModal(true)}
             className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
@@ -305,46 +429,13 @@ export default function Home() {
               {templates.map(t => {
                 const repeatInfo = getNextRepeatInfo(t);
                 const currentTask = tasks.find(task => task.templateId === t.id);
-                const canRunNow = !!currentTask && !currentTask.completed && repeatInfo.label === 'Сегодня';
                 return (
-                  <button
+                  <div
                     key={t.id}
-                    type="button"
-                    onClick={() => {
-                      if (!canRunNow || !currentTask) {
-                        if (currentTask) {
-                          document.querySelector(`[data-task-id="${currentTask.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        } else {
-                          document.getElementById('today-tasks')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                        return;
-                      }
-                      const actionButton = document.querySelector(
-                        `[data-task-id="${currentTask.id}"] [data-task-primary-action="true"]`
-                      ) as HTMLButtonElement | null;
-                      if (actionButton) {
-                        actionButton.click();
-                        return;
-                      }
-                      document.querySelector(`[data-task-id="${currentTask.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                    disabled={!canRunNow}
-                    title={canRunNow ? 'Нажмите, чтобы выполнить задачу' : 'Задача доступна только в свой день'}
-                    className={`w-full flex items-start gap-2 bg-slate-50 rounded-2xl p-3 border border-slate-100 text-left transition-colors ${
-                      canRunNow ? 'hover:bg-slate-100 cursor-pointer' : 'opacity-70 cursor-not-allowed'
+                    className={`w-full flex items-start gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-100 text-left transition-colors ${
+                      currentTask?.completed ? 'bg-green-50 border-green-200' : ''
                     }`}
                   >
-                    <div className="flex items-start pt-0.5 shrink-0">
-                      {currentTask ? (
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 ${currentTask.completed ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-300 text-slate-300'}`}>
-                          {currentTask.completed ? <CheckCircle2 size={13} /> : <Circle size={13} />}
-                        </div>
-                      ) : (
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center border-2 bg-white border-slate-200 text-slate-200">
-                          <Circle size={13} />
-                        </div>
-                      )}
-                    </div>
                     <div className="min-w-0 flex-1">
                       <span
                         className="font-bold text-slate-800 text-sm leading-tight block overflow-hidden"
@@ -374,7 +465,7 @@ export default function Home() {
                       )}
                     </div>
                     <span className="text-[11px] font-bold text-amber-500 shrink-0 ml-1 whitespace-nowrap">+{t.stars} ⭐</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -391,13 +482,42 @@ export default function Home() {
             {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
               return (
-                <div key={reward.id} onClick={() => buyReward(reward)}
-                  className={`border rounded-2xl p-3 flex flex-col gap-2 transition-all cursor-pointer ${canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-md' : 'bg-white/5 border-white/10 opacity-70'}`}>
-                   <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
-                  {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
-                  <div className="flex items-center gap-2 mt-auto">
-                    <div className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs ${canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'}`}>
-                      {formatStarAmount(reward.costStars, false)} <Star size={11} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                <div
+                  key={reward.id}
+                  onClick={() => buyReward(reward)}
+                  className={`group relative isolate overflow-hidden border rounded-2xl p-3 flex flex-col gap-2 transition-all duration-500 cursor-pointer ${
+                    canAfford
+                      ? 'bg-white/28 border-white/42 hover:bg-white/34 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_9px_20px_rgba(251,191,36,0.10)]'
+                      : 'bg-white/6 border-white/10 opacity-76 hover:bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_7px_16px_rgba(96,165,250,0.05)]'
+                  }`}
+                >
+                  <div
+                    className={`pointer-events-none absolute inset-[1px] rounded-[1rem] ${
+                      canAfford
+                        ? 'bg-[radial-gradient(circle_at_26%_20%,rgba(255,255,255,0.60),rgba(255,255,255,0.16)_28%,rgba(251,191,36,0.06)_50%,transparent_72%)] animate-reward-glow'
+                        : 'bg-[radial-gradient(circle_at_20%_18%,rgba(186,230,253,0.20),rgba(186,230,253,0.06)_24%,rgba(147,197,253,0.03)_48%,transparent_72%)] animate-reward-glow'
+                    }`}
+                  />
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl mix-blend-screen">
+                    <div
+                      className={`absolute top-1/2 left-[-18%] w-[18%] h-4 -translate-y-1/2 rounded-full blur-md ${
+                        canAfford
+                          ? 'bg-gradient-to-r from-transparent via-white/45 to-transparent animate-reward-shimmer'
+                          : 'bg-gradient-to-r from-transparent via-sky-200/28 to-transparent animate-reward-shimmer-cool'
+                      }`}
+                    />
+                  </div>
+                  <div className="relative z-10 flex flex-col gap-2 h-full">
+                    <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
+                    {reward.description && <p className="text-white/60 text-[11px] leading-tight line-clamp-2">{reward.description}</p>}
+                    <div className="flex items-center gap-2 mt-auto">
+                      <div
+                        className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs transition-colors ${
+                          canAfford ? 'bg-white/95 text-amber-600 shadow-[0_0_24px_rgba(251,191,36,0.24)]' : 'bg-white/15 text-white/55'
+                        }`}
+                      >
+                        {Math.max(0, Math.abs(reward.costStars))} <Star size={11} className={canAfford ? 'fill-amber-400 text-amber-400' : 'fill-white/35 text-white/35'} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -424,3 +544,5 @@ export default function Home() {
     </div>
   );
 }
+
+

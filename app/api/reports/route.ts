@@ -6,6 +6,7 @@ import {
   formatDifficultyLabel,
   formatStarSourceLabel,
   getCategoryLabel,
+  type ReportInsightSource,
 } from '@/app/lib/reporting';
 
 export const dynamic = 'force-dynamic';
@@ -87,10 +88,7 @@ export async function GET(request: Request) {
 
     for (let i = 0; i < dayKeys.length; i++) {
       const raw = rawDays[i];
-      let dayTasks: any[] = [];
-      if (raw) {
-        try { dayTasks = JSON.parse(raw); } catch { dayTasks = []; }
-      }
+      const dayTasks = parseRedisList(raw);
 
       let dayCompleted = 0;
       const dayLedger = ledgerByDate.get(dayKeys[i].split(':').pop() || '') || { net: 0, positive: 0, negative: 0 };
@@ -117,7 +115,7 @@ export async function GET(request: Request) {
         label: dateLabels[i],
         date: dayKeys[i].split(':').pop() || '',
         tasksCompleted: dayCompleted,
-        starsEarned: dayLedger.net,
+        starsEarned: dayLedger.positive,
       });
       totalTasksCompleted += dayCompleted;
 
@@ -132,11 +130,36 @@ export async function GET(request: Request) {
       return best;
     }, null as null | (typeof completedDayItems)[number]);
 
-    const topCategoryEntry = Object.entries(categoryCounts)
-      .sort((a, b) => b[1] - a[1])[0];
+    let topCategoryEntry = Object.entries(categoryCounts)
+      .sort((a, b) => b[1] - a[1])[0] || null;
+    let topCategorySource: ReportInsightSource = 'period';
 
-    const topTask = [...recentTasks]
+    let topTask = [...recentTasks]
       .sort((a, b) => (b.stars || 0) - (a.stars || 0) || new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0] || null;
+    let topTaskSource: ReportInsightSource = 'period';
+
+    if (!topCategoryEntry || !topTask) {
+      const allTimeTasks = await readAllCompletedTasks(childId);
+      if (!topCategoryEntry && allTimeTasks.length > 0) {
+        const allTimeCategoryCounts: Record<string, number> = {};
+        for (const task of allTimeTasks) {
+          const cat = getCategoryLabel(task.category || 'other', task.customCategory || '');
+          allTimeCategoryCounts[cat] = (allTimeCategoryCounts[cat] || 0) + 1;
+        }
+        const fallbackCategory = Object.entries(allTimeCategoryCounts).sort((a, b) => b[1] - a[1])[0] || null;
+        if (fallbackCategory) {
+          topCategoryEntry = fallbackCategory;
+          topCategorySource = 'all-time';
+        }
+      }
+      if (!topTask && allTimeTasks.length > 0) {
+        topTask = [...allTimeTasks]
+          .sort((a, b) => (b.stars || 0) - (a.stars || 0) || new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0] || null;
+        if (topTask) {
+          topTaskSource = 'all-time';
+        }
+      }
+    }
 
     // Get grades — batch read all grades and filter locally
     const allGrades = await getJson('aq:grades');
@@ -211,7 +234,7 @@ export async function GET(request: Request) {
             }
           : null,
         topCategory: topCategoryEntry
-          ? { name: topCategoryEntry[0], count: topCategoryEntry[1] }
+          ? { name: topCategoryEntry[0], count: topCategoryEntry[1], sourceLabel: topCategorySource === 'all-time' ? 'за всё время' : undefined }
           : null,
         topTask: topTask
           ? {
@@ -219,6 +242,7 @@ export async function GET(request: Request) {
               stars: topTask.stars,
               completedAt: topTask.completedAt,
               difficultyLabel: topTask.difficultyLabel || null,
+              sourceLabel: topTaskSource === 'all-time' ? 'за всё время' : undefined,
             }
           : null,
       },
@@ -259,6 +283,49 @@ async function readDaysInBatches(keys: string[], batchSize: number) {
   return results;
 }
 
+async function readAllCompletedTasks(childId: string) {
+  const keys = await scanAllKeys(`aq:day:${childId}:*`);
+  if (keys.length === 0) return [];
+
+  const sortedKeys = [...keys].sort((a, b) => a.localeCompare(b));
+  const rawDays = await readDaysInBatches(sortedKeys, 30);
+  const tasks: any[] = [];
+
+  for (let i = 0; i < sortedKeys.length; i++) {
+    const raw = rawDays[i];
+    if (!raw) continue;
+    const dayTasks = parseRedisList(raw);
+    const dateKey = sortedKeys[i].split(':').pop() || new Date().toISOString().split('T')[0];
+
+    if (Array.isArray(dayTasks)) {
+      for (const task of dayTasks) {
+        if (!task?.completed) continue;
+        tasks.push(
+          buildReportTaskEntry({
+            ...task,
+            completedAt: task.completedAt || `${dateKey}T23:59:59.999Z`,
+          })
+        );
+      }
+    }
+  }
+
+  return tasks;
+}
+
+async function scanAllKeys(match: string) {
+  const found = new Set<string>();
+  let cursor: string | number = 0;
+
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, { match, count: 200 });
+    cursor = nextCursor;
+    keys.forEach((key) => found.add(key));
+  } while (`${cursor}` !== '0');
+
+  return Array.from(found);
+}
+
 function isInRange(value: string | undefined, startMs: number, endMs: number) {
   if (!value) return false;
   const time = new Date(value).getTime();
@@ -267,4 +334,22 @@ function isInRange(value: string | undefined, startMs: number, endMs: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function parseRedisList(raw: any) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    if (Array.isArray((raw as any).result)) return (raw as any).result;
+    if (Array.isArray((raw as any).value)) return (raw as any).value;
+  }
+  return [];
 }

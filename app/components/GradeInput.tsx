@@ -26,8 +26,13 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
       const res = await fetch('/api/grades');
       const data = await res.json();
       if (Array.isArray(data)) {
-        setSubjects(data);
-        if (data.length > 0) setSelectedSubject(data[0].name);
+        const ordered = [...data].sort((a, b) => {
+          const orderA = Number.isFinite(Number(a?.order)) ? Number(a.order) : 9999;
+          const orderB = Number.isFinite(Number(b?.order)) ? Number(b.order) : 9999;
+          return orderA - orderB || String(a?.name || '').localeCompare(String(b?.name || ''), 'ru');
+        });
+        setSubjects(ordered);
+        if (ordered.length > 0) setSelectedSubject(ordered[0].name);
       }
     } catch (error) {
       console.error('Error loading subjects:', error);
@@ -95,6 +100,7 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
           {[5, 4, 3, 2].map(grade => (
             <button
               key={grade}
+              type="button"
               onClick={() => setSelectedGrade(grade as 5 | 4 | 3 | 2)}
               className={`w-12 h-12 md:w-14 md:h-14 rounded-xl font-extrabold text-lg md:text-xl border-2 transition-all ${
                 selectedGrade === grade
@@ -108,6 +114,7 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
         </div>
 
         <button
+          type="button"
           onClick={addGrade}
           disabled={loading || !selectedSubject}
           className="bg-blue-500 text-white px-6 md:px-8 py-2.5 md:py-3 rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap text-sm md:text-base"

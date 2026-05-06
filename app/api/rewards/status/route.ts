@@ -50,6 +50,20 @@ export async function POST(request: Request) {
     }
 
     await setJson(`aq:reward-status:${childId}`, statuses);
+    if (status === 'fulfilled') {
+      const rewards = await getJson('aq:rewards') || [];
+      let changed = false;
+      const nextRewards = Array.isArray(rewards)
+        ? rewards.map((reward: any) => {
+            if (reward?.id !== rewardId || reward.active === false) return reward;
+            changed = true;
+            return { ...reward, active: false, updatedAt: new Date().toISOString() };
+          })
+        : rewards;
+      if (changed) {
+        await setJson('aq:rewards', nextRewards);
+      }
+    }
     await invalidateReportCache(childId);
     return NextResponse.json(newStatus);
   } catch (error) {

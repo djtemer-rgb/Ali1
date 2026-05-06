@@ -31,8 +31,10 @@ export type AiChildPrefs = {
   richMode: boolean;
   openRouterUrl: string;
   aiModel: string;
+  aiModelFallback: string;
   aiLimit: number;
   systemPrompt: string;
+  deepPrompt: string;
   heroes: string;
 };
 
@@ -50,7 +52,7 @@ export const BUILTIN_TASK_CATEGORIES: TaskCategory[] = [
   { id: 'chess', label: 'Шахматы', active: true, builtIn: true, order: 3 },
   { id: 'reading', label: 'Чтение', active: true, builtIn: true, order: 4 },
   { id: 'order', label: 'Порядок', active: true, builtIn: true, order: 5 },
-  { id: 'home-help', label: 'Помощь', active: true, builtIn: true, order: 6 },
+  { id: 'home-help', label: 'Помощь дома', active: true, builtIn: true, order: 6 },
   { id: 'rest', label: 'Отдых', active: true, builtIn: true, order: 7 },
 ];
 
@@ -100,8 +102,10 @@ export function defaultAiPrefs(): AiChildPrefs {
     richMode: true,
     openRouterUrl: 'https://openrouter.ai/api/v1',
     aiModel: 'openai/gpt-4o-mini',
+    aiModelFallback: 'openai/gpt-4o-mini',
     aiLimit: 3,
     systemPrompt: '',
+    deepPrompt: 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.',
     heroes: 'Мухаммед Али, Тайсон, Роналду',
   };
 }
@@ -174,8 +178,10 @@ export function normalizeAiPrefs(ai: any) {
     richMode: ai.richMode !== undefined ? !!ai.richMode : defaults.richMode,
     openRouterUrl: typeof ai.openRouterUrl === 'string' && ai.openRouterUrl.trim() ? ai.openRouterUrl : defaults.openRouterUrl,
     aiModel: typeof ai.aiModel === 'string' && ai.aiModel.trim() ? ai.aiModel : defaults.aiModel,
+    aiModelFallback: typeof ai.aiModelFallback === 'string' && ai.aiModelFallback.trim() ? ai.aiModelFallback : defaults.aiModelFallback,
     aiLimit: Number.isFinite(Number(ai.aiLimit)) ? Math.min(10, Math.max(1, Number(ai.aiLimit))) : defaults.aiLimit,
     systemPrompt: typeof ai.systemPrompt === 'string' ? ai.systemPrompt : defaults.systemPrompt,
+    deepPrompt: typeof ai.deepPrompt === 'string' ? ai.deepPrompt : defaults.deepPrompt,
     heroes: typeof ai.heroes === 'string' ? ai.heroes : defaults.heroes,
   };
 }

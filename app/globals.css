@@ -35,4 +35,106 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  @keyframes rewardGlow {
+    0%, 100% {
+      opacity: 0.32;
+      transform: scale(0.995);
+    }
+    50% {
+      opacity: 0.58;
+      transform: scale(1);
+    }
+  }
+  .animate-reward-glow {
+    animation: rewardGlow 8.8s ease-in-out infinite;
+  }
+  @keyframes rewardShimmer {
+    0% {
+      transform: translateX(-140%) skewX(-18deg);
+      opacity: 0;
+    }
+    18% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 0.62;
+    }
+    82% {
+      opacity: 0.2;
+    }
+    100% {
+      transform: translateX(140%) skewX(-18deg);
+      opacity: 0;
+    }
+  }
+  @keyframes rewardShimmerCool {
+    0% {
+      transform: translateX(-160%) skewX(-20deg);
+      opacity: 0;
+    }
+    20% {
+      opacity: 0.16;
+    }
+    55% {
+      opacity: 0.32;
+    }
+    85% {
+      opacity: 0.12;
+    }
+    100% {
+      transform: translateX(160%) skewX(-20deg);
+      opacity: 0;
+    }
+  }
+  @keyframes rewardBadgePulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.9;
+      filter: saturate(1);
+    }
+    50% {
+      transform: scale(1.03);
+      opacity: 1;
+      filter: saturate(1.18);
+    }
+  }
+  .animate-reward-shimmer {
+    animation: rewardShimmer 8.4s ease-in-out infinite;
+  }
+  .animate-reward-shimmer-cool {
+    animation: rewardShimmerCool 10.2s ease-in-out infinite;
+  }
+  .animate-reward-badge-pulse {
+    animation: rewardBadgePulse 7.2s ease-in-out infinite;
+  }
+  @keyframes rewardPulseStrong {
+    0%, 100% {
+      opacity: 0.42;
+      transform: scale(0.995);
+      filter: saturate(0.95) brightness(1);
+    }
+    50% {
+      opacity: 0.92;
+      transform: scale(1.02);
+      filter: saturate(1.15) brightness(1.05);
+    }
+  }
+  @keyframes rewardPulseCool {
+    0%, 100% {
+      opacity: 0.18;
+      transform: scale(1);
+      filter: saturate(0.9) brightness(0.98);
+    }
+    50% {
+      opacity: 0.38;
+      transform: scale(1.01);
+      filter: saturate(1) brightness(1.02);
+    }
+  }
+  .animate-reward-pulse-strong {
+    animation: rewardPulseStrong 4.8s ease-in-out infinite;
+  }
+  .animate-reward-pulse-cool {
+    animation: rewardPulseCool 6.4s ease-in-out infinite;
+  }
 }

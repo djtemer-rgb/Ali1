@@ -30,8 +30,8 @@ interface ReportData {
   };
   insights: {
     bestDay: ReportInsightItem | null;
-    topCategory: { name: string; count: number } | null;
-    topTask: { title: string; stars: number; completedAt: string; difficultyLabel: string | null } | null;
+    topCategory: { name: string; count: number; sourceLabel?: string } | null;
+    topTask: { title: string; stars: number; completedAt: string; difficultyLabel: string | null; sourceLabel?: string } | null;
   };
   chart: { labels: string[]; tasksCompleted: number[]; starsEarned: number[] };
   categories: Record<string, number>;
@@ -162,6 +162,8 @@ export default function ReportsPage() {
   const maxTasks = data ? Math.max(...data.chart.tasksCompleted, 1) : 1;
   const maxStarMagnitude = data ? Math.max(...data.chart.starsEarned.map((value) => Math.abs(value)), 1) : 1;
   const maxChartValue = Math.max(maxTasks, maxStarMagnitude);
+  const hasNegativeStars = Boolean(data?.chart.starsEarned.some((value) => value < 0));
+  const axisLabels = hasNegativeStars ? [maxChartValue, 0, maxChartValue > 0 ? -maxChartValue : 0] : [maxChartValue, 0];
   const gradeLimit = data?.settings?.gradeHistoryLimit || 20;
   const gradeToStars = data?.settings?.gradeToStars || { '5': 5, '4': 2, '3': 0, '2': 0 };
   const reportListLimit = 20;
@@ -249,7 +251,7 @@ export default function ReportsPage() {
 
         {data && (
           <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100 space-y-3">
-            <div className="flex items-center gap-2 text-slate-800 font-extrabold text-base">
+              <div className="flex items-center gap-2 text-slate-800 font-extrabold text-base">
               <ChartBar size={18} className="text-blue-500" />
               Быстрые итоги
             </div>
@@ -262,12 +264,12 @@ export default function ReportsPage() {
               <InsightPill
                 title="Сильная категория"
                 value={data.insights.topCategory ? data.insights.topCategory.name : 'Нет данных'}
-                subtitle={data.insights.topCategory ? `${data.insights.topCategory.count} раз` : undefined}
+                subtitle={data.insights.topCategory ? `${data.insights.topCategory.count} раз${data.insights.topCategory.sourceLabel ? ` · ${data.insights.topCategory.sourceLabel}` : ''}` : undefined}
               />
               <InsightPill
                 title="Топ-квест"
                 value={data.insights.topTask ? data.insights.topTask.title : 'Нет данных'}
-                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · ${data.insights.topTask.stars} зв.` : undefined}
+                subtitle={data.insights.topTask ? `${data.insights.topTask.difficultyLabel || 'Без сложности'} · ${data.insights.topTask.stars} зв.${data.insights.topTask.sourceLabel ? ` · ${data.insights.topTask.sourceLabel}` : ''}` : undefined}
               />
             </div>
           </section>
@@ -283,12 +285,15 @@ export default function ReportsPage() {
                 <span className="px-2 py-1 rounded-full bg-slate-50 border border-slate-200">Пик: {maxChartValue}</span>
               </div>
               <div className="overflow-x-auto -mx-4 px-4 pb-2">
-                <div className="relative flex gap-1.5 items-stretch h-44 pl-8" style={{ minWidth: `${Math.max(data.chart.labels.length * 14, 260)}px` }}>
-                  <div className="absolute left-8 right-4 top-1/2 h-px bg-slate-200" />
-                  <div className="absolute left-0 top-0 bottom-0 w-7 flex flex-col justify-between items-end text-[10px] text-slate-400 pr-1 pointer-events-none">
-                    <span>{maxChartValue}</span>
-                    <span>0</span>
-                    <span>{maxChartValue > 0 ? `-${maxChartValue}` : '0'}</span>
+                <div className="relative flex gap-1.5 items-stretch h-44 pl-8" style={{ minWidth: `${Math.max(data.chart.labels.length * (days >= 90 ? 12 : 14), 260)}px` }}>
+                  <div
+                    className="absolute left-8 right-4 h-px bg-slate-200"
+                    style={hasNegativeStars ? { top: '50%' } : { bottom: '3rem' }}
+                  />
+                  <div className={`absolute left-0 top-0 bottom-0 w-7 flex flex-col items-end text-[10px] text-slate-400 pr-1 pointer-events-none ${hasNegativeStars ? 'justify-between' : 'justify-between'}`}>
+                    {axisLabels.map((value, index) => (
+                      <span key={`${value}-${index}`}>{value}</span>
+                    ))}
                   </div>
                   {data.chart.labels.map((label, i) => {
                     const tasksHeight = Math.max((data.chart.tasksCompleted[i] / maxTasks) * 72, data.chart.tasksCompleted[i] > 0 ? 4 : 0);
@@ -298,11 +303,17 @@ export default function ReportsPage() {
                     return (
                       <div key={`${label}-${i}`} className="relative flex-1 flex flex-col items-center gap-1" style={{ minWidth: '14px' }}>
                         <div className="relative w-full h-32">
-                          <div className="absolute left-1/2 -translate-x-1/2 bottom-1/2 w-2 md:w-2.5 rounded-full bg-blue-400 transition-all" style={{ height: `${tasksHeight}px` }} />
+                          <div
+                            className={`absolute left-1/2 -translate-x-1/2 w-2 md:w-2.5 bg-blue-400 transition-all ${hasNegativeStars ? 'bottom-1/2 rounded-t-full rounded-b-none' : 'bottom-0 rounded-t-full rounded-b-none'}`}
+                            style={{ height: `${tasksHeight}px` }}
+                          />
                           {starValue >= 0 ? (
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-1/2 w-2 md:w-2.5 rounded-full bg-amber-400 transition-all" style={{ height: `${starsHeight}px` }} />
+                            <div
+                              className={`absolute left-1/2 -translate-x-1/2 w-2 md:w-2.5 bg-amber-400 transition-all ${hasNegativeStars ? 'bottom-1/2 rounded-t-full rounded-b-none' : 'bottom-0 rounded-t-full rounded-b-none'}`}
+                              style={{ height: `${starsHeight}px` }}
+                            />
                           ) : (
-                            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 w-2 md:w-2.5 rounded-full bg-red-400 transition-all" style={{ height: `${starsHeight}px` }} />
+                            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 w-2 md:w-2.5 rounded-b-full rounded-t-none bg-red-400 transition-all" style={{ height: `${starsHeight}px` }} />
                           )}
                         </div>
                         <span className="text-[7px] text-slate-400 font-medium truncate w-full text-center h-3">
@@ -323,7 +334,10 @@ export default function ReportsPage() {
             <section className="bg-white rounded-[24px] p-4 md:p-5 shadow-sm border border-slate-100">
               <h2 className="text-base font-extrabold text-slate-800 mb-3">Категории</h2>
               {Object.keys(data.categories).length === 0 ? (
-                <p className="text-slate-400 text-sm">Пока нет категорий</p>
+                <div className="space-y-1">
+                  <p className="text-slate-400 text-sm">Пока нет категорий</p>
+                  <p className="text-[11px] text-slate-400">За этот период завершений не было</p>
+                </div>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(data.categories).map(([cat, count]) => (

@@ -37,6 +37,8 @@ export async function POST(request: Request) {
     tasks[taskIndex] = revertedTask;
     await setJson(dayKey, tasks);
 
+    await maybeReactivateOneTimeTemplate(currentTask);
+
     const ledgerKey = `aq:star-ledger:${childId}`;
     const rawLedger = await getJson(ledgerKey);
     const ledger = Array.isArray(rawLedger) ? rawLedger : [];
@@ -83,4 +85,40 @@ async function getCurrentBalance(childId: string) {
   return Array.isArray(ledger)
     ? ledger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0)
     : 0;
+}
+
+async function maybeReactivateOneTimeTemplate(task: any) {
+  const templateId = task?.templateId;
+  if (!templateId) return;
+
+  const templates = await getJson('aq:task-templates');
+  if (!Array.isArray(templates)) return;
+
+  let changed = false;
+  const nextTemplates = templates.map((template: any) => {
+    if (template?.id !== templateId) return template;
+    const repeatDays = Array.isArray(template?.repeatDays) ? template.repeatDays : [];
+    if (repeatDays.length > 0) return template;
+    if (template.active) return template;
+    const revertedDate = normalizeDate(task?.completedAt || task?.date || new Date().toISOString()) || new Date().toISOString().split('T')[0];
+    changed = true;
+    return {
+      ...template,
+      active: true,
+      oneTimeDate: revertedDate,
+      inactiveAt: null,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (changed) {
+    await setJson('aq:task-templates', nextTemplates);
+  }
+}
+
+function normalizeDate(value?: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().split('T')[0];
 }

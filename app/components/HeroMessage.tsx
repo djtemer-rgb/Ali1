@@ -124,7 +124,7 @@ export default function HeroMessage({ childId, childName, mode, tasks, todayGrad
                 )}
                 <button onClick={() => { setShowModal(false); if (speaking) { window.speechSynthesis.cancel(); setSpeaking(false); } }}
                   className="flex-1 bg-white text-indigo-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-white/90 transition-colors">
-                  Понятно!
+                  Хорошо!
                 </button>
               </div>
             </motion.div>

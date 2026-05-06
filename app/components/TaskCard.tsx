@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Star, X, Circle, Check } from 'lucide-react';
+import { getCategoryLabel } from '@/app/lib/reporting';
 
 interface Subtask {
   id: string;
@@ -50,16 +51,18 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   const allSubtasksDone = localSubtasks.length === 0 || localSubtasks.every(st => st.done);
   const subtasksEnabled = task.subtasksMode !== 'none' && localSubtasks.length > 0;
   const requiresDetails = task.requiresOpenDetails && !detailsOpened;
-  const needsConfirmation = requiresDetails || (subtasksEnabled && !allSubtasksDone);
+  const requiresSubtaskCompletion = task.requiresOpenDetails && subtasksEnabled && !allSubtasksDone;
+  const needsFirstOpen = !detailsOpened && (task.requiresOpenDetails || subtasksEnabled);
   const cardSubtitle = useMemo(() => {
     if (requiresDetails) return 'Сначала открой условия квеста';
-    if (subtasksEnabled && !allSubtasksDone) return 'Есть подзадачи';
+    if (requiresSubtaskCompletion) return detailsOpened ? 'Нужно закрыть все условия' : 'Есть обязательные условия';
+    if (subtasksEnabled && !allSubtasksDone) return detailsOpened ? 'Условия можно пропустить' : 'Есть подзадачи';
     return '';
-  }, [allSubtasksDone, requiresDetails, subtasksEnabled]);
+  }, [allSubtasksDone, detailsOpened, requiresDetails, requiresSubtaskCompletion, subtasksEnabled]);
 
   const handleClick = () => {
     if (!task.completed) {
-      if (!needsConfirmation) {
+      if (!needsFirstOpen && !requiresSubtaskCompletion) {
         completeTask();
         return;
       }
@@ -68,7 +71,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   };
 
   const completeTask = (difficulty?: 'easy' | 'normal' | 'hard') => {
-    if (!allSubtasksDone) return;
+    if (requiresSubtaskCompletion) return;
 
     confetti({
       particleCount: 100,
@@ -78,6 +81,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
     });
 
     if (task.askDifficultyAfterDone && !difficulty) {
+      setIsModalOpen(false);
       setShowDifficulty(true);
       return;
     }
@@ -88,10 +92,21 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
   };
 
   const handleModalComplete = () => {
-    if (!allSubtasksDone) return;
+    if (!detailsOpened && subtasksEnabled && !task.requiresOpenDetails) {
+      onDetailsOpened(task.id);
+      setDetailsOpened(true);
+      setIsModalOpen(false);
+      return;
+    }
     if (task.requiresOpenDetails && !detailsOpened) {
       onDetailsOpened(task.id);
       setDetailsOpened(true);
+      if (!subtasksEnabled) setIsModalOpen(false);
+      return;
+    }
+    if (requiresSubtaskCompletion) {
+      setIsModalOpen(false);
+      return;
     }
     completeTask();
   };
@@ -102,9 +117,16 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
     );
     setLocalSubtasks(updated);
     onSubtasksUpdate(task.id, updated);
+    if (task.requiresOpenDetails && updated.length > 0 && updated.every(st => st.done)) {
+      if (!detailsOpened) {
+        setDetailsOpened(true);
+        onDetailsOpened(task.id);
+      }
+      completeTask();
+    }
   };
 
-  const categoryLabel = task.customCategory || task.category;
+  const categoryLabel = getCategoryLabel(task.category, task.customCategory || '');
 
   return (
     <>
@@ -121,12 +143,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
           data-task-primary-action="true"
           onClick={(e) => {
             e.stopPropagation();
-            if (task.completed) return;
-            if (needsConfirmation) {
-              handleClick();
-              return;
-            }
-            completeTask();
+            handleClick();
           }}
           className={`w-7 h-7 md:w-8 md:h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors mt-0.5 ${
             task.completed ? 'border-green-500 bg-green-500 text-white' : 'border-slate-300 text-slate-300 hover:border-blue-300 hover:text-blue-600'
@@ -214,7 +231,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                 </div>
                 {task.category && (
                   <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-lg capitalize">
-                    {task.category}
+                    {categoryLabel || task.category}
                   </span>
                 )}
               </div>
@@ -279,14 +296,19 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
 
               <button
                 onClick={handleModalComplete}
-                disabled={(task.subtasksMode === 'checkboxes' && !allSubtasksDone)}
                 className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
                   allSubtasksDone
                     ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-200'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                {allSubtasksDone ? 'Завершить квест!' : 'Выполни все подзадачи'}
+                {task.requiresOpenDetails && !detailsOpened
+                  ? 'Я прочитал(а)'
+                  : task.requiresOpenDetails && subtasksEnabled && !allSubtasksDone
+                    ? 'Закрыть'
+                    : subtasksEnabled && !detailsOpened
+                      ? 'Понятно'
+                      : 'Завершить квест!'}
               </button>
             </motion.div>
           </div>

@@ -21,11 +21,14 @@ export type TaskTemplate = {
   dueTime?: string; // HH:MM
   stars: number;
   active: boolean;
+  sortOrder?: number;
   requiresOpenDetails: boolean;
   detailsText?: string;
   subtasksMode: 'none' | 'checkboxes' | 'plain-list';
   subtasks: { id: string; title: string; done?: boolean }[];
   askDifficultyAfterDone: boolean;
+  oneTimeDate?: string;
+  inactiveAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -52,6 +55,7 @@ export type DailyTaskInstance = {
   detailsText?: string;
   createdAt?: string;
   updatedAt?: string;
+  oneTimeDate?: string;
 };
 
 // Grade

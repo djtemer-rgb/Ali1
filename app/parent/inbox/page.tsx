@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Check, Filter, CircleCheckBig, Ban, Star } from "lucide-react";
-import { formatStarAmount } from "@/app/lib/reporting";
+import { Trash2, Check, CircleCheckBig, Ban } from "lucide-react";
+import { formatStarAmount, getCategoryLabel, getInboxEventTypeLabel, normalizeInboxText } from "@/app/lib/reporting";
+import { formatRewardReserveLabel, getRewardStatusLabel } from "@/app/lib/reporting";
 
 interface ParentEvent {
   id: string;
@@ -45,6 +46,7 @@ export default function ParentInbox() {
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [childFilter, setChildFilter] = useState<'all' | 'ali' | 'said'>('all');
+  const [currencyEnabled, setCurrencyEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -59,16 +61,21 @@ export default function ParentInbox() {
       if (childFilter !== 'all') url += `childId=${childFilter}&`;
       if (filter === 'unread') url += 'read=false&';
 
-      const [eventsRes, aliRewardsRes, saidRewardsRes] = await Promise.all([
+      const [eventsRes, aliRewardsRes, saidRewardsRes, settingsRes] = await Promise.all([
         fetch(url),
-        fetch('/api/rewards?childId=ali'),
-        fetch('/api/rewards?childId=said')
+        fetch('/api/rewards?childId=ali&includeInactive=1'),
+        fetch('/api/rewards?childId=said&includeInactive=1'),
+        fetch('/api/settings')
       ]);
       const data = await eventsRes.json();
       const aliRewards = await aliRewardsRes.json();
       const saidRewards = await saidRewardsRes.json();
+      const settingsData = await settingsRes.json();
       setEvents(Array.isArray(data) ? data : []);
       setRewards([...(Array.isArray(aliRewards) ? aliRewards : []), ...(Array.isArray(saidRewards) ? saidRewards : [])]);
+      if (settingsData?.currencyEnabled !== undefined) {
+        setCurrencyEnabled(settingsData.currencyEnabled !== false);
+      }
     } catch (error) {
       console.error('Error loading events:', error);
     } finally {
@@ -119,42 +126,21 @@ export default function ParentInbox() {
     return childId === 'ali' ? 'Али' : 'Саид';
   };
 
-  const getTypeLabel = (type: string) => {
-    const labels: { [key: string]: string } = {
-      'reward-available': 'Награда доступна',
-      'reward-selected': 'Награда выбрана',
-      'day-completed': 'День завершен',
-      'task-completed': 'Задача выполнена',
-      'grade-added': 'Оценка добавлена',
-      'system': 'Система'
-    };
-    return labels[type] || type;
-  };
-
   const rewardById = (rewardId?: string) => rewards.find(r => r.id === rewardId);
 
   const confirmReward = async (event: ParentEvent) => {
     if (!event.rewardId) return;
-    const reward = rewardById(event.rewardId);
     await fetch('/api/rewards/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'fulfilled' })
     });
     await fetch('/api/events', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        childId: event.childId,
-        type: 'system',
-        title: 'Награда подтверждена',
-        body: `${getChildName(event.childId)} подтвердил награду: ${reward?.title || 'Награда'}${reward ? ` (${formatStarAmount(-reward.costStars)})` : ''}`,
-        details: {
-          childName: getChildName(event.childId),
-          rewardTitle: reward?.title || 'Награда',
-          costStars: reward?.costStars,
-          status: 'fulfilled'
-        }
+        id: event.id,
+        details: { ...(event.details || {}), status: 'fulfilled' }
       })
     });
     loadEvents();
@@ -177,24 +163,16 @@ export default function ParentInbox() {
           amount: reward.costStars,
           source: 'adjustment',
           sourceId: reward.id,
-          reason: `Отмена награды: ${reward.title}`
+          reason: `Отмена выбора награды: ${reward.title}`
         })
       });
     }
     await fetch('/api/events', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        childId: event.childId,
-        type: 'system',
-        title: 'Награда отменена',
-        body: `${getChildName(event.childId)}: награда отменена${reward ? `, звёзды возвращены (${formatStarAmount(reward.costStars)})` : ''}`,
-        details: {
-          childName: getChildName(event.childId),
-          rewardTitle: reward?.title || 'Награда',
-          costStars: reward?.costStars,
-          status: 'available'
-        }
+        id: event.id,
+        details: { ...(event.details || {}), status: 'available' }
       })
     });
     loadEvents();
@@ -290,29 +268,28 @@ export default function ParentInbox() {
                         {getChildName(event.childId)}
                       </span>
                       <span className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
-                        {getTypeLabel(event.type)}
+                        {getInboxEventTypeLabel(event.type)}
                       </span>
                       {!event.read && (
                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                       )}
                     </div>
-                    <h3 className="font-bold text-slate-800">{event.title}</h3>
-                    <p className="text-sm text-slate-600 mt-1">{event.body}</p>
+                    <h3 className="font-bold text-slate-800">{normalizeInboxText(event.title)}</h3>
+                    <p className="text-sm text-slate-600 mt-1">{normalizeInboxText(event.body)}</p>
                     {event.rewardId && (event.type === 'reward-selected' || event.type === 'reward-fulfilled' || event.type === 'system') && (
                       <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                         <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
                           <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                            {rewardById(event.rewardId)?.title || event.details?.rewardTitle || 'Награда'}
+                            {normalizeInboxText(rewardById(event.rewardId)?.title || event.details?.rewardTitle || 'Награда')}
                           </span>
-                          {typeof event.details?.costStars === 'number' && (
-                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1">
-                              <Star size={11} className="fill-blue-500" />
-                              {formatStarAmount(-Math.abs(event.details.costStars), false)}
+                          {event.details?.status && (
+                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                              {getRewardStatusLabel(event.details.status)}
                             </span>
                           )}
-                          {event.details?.status && (
-                            <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                              {event.details.status === 'selected' ? 'Резерв' : event.details.status === 'fulfilled' ? 'Подтверждено' : 'Доступно'}
+                          {typeof event.details?.costStars === 'number' && currencyEnabled && (
+                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                              {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
                             </span>
                           )}
                         </div>
@@ -333,7 +310,7 @@ export default function ParentInbox() {
                           )}
                           {event.details.category && (
                             <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                              Категория: {event.details.customCategory || event.details.category}
+                              Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
                             </span>
                           )}
                         </div>
@@ -358,19 +335,21 @@ export default function ParentInbox() {
                         )}
                       </div>
                     )}
-                    {event.type === 'reward-selected' && event.rewardId && (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                    {event.type === 'reward-selected' && event.rewardId && event.details?.status === 'selected' && (
+                      <div className="mt-3 flex items-center gap-2">
                         <button
                           onClick={() => confirmReward(event)}
-                          className="inline-flex items-center gap-1.5 bg-green-500 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-green-600 transition-colors"
+                          className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
+                          title="Подтвердить"
                         >
-                          <CircleCheckBig size={14} /> Подтвердить
+                          <CircleCheckBig size={16} />
                         </button>
                         <button
                           onClick={() => cancelReward(event)}
-                          className="inline-flex items-center gap-1.5 bg-red-100 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-200 transition-colors"
+                          className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                          title="Отменить"
                         >
-                          <Ban size={14} /> Отменить
+                          <Ban size={16} />
                         </button>
                       </div>
                     )}

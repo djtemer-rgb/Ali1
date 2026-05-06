@@ -9,7 +9,7 @@ import { COLOR_ICONS, MINIMAL_ICONS, getIconDisplay } from "../lib/icons";
 import { Switch } from "@/components/ui/switch";
 import { BUILTIN_TASK_CATEGORIES, NOTIFICATION_EVENT_KEYS, NOTIFICATION_EVENT_LABELS, defaultAiPrefs, defaultNotificationPrefs, getChildSettings } from "@/app/lib/settings-shared";
 import type { TaskCategory } from "@/app/lib/settings-shared";
-import { formatStarAmount } from "@/app/lib/reporting";
+import { formatRewardReserveLabel, formatStarAmount, getCategoryLabel, getInboxEventTypeLabel, getRewardStatusLabel, normalizeInboxText } from "@/app/lib/reporting";
 
 interface Subject { id: string; name: string; order: number; }
 interface Reward { id: string; childId?: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; sortOrderByChild?: Record<string, number>; }
@@ -23,10 +23,14 @@ interface TaskTemplate {
   active: boolean;
   childId: string;
   oneTimeDate?: string;
+  sortOrder?: number;
+  inactiveAt?: string | null;
   detailsText?: string;
   requiresOpenDetails?: boolean;
   subtasksMode?: 'none' | 'checkboxes' | 'plain-list';
   subtasks?: { id: string; title: string; done?: boolean }[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 interface GradeRecord {
   id: string;
@@ -113,10 +117,11 @@ export default function SettingsPage() {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [aiRichMode, setAiRichMode] = useState(true);
   const [gradesEnabled, setGradesEnabled] = useState(true);
-  const [heroes, setHeroes] = useState('Мухаммед Али, Тайсон, Роналду');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [deepPrompt, setDeepPrompt] = useState('Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.');
   const [openRouterUrl, setOpenRouterUrl] = useState('https://openrouter.ai/api/v1');
   const [aiModel, setAiModel] = useState('openai/gpt-4o-mini');
+  const [aiModelFallback, setAiModelFallback] = useState('openai/gpt-4o-mini');
   const [aiLimit, setAiLimit] = useState('3');
   const [aiConnectionStatus, setAiConnectionStatus] = useState('');
   const [testingAiConnection, setTestingAiConnection] = useState(false);
@@ -142,8 +147,13 @@ export default function SettingsPage() {
   const [showCategoryPanel, setShowCategoryPanel] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPrefs());
   const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleanupMode, setCleanupMode] = useState<'test-data' | 'inactive-tasks'>('test-data');
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState('');
+  const [showInactiveTemplates, setShowInactiveTemplates] = useState(false);
+  const [revertTarget, setRevertTarget] = useState<ParentEvent | null>(null);
+  const [revertLoading, setRevertLoading] = useState(false);
+  const [revertError, setRevertError] = useState('');
 
   // Tasks (schedule)
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -181,10 +191,10 @@ export default function SettingsPage() {
     setLoading(true);
     try {
       const [subjRes, rewRes, authRes, setRes, tplRes] = await Promise.all([
-        fetch('/api/grades'), fetch(`/api/rewards?childId=${settingsChildId}`), fetch('/api/auth/parent/settings'),
+        fetch('/api/grades'), fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`), fetch('/api/auth/parent/settings'),
         fetch('/api/settings'), fetch('/api/tasks/templates')
       ]);
-      const subjData = await subjRes.json(); if (Array.isArray(subjData)) setSubjects(subjData);
+      const subjData = await subjRes.json(); if (Array.isArray(subjData)) setSubjects(normalizeSubjects(subjData));
       const rewData = await rewRes.json(); setRewards(Array.isArray(rewData) ? rewData : []);
       setPinStatus(await authRes.json());
       const setData = await setRes.json();
@@ -205,8 +215,9 @@ export default function SettingsPage() {
       setGradesEnabled(childSettings.gradesEnabled ?? settingsChildId === 'ali');
       setOpenRouterUrl(childSettings.ai.openRouterUrl || setData.openRouterUrl || 'https://openrouter.ai/api/v1');
       setAiModel(childSettings.ai.aiModel || setData.aiModel || 'openai/gpt-4o-mini');
-      setHeroes(childSettings.ai.heroes || setData.heroes || 'Мухаммед Али, Тайсон, Роналду');
+      setAiModelFallback(childSettings.ai.aiModelFallback || setData.aiModelFallback || 'openai/gpt-4o-mini');
       setSystemPrompt(childSettings.ai.systemPrompt || setData.systemPrompt || '');
+      setDeepPrompt(childSettings.ai.deepPrompt || setData.deepPrompt || 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.');
       setAiLimit(String(childSettings.ai.aiLimit || setData.aiLimit || 3));
       // Load avatars from children API
       const childrenRes = await fetch('/api/children');
@@ -218,7 +229,15 @@ export default function SettingsPage() {
         if (said?.avatarUrl) setAvatarSaid(said.avatarUrl);
       }
       const tplData = await tplRes.json();
-      setTemplates(Array.isArray(tplData) ? tplData.filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both') : []);
+      setTemplates(Array.isArray(tplData)
+        ? tplData
+            .filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both')
+            .sort((a: TaskTemplate, b: TaskTemplate) => {
+              const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 9999;
+              const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 9999;
+              return orderA - orderB || new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+            })
+        : []);
       if (Array.isArray(childSettings.taskCategories) && childSettings.taskCategories.length > 0) {
         const selectedCategory = childSettings.taskCategories.find(cat => cat.id === newCategory);
         if (!selectedCategory) {
@@ -290,44 +309,108 @@ export default function SettingsPage() {
 
   const getChildName = (id: 'ali' | 'said') => (id === 'ali' ? 'Али' : 'Саид');
 
-  const revertTask = async (event: ParentEvent) => {
-    if (!event.details?.taskId) return;
-    const taskTitle = event.details.taskTitle || event.body || 'Задача';
-    const date = event.details.completedAt ? new Date(event.details.completedAt).toISOString().split('T')[0] : new Date(event.createdAt).toISOString().split('T')[0];
-    const ok = window.confirm(`Отменить выполнение задачи "${taskTitle}" и вернуть её в невыполненные?`);
-    if (!ok) return;
+  const rewardById = (rewardId?: string) => rewards.find(r => r.id === rewardId);
 
-    const revertRes = await fetch('/api/tasks/revert', {
+  const confirmRewardEvent = async (event: ParentEvent) => {
+    if (!event.rewardId) return;
+    await fetch('/api/rewards/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId: event.childId, date, taskId: event.details.taskId })
+      body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'fulfilled' })
     });
-    const revertData = await revertRes.json();
-    if (!revertRes.ok) {
-      alert(revertData?.error || 'Не удалось отменить задачу');
-      return;
-    }
-
     await fetch('/api/events', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        childId: event.childId,
-        type: 'system',
-        title: 'Задача отменена',
-        body: `${getChildName(event.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
-        details: {
-          childName: getChildName(event.childId),
-          taskId: event.details.taskId,
-          taskTitle,
-          stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
-          completedAt: event.details.completedAt || event.createdAt,
-        }
+        id: event.id,
+        details: { ...(event.details || {}), status: 'fulfilled' }
       })
     });
-
-    showSaved('Задача отменена');
+    await refreshRewards();
     loadEvents();
+  };
+
+  const cancelRewardEvent = async (event: ParentEvent) => {
+    if (!event.rewardId) return;
+    const reward = rewardById(event.rewardId);
+    await fetch('/api/rewards/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'available' })
+    });
+    if (reward) {
+      await fetch('/api/star-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: event.childId,
+          amount: reward.costStars,
+          source: 'adjustment',
+          sourceId: reward.id,
+          reason: `Отмена выбора награды: ${reward.title}`
+        })
+      });
+    }
+    await fetch('/api/events', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: event.id,
+        details: { ...(event.details || {}), status: 'available' }
+      })
+    });
+    await refreshRewards();
+    loadEvents();
+  };
+
+  const revertTask = async (event: ParentEvent) => {
+    if (!event.details?.taskId) return;
+    setRevertError('');
+    setRevertTarget(event);
+  };
+
+  const confirmRevertTask = async () => {
+    if (!revertTarget?.details?.taskId) return;
+    const taskTitle = revertTarget.details.taskTitle || revertTarget.body || 'Задача';
+    const date = revertTarget.details.completedAt ? new Date(revertTarget.details.completedAt).toISOString().split('T')[0] : new Date(revertTarget.createdAt).toISOString().split('T')[0];
+    setRevertLoading(true);
+
+    try {
+      const revertRes = await fetch('/api/tasks/revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId: revertTarget.childId, date, taskId: revertTarget.details.taskId })
+      });
+      const revertData = await revertRes.json();
+      if (!revertRes.ok) {
+        setRevertError(revertData?.error || 'Не удалось отменить задачу');
+        return;
+      }
+
+      await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: revertTarget.childId,
+          type: 'system',
+          title: 'Задача отменена',
+          body: `${getChildName(revertTarget.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
+          details: {
+            childName: getChildName(revertTarget.childId),
+            taskId: revertTarget.details.taskId,
+            taskTitle,
+            stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
+            completedAt: revertTarget.details.completedAt || revertTarget.createdAt,
+          }
+        })
+      });
+
+      showSaved('Задача отменена');
+      loadEvents();
+      setRevertTarget(null);
+    } finally {
+      setRevertLoading(false);
+    }
   };
 
   const showSaved = (msg: string) => { setSaved(msg); setTimeout(() => setSaved(''), 2000); };
@@ -335,15 +418,24 @@ export default function SettingsPage() {
   // Subjects
   const addSubject = async () => {
     if (!newSubject.trim()) return;
-    const updated = [...subjects, { id: `s-${Date.now()}`, name: newSubject.trim(), order: subjects.length + 1 }];
-    setSubjects(updated); setNewSubject('');
-    await fetch('/api/grades', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subjects: updated }) });
+    const ordered = normalizeSubjects(subjects);
+    const updated = [...ordered, { id: `s-${Date.now()}`, name: newSubject.trim(), order: ordered.length }];
+    await saveSubjects(updated);
+    setNewSubject('');
     showSaved('Предмет добавлен');
   };
   const removeSubject = async (id: string) => {
-    const updated = subjects.filter(s => s.id !== id);
-    setSubjects(updated);
-    await fetch('/api/grades', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subjects: updated }) });
+    const updated = normalizeSubjects(subjects).filter(s => s.id !== id);
+    await saveSubjects(updated);
+    showSaved('Предмет удалён');
+  };
+  const moveSubject = async (index: number, dir: -1 | 1) => {
+    const ordered = normalizeSubjects(subjects);
+    const currentIndex = index + dir;
+    if (currentIndex < 0 || currentIndex >= ordered.length) return;
+    const next = [...ordered];
+    [next[index], next[currentIndex]] = [next[currentIndex], next[index]];
+    await saveSubjects(next);
   };
 
   const saveGradeMapping = async () => {
@@ -381,7 +473,7 @@ export default function SettingsPage() {
     showSaved('Экономика сохранена');
   };
 
-  const getCategoryLabel = (categoryId: string, customLabel?: string) => {
+  const getTaskCategoryLabel = (categoryId: string, customLabel?: string) => {
     if (customLabel?.trim()) return customLabel.trim();
     const item = childCategories.find(cat => cat.id === categoryId);
     if (item) return item.label;
@@ -389,15 +481,86 @@ export default function SettingsPage() {
     return builtin?.label || categoryId;
   };
 
+  function normalizeSubjects(items: Subject[]) {
+    return [...items]
+      .map((subject, index) => ({
+        id: subject.id || `subj-${index}`,
+        name: subject.name || '',
+        order: Number.isFinite(Number(subject.order)) ? Number(subject.order) : index,
+      }))
+      .sort((a, b) => {
+        const orderA = Number.isFinite(Number(a.order)) ? Number(a.order) : 9999;
+        const orderB = Number.isFinite(Number(b.order)) ? Number(b.order) : 9999;
+        return orderA - orderB || a.name.localeCompare(b.name, 'ru');
+      })
+      .map((subject, index) => ({ ...subject, order: index }));
+  }
+
   const sortedRewards = [...rewards].sort((a, b) => {
     const orderA = Number.isFinite(Number(a.sortOrderByChild?.[settingsChildId])) ? Number(a.sortOrderByChild?.[settingsChildId]) : 9999;
     const orderB = Number.isFinite(Number(b.sortOrderByChild?.[settingsChildId])) ? Number(b.sortOrderByChild?.[settingsChildId]) : 9999;
     return orderA - orderB;
   });
+  const orderedSubjects = normalizeSubjects(subjects);
+  const activeTemplates = templates.filter((template) => template.active);
+  const inactiveTemplates = templates
+    .filter((template) => !template.active)
+    .sort((a, b) => {
+      const dateA = new Date((a as any).inactiveAt || (a as any).updatedAt || a.createdAt || 0).getTime();
+      const dateB = new Date((b as any).inactiveAt || (b as any).updatedAt || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
 
   const getRewardOrder = (reward: Reward) => Number.isFinite(Number(reward.sortOrderByChild?.[settingsChildId]))
     ? Number(reward.sortOrderByChild?.[settingsChildId])
     : 9999;
+
+  const refreshRewards = async () => {
+    const res = await fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`);
+    const data = await res.json();
+    setRewards(Array.isArray(data) ? data : []);
+  };
+
+  const refreshSubjects = async () => {
+    const res = await fetch('/api/grades');
+    const data = await res.json();
+    setSubjects(Array.isArray(data) ? normalizeSubjects(data) : []);
+  };
+
+  const refreshTemplates = async () => {
+    const res = await fetch('/api/tasks/templates');
+    const data = await res.json();
+    setTemplates(Array.isArray(data) ? data.filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both') : []);
+  };
+
+  const deleteTemplatesByIds = async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    await fetch('/api/tasks/templates', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: uniqueIds, childId: settingsChildId, date: today })
+    });
+    await refreshTemplates();
+  };
+
+  const saveSubjects = async (nextSubjects: Subject[]) => {
+    const normalized = nextSubjects
+      .filter((subject) => !!subject?.name)
+      .map((subject, index) => ({
+        id: subject.id || `subj-${index}`,
+        name: subject.name || '',
+        order: index,
+      }));
+    setSubjects(normalized);
+    await fetch('/api/grades', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjects: normalized })
+    });
+    await refreshSubjects();
+  };
 
   const saveChildSettings = async (patch: Partial<ChildSettingsForm>) => {
     const settings = await (await fetch('/api/settings')).json();
@@ -407,7 +570,7 @@ export default function SettingsPage() {
       ...currentChild,
       ...(patch.taskCategories ? { taskCategories: patch.taskCategories } : {}),
       ...(patch.notifications ? { notifications: patch.notifications } : {}),
-      ...(patch.ai ? { ai: patch.ai } : {}),
+      ...(patch.ai ? { ai: { ...patch.ai, aiModelFallback: patch.ai.aiModelFallback || aiModelFallback } } : {}),
       ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
     };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
@@ -524,28 +687,60 @@ export default function SettingsPage() {
   const moveReward = async (index: number, dir: -1 | 1) => {
     const currentIndex = index + dir;
     if (currentIndex < 0 || currentIndex >= sortedRewards.length) return;
-    const source = sortedRewards[index];
-    const target = sortedRewards[currentIndex];
-    const sourceOrder = getRewardOrder(source);
-    const targetOrder = getRewardOrder(target);
-    const nextSourceOrders = { ...(source.sortOrderByChild || {}), [settingsChildId]: targetOrder };
-    const nextTargetOrders = { ...(target.sortOrderByChild || {}), [settingsChildId]: sourceOrder };
-    const updated = rewards.map(reward => {
-      if (reward.id === source.id) return { ...reward, sortOrderByChild: nextSourceOrders };
-      if (reward.id === target.id) return { ...reward, sortOrderByChild: nextTargetOrders };
-      return reward;
-    });
+    const reordered = [...sortedRewards];
+    [reordered[index], reordered[currentIndex]] = [reordered[currentIndex], reordered[index]];
+    const updated = reordered.map((reward, nextIndex) => ({
+      ...reward,
+      sortOrderByChild: {
+        ...(reward.sortOrderByChild || {}),
+        [settingsChildId]: nextIndex,
+      },
+    }));
     setRewards(updated);
     await fetch('/api/rewards', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        updates: [
-          { id: source.id, sortOrderByChild: nextSourceOrders },
-          { id: target.id, sortOrderByChild: nextTargetOrders }
-        ]
+        updates: updated.map((reward) => ({
+          id: reward.id,
+          sortOrderByChild: reward.sortOrderByChild,
+        }))
       })
     });
+    await refreshRewards();
+  };
+
+  const toggleRewardActive = async (reward: Reward, nextActive: boolean) => {
+    await fetch('/api/rewards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: reward.id, active: nextActive })
+    });
+    await refreshRewards();
+    showSaved(nextActive ? 'Награда включена' : 'Награда выключена');
+  };
+
+  const persistTemplateActiveState = async (template: TaskTemplate, nextActive: boolean) => {
+    const today = new Date().toISOString().split('T')[0];
+    const nextTemplates = templates.map((item) => {
+      if (item.id !== template.id) return item;
+      return {
+        ...item,
+        active: nextActive,
+        oneTimeDate: nextActive && (!Array.isArray(item.repeatDays) || item.repeatDays.length === 0) ? (item.oneTimeDate || today) : item.oneTimeDate,
+        inactiveAt: nextActive ? null : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    const normalized = nextTemplates.map((item, index) => ({ ...item, sortOrder: index }));
+    setTemplates(normalized);
+    await fetch('/api/tasks/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(normalized)
+    });
+    await refreshTemplates();
+    showSaved(nextActive ? 'Задача включена' : 'Задача выключена');
   };
 
   const saveTaskCategories = async (categories: TaskCategoryItem[]) => {
@@ -595,18 +790,19 @@ export default function SettingsPage() {
   const addReward = async () => {
     if (!rName.trim() || !rCost) return;
     const nextOrder = sortedRewards.reduce((max, reward) => Math.max(max, getRewardOrder(reward)), -1) + 1;
-    const res = await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: settingsChildId, title: rName.trim(), description: rDesc || undefined, costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, active: true, sortOrderByChild: { [settingsChildId]: nextOrder } }) });
-    const r = await res.json();
-    setRewards([...rewards, r]); resetReward(); showSaved('Награда добавлена');
+    await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: settingsChildId, title: rName.trim(), description: rDesc || undefined, costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, active: true, sortOrderByChild: { [settingsChildId]: nextOrder } }) });
+    resetReward();
+    await refreshRewards();
+    showSaved('Награда добавлена');
   };
   const editReward = (r: Reward) => { setEditId(r.id); setRName(r.title); setRCost(String(r.costStars)); setRDesc(r.description || ''); setRIcon(r.icon); setRStyle(r.iconStyle); };
   const saveEditReward = async () => {
     if (!editId) return;
     const reward = rewards.find(item => item.id === editId);
     await fetch('/api/rewards', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editId, title: rName.trim(), description: rDesc || '', costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, sortOrderByChild: reward?.sortOrderByChild || {} }) });
-    setEditId(null); resetReward(); loadAll(); showSaved('Награда обновлена');
+    setEditId(null); resetReward(); await refreshRewards(); showSaved('Награда обновлена');
   };
-  const removeReward = async (id: string) => { await fetch(`/api/rewards?id=${id}`, { method: 'DELETE' }); setRewards(rewards.filter(r => r.id !== id)); };
+  const removeReward = async (id: string) => { await fetch(`/api/rewards?id=${id}`, { method: 'DELETE' }); await refreshRewards(); showSaved('Награда удалена'); };
   const resetReward = () => { setRName(''); setRCost(''); setRDesc(''); setRIcon('🎁'); setRStyle('color'); setEditId(null); };
 
   // PIN
@@ -630,9 +826,10 @@ export default function SettingsPage() {
       const settings = await (await fetch('/api/settings')).json();
       const childSettings = getChildSettings(settings, settingsChildId);
       settings.systemPrompt = systemPrompt;
-      settings.heroes = heroes;
+      settings.deepPrompt = deepPrompt;
       settings.openRouterUrl = openRouterUrl;
       settings.aiModel = aiModel;
+      settings.aiModelFallback = aiModelFallback;
       settings.aiLimit = parseInt(aiLimit) || 3;
       settings.aiEnabled = aiEnabled;
       settings.childSettings = settings.childSettings || {};
@@ -644,9 +841,10 @@ export default function SettingsPage() {
           richMode: aiRichMode,
           openRouterUrl,
           aiModel,
+          aiModelFallback,
           aiLimit: parseInt(aiLimit) || 3,
           systemPrompt,
-          heroes,
+          deepPrompt,
         }
       };
       await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
@@ -670,9 +868,10 @@ export default function SettingsPage() {
             richMode: aiRichMode,
             openRouterUrl,
             aiModel,
+            aiModelFallback,
             aiLimit: parseInt(aiLimit) || 3,
             systemPrompt,
-            heroes,
+            deepPrompt,
           }
         })
       });
@@ -713,6 +912,7 @@ export default function SettingsPage() {
         requiresOpenDetails: newRequiresOpenDetails,
         subtasksMode: newSubtasksMode,
         subtasks: newSubtasks,
+        inactiveAt: newDays.length === 0 ? t.inactiveAt || null : t.inactiveAt || null,
         updatedAt: new Date().toISOString()
       } : t);
     } else {
@@ -726,6 +926,8 @@ export default function SettingsPage() {
         oneTimeDate,
         stars: parseFloat(newStars),
         active: true,
+        sortOrder: updated.length,
+        inactiveAt: null,
         requiresOpenDetails: newRequiresOpenDetails,
         detailsText: newDetailsText,
         subtasksMode: newSubtasksMode,
@@ -735,15 +937,29 @@ export default function SettingsPage() {
         updatedAt: new Date().toISOString()
       });
     }
-    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+    const normalized = updated.map((template: any, index: number) => ({ ...template, sortOrder: index, updatedAt: template.updatedAt || new Date().toISOString() }));
+    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(normalized) });
+    setTemplates(normalized);
     setNewTitle(''); setNewStars('1'); setNewDays([]); setNewDetailsText(''); setNewRequiresOpenDetails(false); setNewSubtasksMode('none'); setNewSubtasks([]); setEditTemplateId(null); loadAll();
   };
-  const deleteTemplate = async (id: string) => { const updated = templates.filter(t => t.id !== id); await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }); setTemplates(updated); };
+  const deleteTemplate = async (id: string) => {
+    await deleteTemplatesByIds([id]);
+    showSaved('Задача удалена');
+  };
   const moveTemplate = async (index: number, dir: -1 | 1) => {
     const newIndex = index + dir;
-    if (newIndex < 0 || newIndex >= templates.length) return;
-    const updated = [...templates]; [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
-    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }); setTemplates(updated);
+    if (newIndex < 0 || newIndex >= activeTemplates.length) return;
+    const reordered = [...activeTemplates];
+    [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
+    const inactive = templates.filter(template => !template.active);
+    const updated = [...reordered, ...inactive].map((template, nextIndex) => ({ ...template, sortOrder: nextIndex }));
+    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+    await refreshTemplates();
+  };
+  const clearInactiveTemplates = async () => {
+    await deleteTemplatesByIds(inactiveTemplates.map((template) => template.id));
+    setShowInactiveTemplates(false);
+    showSaved('Неактивные задачи очищены');
   };
   const cancelEdit = () => { setEditTemplateId(null); setNewTitle(''); setNewStars('1'); setNewDays([]); setNewDetailsText(''); setNewRequiresOpenDetails(false); setNewSubtasksMode('none'); setNewSubtasks([]); };
   const beginEditTemplate = (t: TaskTemplate) => {
@@ -998,42 +1214,106 @@ export default function SettingsPage() {
             {newDays.length === 0 && <p className="text-[11px] text-slate-400">Если дни не выбраны — задача разовая</p>}
           </div>
 
-          <div className="space-y-1.5 max-h-60 overflow-y-auto">
-            {templates.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет задач</p>}
-            {templates.map((t, idx) => (
-              <div key={t.id} className={`rounded-2xl p-3 flex items-start justify-between gap-2 group border ${t.active ? 'bg-slate-50 border-slate-100' : 'bg-slate-100 border-slate-200 opacity-70'}`}>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-slate-800 text-sm truncate">{t.title}</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getCategoryLabel(t.category, t.customCategory)}</span>
-                  </div>
-                  {(t as any).subtasks?.length > 0 && (
-                    <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
-                      {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-0.5 mt-1">
-                    {DAYS_SHORT.map((day, i) => (
-                      t.repeatDays?.includes(DAY_INDEX[i]) ? <span key={i} className="text-[9px] font-bold px-1.5 h-4 rounded flex items-center justify-center bg-blue-100 text-blue-600">{day}</span> : null
-                    ))}
-                    <span className="ml-1.5 text-[11px] font-bold text-amber-500">+{t.stars} ⭐</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={async () => {
-                    const updated = templates.map(item => item.id === t.id ? { ...item, active: !item.active, updatedAt: new Date().toISOString() } : item);
-                    setTemplates(updated);
-                    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
-                  }} className={`text-xs font-bold px-2 py-1 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
-                    {t.active ? 'On' : 'Off'}
-                  </button>
-                  <button onClick={() => moveTemplate(idx, -1)} disabled={idx === 0} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg></button>
-                  <button onClick={() => moveTemplate(idx, 1)} disabled={idx === templates.length - 1} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
-                  <button onClick={() => beginEditTemplate(t as any)} className="text-slate-300 hover:text-blue-500 transition-colors p-1"><Edit3 size={13} /></button>
-                  <button onClick={() => deleteTemplate(t.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><Trash2 size={13} /></button>
-                </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-800">Активные</p>
+                <p className="text-xs text-slate-400">Сверху только рабочие задачи, их можно переставлять стрелками</p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={() => { setCleanupMode('inactive-tasks'); setShowCleanupModal(true); }}
+                className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+              >
+                Очистить неактивные
+              </button>
+            </div>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {activeTemplates.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет активных задач</p>}
+              {activeTemplates.map((t, idx) => (
+                <div key={t.id} className="rounded-2xl p-3 flex items-start justify-between gap-2 group border bg-slate-50 border-slate-100">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-800 text-sm truncate">{t.title}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getTaskCategoryLabel(t.category, t.customCategory)}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700">ON</span>
+                    </div>
+                    {(t as any).subtasks?.length > 0 && (
+                      <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
+                        {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-0.5 mt-1 flex-wrap">
+                      {DAYS_SHORT.map((day, i) => (
+                        t.repeatDays?.includes(DAY_INDEX[i]) ? <span key={i} className="text-[9px] font-bold px-1.5 h-4 rounded flex items-center justify-center bg-blue-100 text-blue-600">{day}</span> : null
+                      ))}
+                      <span className="ml-1.5 text-[11px] font-bold text-amber-500">+{t.stars} ⭐</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => persistTemplateActiveState(t as TaskTemplate, false)}
+                      className={`text-xs font-bold px-2 py-1 rounded-lg ${t.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}
+                    >
+                      Выключить
+                    </button>
+                    <button type="button" onClick={() => moveTemplate(idx, -1)} disabled={idx === 0} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg></button>
+                    <button type="button" onClick={() => moveTemplate(idx, 1)} disabled={idx === activeTemplates.length - 1} className="text-slate-300 hover:text-blue-500 disabled:opacity-20 p-0.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
+                    <button type="button" onClick={() => beginEditTemplate(t as any)} className="text-slate-300 hover:text-blue-500 transition-colors p-1"><Edit3 size={13} /></button>
+                    <button type="button" onClick={() => deleteTemplate(t.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowInactiveTemplates(prev => !prev)}
+                className="flex items-center justify-between w-full text-left text-sm font-bold text-slate-700"
+              >
+                <span>Неактивные</span>
+                <span className="text-xs text-slate-400">{inactiveTemplates.length}</span>
+              </button>
+              {showInactiveTemplates && (
+                <div className="mt-3 space-y-1.5 max-h-60 overflow-y-auto">
+                  {inactiveTemplates.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет неактивных задач</p>}
+                  {inactiveTemplates.map((t) => (
+                    <div key={t.id} className="rounded-2xl p-3 flex items-start justify-between gap-2 border bg-slate-100 border-slate-200 opacity-85">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-700 text-sm truncate">{t.title}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getTaskCategoryLabel(t.category, t.customCategory)}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">OFF</span>
+                        </div>
+                        {(t as any).subtasks?.length > 0 && (
+                          <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
+                            {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-0.5 mt-1 flex-wrap">
+                          {DAYS_SHORT.map((day, i) => (
+                            t.repeatDays?.includes(DAY_INDEX[i]) ? <span key={i} className="text-[9px] font-bold px-1.5 h-4 rounded flex items-center justify-center bg-slate-200 text-slate-600">{day}</span> : null
+                          ))}
+                          <span className="ml-1.5 text-[11px] font-bold text-amber-500">+{t.stars} ⭐</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => persistTemplateActiveState(t as TaskTemplate, true)}
+                          className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-green-100 hover:text-green-700"
+                        >
+                          Включить
+                        </button>
+                        <button type="button" onClick={() => beginEditTemplate(t as any)} className="text-slate-300 hover:text-blue-500 transition-colors p-1"><Edit3 size={13} /></button>
+                        <button type="button" onClick={() => deleteTemplate(t.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1"><Trash2 size={13} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </AccordionSection>
 
@@ -1043,13 +1323,23 @@ export default function SettingsPage() {
           <div className="flex gap-2 mb-4">
             <input type="text" placeholder="Новый предмет..." value={newSubject} onChange={e => setNewSubject(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSubject()}
               className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-sm" />
-            <button onClick={addSubject} className="bg-blue-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-blue-600 shrink-0"><Plus size={20} /></button>
+            <button type="button" onClick={addSubject} className="bg-blue-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-blue-600 shrink-0"><Plus size={20} /></button>
           </div>
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {subjects.map(s => (
-              <div key={s.id} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
-                {s.name}
-                <button onClick={() => removeSubject(s.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+          <div className="space-y-1.5 mb-4">
+            {orderedSubjects.map((s, idx) => (
+              <div key={s.id} className="bg-slate-100 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate">{s.name}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" onClick={() => moveSubject(idx, -1)} disabled={idx === 0} className="text-slate-400 hover:text-blue-500 disabled:opacity-25 p-0.5" title="Выше">
+                    <ArrowUp size={12} />
+                  </button>
+                  <button type="button" onClick={() => moveSubject(idx, 1)} disabled={idx === orderedSubjects.length - 1} className="text-slate-400 hover:text-blue-500 disabled:opacity-25 p-0.5" title="Ниже">
+                    <ArrowDown size={12} />
+                  </button>
+                  <button type="button" onClick={() => removeSubject(s.id)} className="text-slate-400 hover:text-red-500 p-0.5" title="Удалить">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
             ))}
             {subjects.length === 0 && <p className="text-slate-400 text-xs">Нет предметов</p>}
@@ -1137,12 +1427,12 @@ export default function SettingsPage() {
             <div className="grid grid-cols-[1fr_44px_44px] gap-2">
               <input type="number" placeholder="Цена" value={rCost} onChange={e => setRCost(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 transition-all font-medium text-sm" />
-              <button onClick={() => setShowIcons(!showIcons)}
+              <button type="button" onClick={() => setShowIcons(!showIcons)}
                 className="w-11 h-11 rounded-xl border-2 border-slate-200 flex items-center justify-center text-xl hover:border-purple-300 transition-colors justify-self-center">{rIcon}</button>
               {editId ? (
-                <button onClick={saveEditReward} className="bg-green-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-green-600 justify-self-center"><Check size={20} /></button>
+                <button type="button" onClick={saveEditReward} className="bg-green-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-green-600 justify-self-center"><Check size={20} /></button>
               ) : (
-                <button onClick={addReward} className="bg-purple-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-purple-600 justify-self-center"><Plus size={20} /></button>
+                <button type="button" onClick={addReward} className="bg-purple-500 text-white w-11 h-11 rounded-xl flex items-center justify-center hover:bg-purple-600 justify-self-center"><Plus size={20} /></button>
               )}
             </div>
             <input type="text" placeholder="Описание (необязательно)" value={rDesc} onChange={e => setRDesc(e.target.value)}
@@ -1151,12 +1441,12 @@ export default function SettingsPage() {
           {showIcons && (
             <div className="mb-4 bg-slate-50 rounded-2xl p-3 max-h-40 overflow-y-auto border border-slate-200">
               <div className="flex gap-2 mb-2">
-                <button onClick={() => setRStyle('color')} className={`px-3 py-1 rounded-lg text-xs font-bold ${rStyle === 'color' ? 'bg-blue-500 text-white' : 'bg-white text-slate-600'}`}>Цветные</button>
-                <button onClick={() => setRStyle('minimal')} className={`px-3 py-1 rounded-lg text-xs font-bold ${rStyle === 'minimal' ? 'bg-blue-500 text-white' : 'bg-white text-slate-600'}`}>Минимал</button>
+                <button type="button" onClick={() => setRStyle('color')} className={`px-3 py-1 rounded-lg text-xs font-bold ${rStyle === 'color' ? 'bg-blue-500 text-white' : 'bg-white text-slate-600'}`}>Цветные</button>
+                <button type="button" onClick={() => setRStyle('minimal')} className={`px-3 py-1 rounded-lg text-xs font-bold ${rStyle === 'minimal' ? 'bg-blue-500 text-white' : 'bg-white text-slate-600'}`}>Минимал</button>
               </div>
               <div className="grid grid-cols-8 gap-1">
                 {(rStyle === 'color' ? COLOR_ICONS : MINIMAL_ICONS.map(i => getIconDisplay(i, 'minimal'))).map((icon, idx) => (
-                  <button key={idx} onClick={() => { setRIcon(icon); setShowIcons(false); }}
+                  <button key={idx} type="button" onClick={() => { setRIcon(icon); setShowIcons(false); }}
                     className={`w-8 h-8 rounded-lg text-base flex items-center justify-center hover:bg-blue-100 transition-colors ${rIcon === icon ? 'bg-blue-200 ring-2 ring-blue-400' : ''}`}>{icon}</button>
                 ))}
               </div>
@@ -1164,17 +1454,23 @@ export default function SettingsPage() {
           )}
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {sortedRewards.map((r, idx) => (
-              <div key={r.id} className="bg-slate-50 border border-slate-100 rounded-2xl p-3 flex items-center justify-between group">
-                <div className="flex items-center gap-2.5 min-w-0">
+              <div key={r.id} className={`group relative overflow-hidden rounded-2xl p-3 flex items-center justify-between transition-all duration-500 ${r.active ? 'bg-slate-50 border border-slate-100 shadow-sm shadow-amber-100/30' : 'bg-slate-100 border border-slate-200 opacity-75'}`}>
+                <div className={`pointer-events-none absolute inset-0 rounded-2xl ${r.active ? 'bg-gradient-to-r from-amber-100/55 via-transparent to-amber-50/20 animate-reward-glow' : 'bg-gradient-to-r from-slate-200/20 via-transparent to-slate-100/10 opacity-40'}`} />
+                <div className="relative z-10 flex items-center gap-2.5 min-w-0">
                   <span className="text-lg shrink-0">{r.icon}</span>
                   <div className="min-w-0">
-                    <span className="font-bold text-slate-800 text-sm block truncate">{r.title}</span>
+                    <span className={`font-bold text-sm block truncate ${r.active ? 'text-slate-800' : 'text-slate-500'}`}>{r.title}</span>
                     {r.description && <p className="text-[11px] text-slate-400 truncate">{r.description}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span className="text-xs font-extrabold text-amber-600">{formatStarAmount(r.costStars)}</span>
+                <div className="relative z-10 flex items-center gap-2 shrink-0 ml-2">
+                  <span className={`text-xs font-extrabold ${r.active ? 'text-amber-600' : 'text-slate-400'}`}>{Math.max(0, Math.abs(r.costStars))} ★</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.active ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                    {r.active ? 'ON' : 'OFF'}
+                  </span>
+                  <Switch checked={r.active} onCheckedChange={(checked) => toggleRewardActive(r, checked)} />
                   <button
+                    type="button"
                     onClick={() => moveReward(idx, -1)}
                     disabled={idx === 0}
                     className="w-7 h-7 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-500 disabled:opacity-30 flex items-center justify-center"
@@ -1183,6 +1479,7 @@ export default function SettingsPage() {
                     <ArrowUp size={12} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => moveReward(idx, 1)}
                     disabled={idx === sortedRewards.length - 1}
                     className="w-7 h-7 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-500 disabled:opacity-30 flex items-center justify-center"
@@ -1190,8 +1487,8 @@ export default function SettingsPage() {
                   >
                     <ArrowDown size={12} />
                   </button>
-                  <button onClick={() => editReward(r)} className="text-slate-300 hover:text-blue-500"><Edit3 size={13} /></button>
-                  <button onClick={() => removeReward(r.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
+                  <button type="button" onClick={() => editReward(r)} className="text-slate-300 hover:text-blue-500"><Edit3 size={13} /></button>
+                  <button type="button" onClick={() => removeReward(r.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
                 </div>
               </div>
             ))}
@@ -1283,8 +1580,8 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100 md:col-span-2">
               <div>
-                <p className="text-sm font-bold text-slate-700">Богатый режим</p>
-                <p className="text-xs text-slate-400">Добавляет героев, контекст и более живой промпт</p>
+                <p className="text-sm font-bold text-slate-700">Глубокий режим</p>
+                <p className="text-xs text-slate-400">Добавляет один дополнительный смысловой слой к ответу</p>
               </div>
               <Switch checked={aiRichMode} onCheckedChange={setAiRichMode} />
             </div>
@@ -1299,8 +1596,8 @@ export default function SettingsPage() {
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Любимые герои (через запятую)</label>
-              <input type="text" value={heroes} onChange={e => setHeroes(e.target.value)}
+              <label className="block text-xs font-bold text-slate-500 mb-1">Модель fallback</label>
+              <input type="text" value={aiModelFallback} onChange={e => setAiModelFallback(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
             </div>
             <div>
@@ -1311,6 +1608,11 @@ export default function SettingsPage() {
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Системный промпт</label>
               <textarea rows={3} value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Промпт глубокого режима</label>
+              <textarea rows={4} value={deepPrompt} onChange={e => setDeepPrompt(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
             </div>
           </div>
@@ -1367,7 +1669,7 @@ export default function SettingsPage() {
                       <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        if (file.size > 1 * 1024 * 1024) { alert('Файл слишком большой (макс 1MB)'); return; }
+                        if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
                         const reader = new FileReader();
                         reader.onload = async (ev) => {
                           const dataUrl = ev.target?.result as string;
@@ -1412,7 +1714,7 @@ export default function SettingsPage() {
         <AccordionSection id="system" title="Система" accentColor="border-t-4 border-t-slate-500"
           icon={<RefreshCw size={18} className="text-slate-500" />}>
           <div className="space-y-2">
-            <button onClick={() => setShowCleanupModal(true)}
+            <button onClick={() => { setCleanupMode('test-data'); setShowCleanupModal(true); }}
               className="w-full bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors text-left">
               🗑 Очистить тестовые данные
             </button>
@@ -1527,24 +1829,45 @@ export default function SettingsPage() {
                             {event.childId === 'ali' ? 'Али' : 'Саид'}
                           </span>
                           <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
-                            {event.type}
+                            {getInboxEventTypeLabel(event.type)}
                           </span>
                           {!event.read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
                         </div>
-                        <h3 className="font-bold text-slate-800 leading-tight">{event.title}</h3>
-                        <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{event.body}</p>
+                        <h3 className="font-bold text-slate-800 leading-tight">{normalizeInboxText(event.title)}</h3>
+                        <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{normalizeInboxText(event.body)}</p>
                         {event.rewardId && event.details && (
                           <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                             <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
                               <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
                                 {event.details.rewardTitle || 'Награда'}
                               </span>
-                              {typeof event.details.costStars === 'number' && (
+                              <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                {getRewardStatusLabel(event.details.status)}
+                              </span>
+                              {typeof event.details.costStars === 'number' && currencyEnabled && (
                                 <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                                  {event.details.status === 'selected' ? 'Резерв' : event.details.status === 'fulfilled' ? 'Подтверждено' : 'Доступно'} · {formatStarAmount(-Math.abs(event.details.costStars), false)}
+                                  {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
                                 </span>
                               )}
                             </div>
+                            {event.type === 'reward-selected' && event.details?.status === 'selected' && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <button
+                                  onClick={() => confirmRewardEvent(event)}
+                                  className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
+                                  title="Подтвердить"
+                                >
+                                  <CheckCheck size={16} />
+                                </button>
+                                <button
+                                  onClick={() => cancelRewardEvent(event)}
+                                  className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                                  title="Отменить"
+                                >
+                                  <Ban size={16} />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                         {event.type === 'task-completed' && event.details && (
@@ -1563,7 +1886,7 @@ export default function SettingsPage() {
                               )}
                               {event.details.category && (
                                 <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                                  Категория: {event.details.customCategory || event.details.category}
+                                  Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
                                 </span>
                               )}
                             </div>
@@ -1590,16 +1913,56 @@ export default function SettingsPage() {
                         {event.type === 'task-completed' && event.details && (
                           <button
                             onClick={() => revertTask(event)}
-                            className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1.5 rounded-xl text-[11px] font-bold hover:bg-red-100 transition-colors"
+                            className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
                             title="Отменить выполнение задачи"
                           >
-                            <Ban size={12} /> Отменить
+                            <Ban size={16} />
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {revertTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => !revertLoading && setRevertTarget(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6"
+            >
+              <h2 className="text-lg font-extrabold text-slate-800">Отменить выполнение?</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Задача вернётся в невыполненные, а начисленные звёзды будут пересчитаны.
+              </p>
+              {revertError && (
+                <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
+                  {revertError}
+                </div>
+              )}
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={() => !revertLoading && setRevertTarget(null)}
+                  disabled={revertLoading}
+                  className="flex-1 bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Не отменять
+                </button>
+                <button
+                  onClick={confirmRevertTask}
+                  disabled={revertLoading}
+                  className="flex-1 bg-red-500 text-white px-4 py-3 rounded-2xl font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {revertLoading ? 'Отмена...' : 'Да, отменить'}
+                </button>
               </div>
             </motion.div>
           </div>
@@ -1618,9 +1981,13 @@ export default function SettingsPage() {
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-lg font-extrabold text-slate-800">Очистить тестовые данные?</h2>
+                  <h2 className="text-lg font-extrabold text-slate-800">
+                    {cleanupMode === 'inactive-tasks' ? 'Очистить неактивные задачи?' : 'Очистить тестовые данные?'}
+                  </h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    Будут очищены тестовые и runtime-данные: оценки, звёздные истории, входящие, статусы наград, кэши отчётов и дневные инстансы.
+                    {cleanupMode === 'inactive-tasks'
+                      ? 'Будут удалены только неактивные задачи. Активные и выполненные сегодня останутся на месте.'
+                      : 'Будут очищены тестовые и runtime-данные: оценки, звёздные истории, входящие, статусы наград, кэши отчётов и дневные инстансы.'}
                   </p>
                 </div>
                 <button
@@ -1644,21 +2011,27 @@ export default function SettingsPage() {
                     setCleanupLoading(true);
                     setCleanupMessage('');
                     try {
-                      const res = await fetch('/api/cleanup', { method: 'POST' });
-                      const data = await res.json();
-                      if (!res.ok) {
-                        throw new Error(data?.error || 'Cleanup failed');
+                      if (cleanupMode === 'inactive-tasks') {
+                        await clearInactiveTemplates();
+                        setCleanupMessage('Неактивные задачи очищены');
+                        loadAll();
+                      } else {
+                        const res = await fetch('/api/cleanup', { method: 'POST' });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          throw new Error(data?.error || 'Cleanup failed');
+                        }
+                        setCleanupMessage(data?.message || 'Тестовые данные очищены');
+                        setEvents([]);
+                        setGradeHistory([]);
+                        if (showInbox) {
+                          loadEvents();
+                        }
+                        if (showGradeHistory) {
+                          loadGradeHistory();
+                        }
+                        showSaved(data?.message || 'Тестовые данные очищены');
                       }
-                      setCleanupMessage(data?.message || 'Тестовые данные очищены');
-                      setEvents([]);
-                      setGradeHistory([]);
-                      if (showInbox) {
-                        loadEvents();
-                      }
-                      if (showGradeHistory) {
-                        loadGradeHistory();
-                      }
-                      showSaved(data?.message || 'Тестовые данные очищены');
                     } catch (error) {
                       const message = error instanceof Error ? error.message : 'Не удалось очистить данные';
                       setCleanupMessage(message);
@@ -1669,7 +2042,7 @@ export default function SettingsPage() {
                   disabled={cleanupLoading}
                   className="flex-1 bg-red-500 text-white px-4 py-3 rounded-2xl font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
                 >
-                  {cleanupLoading ? 'Удаление...' : 'Удалить'}
+                  {cleanupLoading ? 'Удаление...' : cleanupMode === 'inactive-tasks' ? 'Очистить' : 'Удалить'}
                 </button>
                 <button
                   onClick={() => !cleanupLoading && setShowCleanupModal(false)}
@@ -1686,3 +2059,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

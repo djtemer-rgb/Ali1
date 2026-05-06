@@ -36,9 +36,14 @@ export async function GET(request: Request) {
     // Return subjects by default
     const subjects = await getJson('aq:subjects');
     if (subjects && Array.isArray(subjects)) {
-      return NextResponse.json(subjects);
+      const normalized = normalizeSubjects(subjects);
+      if (JSON.stringify(normalized) !== JSON.stringify(subjects)) {
+        await setJson('aq:subjects', normalized);
+      }
+      return NextResponse.json(normalized);
     }
-    return NextResponse.json(DEFAULT_SUBJECTS);
+    const normalizedDefaults = normalizeSubjects(DEFAULT_SUBJECTS);
+    return NextResponse.json(normalizedDefaults);
   } catch (error) {
     console.error('Error getting grades/subjects:', error);
     return NextResponse.json([]);
@@ -108,8 +113,9 @@ export async function PUT(request: Request) {
     const { subjects } = body;
     
     if (subjects) {
-      await setJson('aq:subjects', subjects);
-      return NextResponse.json(subjects);
+      const normalized = reindexSubjects(subjects);
+      await setJson('aq:subjects', normalized);
+      return NextResponse.json(normalized);
     }
     
     return NextResponse.json({ error: 'No subjects provided' }, { status: 400 });
@@ -149,4 +155,31 @@ async function addStarLedgerItem(item: any) {
   });
   await setJson(`aq:star-ledger:${item.childId}`, ledger);
   await invalidateReportCache(item.childId);
+}
+
+function normalizeSubjects(input: any[]) {
+  const subjects = Array.isArray(input) ? input : [];
+  return subjects
+    .map((subject, index) => ({
+      id: subject?.id || `subj-${index}`,
+      name: subject?.name || '',
+      order: Number.isFinite(Number(subject?.order)) ? Number(subject.order) : index,
+    }))
+    .sort((a, b) => {
+      const orderA = Number.isFinite(Number(a.order)) ? Number(a.order) : 9999;
+      const orderB = Number.isFinite(Number(b.order)) ? Number(b.order) : 9999;
+      return orderA - orderB || a.name.localeCompare(b.name, 'ru');
+    })
+    .map((subject, index) => ({ ...subject, order: index }));
+}
+
+function reindexSubjects(input: any[]) {
+  const subjects = Array.isArray(input) ? input : [];
+  return subjects
+    .filter((subject) => !!subject?.name)
+    .map((subject, index) => ({
+      id: subject?.id || `subj-${index}`,
+      name: subject?.name || '',
+      order: index,
+    }));
 }

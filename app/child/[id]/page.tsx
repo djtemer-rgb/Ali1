@@ -7,8 +7,7 @@ import { Star, Loader2, Home, BookOpen, Calendar, Settings } from "lucide-react"
 import GradeInput from "../../components/GradeInput";
 import TaskCard from "../../components/TaskCard";
 import confetti from "canvas-confetti";
-import { buildTaskCompletionBundle } from "@/app/lib/reporting";
-import { formatStarAmount } from "@/app/lib/reporting";
+import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
 interface Subtask {
@@ -57,7 +56,10 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [gradesEnabled, setGradesEnabled] = useState(childId === 'ali');
+  const [currencyEnabled, setCurrencyEnabled] = useState(true);
+  const [reserveStars, setReserveStars] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -95,13 +97,24 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
       setStars(starsData?.balance || 0);
 
       const rewardsRes = await fetch(`/api/rewards?childId=${childId}`);
+      const rewardStatusRes = await fetch(`/api/rewards/status?childId=${childId}`);
       const rewardsData = await rewardsRes.json();
+      const rewardStatusData = await rewardStatusRes.json();
       setRewards(Array.isArray(rewardsData) ? rewardsData : []);
 
       const settingsRes = await fetch('/api/settings');
       const settings = await settingsRes.json();
       const childSettings = getChildSettings(settings, childId as 'ali' | 'said');
       setGradesEnabled(childSettings.gradesEnabled ?? childId === 'ali');
+      setCurrencyEnabled(settings?.currencyEnabled !== false);
+      const reserve = Array.isArray(rewardStatusData)
+        ? rewardStatusData.reduce((sum: number, status: any) => {
+            if (status?.status !== 'selected') return sum;
+            const reward = Array.isArray(rewardsData) ? rewardsData.find((item: any) => item.id === status.rewardId) : null;
+            return sum + (Number(reward?.costStars) || 0);
+          }, 0)
+        : 0;
+      setReserveStars(reserve);
     } catch (err: any) {
       console.error('Error loading data:', err);
       setError(err.message || 'Failed to load data');
@@ -261,7 +274,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
         console.error('Error buying reward:', err);
       }
     } else {
-      alert(`Не хватает звезд! Нужно еще ${formatStarAmount(cost - stars)}`);
+      setNotice(`Не хватает звезд! Нужно еще ${formatStarAmount(cost - stars)}`);
     }
   };
 
@@ -313,10 +326,25 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
             <p className="text-slate-500 text-xs md:text-sm font-medium mt-0.5">Твои успехи за сегодня</p>
           </div>
         </div>
-        <div className="bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] px-3 md:px-4 py-1.5 md:py-2 rounded-xl font-extrabold text-base md:text-lg flex items-center gap-1.5 md:gap-2 shadow-sm">
-          <Star className="fill-amber-400 text-amber-400 w-4 h-4 md:w-5 md:h-5" /> {stars}
+        <div className="flex items-center gap-2">
+          <div className="bg-[#FEF3C7] border-2 border-[#FDE68A] text-[#D97706] px-3 md:px-4 py-1.5 md:py-2 rounded-xl font-extrabold text-base md:text-lg flex items-center gap-1.5 md:gap-2 shadow-sm">
+            <Star className="fill-amber-400 text-amber-400 w-4 h-4 md:w-5 md:h-5" /> {stars}
+          </div>
+          {currencyEnabled && reserveStars > 0 && (
+            <span className="bg-white/90 border border-amber-200 text-amber-500 px-2.5 md:px-3 py-1 md:py-1.5 rounded-xl font-extrabold text-sm md:text-base shadow-sm">
+              {formatRewardReserveLabel(reserveStars, true, false)}
+            </span>
+          )}
         </div>
       </header>
+
+      {notice && (
+        <div className="max-w-5xl mx-auto px-4 md:px-6 pt-4">
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 text-sm font-medium">
+            {notice}
+          </div>
+        </div>
+      )}
 
       <nav className="flex gap-2 md:gap-3 px-4 md:px-6 py-4 md:py-6 overflow-x-auto no-scrollbar max-w-5xl mx-auto">
         <Link href={`/child/${childId}`}>
@@ -382,7 +410,7 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
                   key={reward.id}
                   onClick={() => buyReward(reward.costStars, reward.title)}
                   className={`border rounded-2xl p-4 md:p-5 flex flex-row md:flex-col justify-between items-center md:items-stretch h-auto md:h-32 transition-all cursor-pointer ${
-                    canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 shadow-lg' : 'bg-white/5 border-white/10 opacity-70 hover:bg-white/10'
+                    canAfford ? 'bg-white/20 border-white/40 hover:bg-white/30 hover:-translate-y-0.5 shadow-lg shadow-indigo-500/10' : 'bg-white/5 border-white/10 opacity-70 hover:bg-white/10'
                   }`}
                 >
                   <h3 className="text-white font-bold text-base md:text-lg leading-tight">{reward.icon} {reward.title}</h3>
@@ -390,9 +418,9 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
                     <p className="text-white/70 text-xs md:text-sm mt-1 hidden md:block">{reward.description}</p>
                   )}
                   <div className={`rounded-xl px-3 py-1.5 md:py-2 flex justify-center items-center gap-1 font-extrabold transition-colors text-sm md:text-base mt-0 md:mt-auto ${
-                    canAfford ? 'bg-white text-indigo-600' : 'bg-white/20 text-white'
+                    canAfford ? 'bg-white text-indigo-600 animate-reward-glow' : 'bg-white/20 text-white'
                   }`}>
-                    {formatStarAmount(reward.costStars, false)} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
+                    {Math.max(0, Math.abs(reward.costStars))} <Star size={14} className={canAfford ? 'fill-indigo-600' : 'fill-white'} />
                   </div>
                 </div>
               );
@@ -403,3 +431,5 @@ export default function ChildDashboard({ params }: { params: { id: string } }) {
     </div>
   );
 }
+
+

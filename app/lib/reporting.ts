@@ -65,6 +65,8 @@ export type ReportStarEntry = {
   subtaskSummary?: string | null;
 };
 
+export type ReportInsightSource = 'period' | 'all-time';
+
 const DIFFICULTY_LABELS: Record<'easy' | 'normal' | 'hard', string> = {
   easy: 'Легко',
   normal: 'Нормально',
@@ -78,6 +80,38 @@ const STAR_SOURCE_LABELS: Record<string, string> = {
   'reward-purchase': 'Награда',
   reset: 'Сброс',
   adjustment: 'Корректировка',
+};
+
+const INBOX_EVENT_TYPE_LABELS: Record<string, string> = {
+  'reward-available': 'Награда доступна',
+  'task-completed': 'Задача выполнена',
+  'day-completed': 'День завершён',
+  'grade-added': 'Оценка добавлена',
+  'reward-selected': 'Награда выбрана',
+  'reward-fulfilled': 'Награда подтверждена',
+  system: 'Система',
+};
+
+const LEGACY_INBOX_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\bAlly\b/gi, 'Али'],
+  [/\bSaid\b/gi, 'Саид'],
+  [/\bSystem\b/gi, 'Система'],
+  [/\bTest completed\b/gi, 'Тест выполнен'],
+  [/\bcompleted\b/gi, 'выполнено'],
+  [/\bTBD\b/gi, 'Не указано'],
+  [/\bSport\b/gi, 'Спорт'],
+];
+
+export const TASK_CATEGORY_LABELS: Record<string, string> = {
+  study: 'Учёба',
+  sport: 'Спорт',
+  boxing: 'Бокс',
+  chess: 'Шахматы',
+  reading: 'Чтение',
+  order: 'Порядок',
+  'home-help': 'Помощь дома',
+  rest: 'Отдых',
+  other: 'Другое',
 };
 
 export function formatDifficultyLabel(difficulty?: 'easy' | 'normal' | 'hard') {
@@ -107,20 +141,35 @@ export function formatStarAmount(amount: number, includeIcon = true) {
   return includeIcon ? `${prefix}${amount} ⭐` : `${prefix}${amount}`;
 }
 
+export function formatRewardReserveLabel(costStars?: number, currencyEnabled = true, includeIcon = true) {
+  if (!currencyEnabled || typeof costStars !== 'number' || costStars <= 0) return '';
+  return includeIcon ? `(${formatStarAmount(costStars, false)} ★)` : `(${formatStarAmount(costStars, false)})`;
+}
+
+export function getRewardStatusLabel(status?: string) {
+  if (status === 'fulfilled') return 'Подтверждено';
+  if (status === 'selected') return 'Ожидает подтверждения';
+  return 'Доступно';
+}
+
 export function getCategoryLabel(category?: string, customCategory = '') {
   if (customCategory.trim()) return customCategory.trim();
-  const labels: Record<string, string> = {
-    study: 'Учёба',
-    sport: 'Спорт',
-    boxing: 'Бокс',
-    chess: 'Шахматы',
-    reading: 'Чтение',
-    order: 'Порядок',
-    'home-help': 'Помощь',
-    rest: 'Отдых',
-    other: 'Другое',
-  };
-  return labels[category || 'other'] || category || 'Другое';
+  return TASK_CATEGORY_LABELS[category || 'other'] || category || 'Другое';
+}
+
+export function formatReportSourceLabel(source?: ReportInsightSource) {
+  if (source === 'all-time') return 'за всё время';
+  return '';
+}
+
+export function getInboxEventTypeLabel(type?: string) {
+  const normalized = type || '';
+  return INBOX_EVENT_TYPE_LABELS[normalized] || normalized || 'Событие';
+}
+
+export function normalizeInboxText(text?: string) {
+  if (!text) return '';
+  return LEGACY_INBOX_TEXT_REPLACEMENTS.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
 }
 
 export function buildSubtaskSummary(subtasks?: TaskSubtask[], limit = 3) {

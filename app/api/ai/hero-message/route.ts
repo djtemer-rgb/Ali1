@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getJson, setJson, redis } from '../../upstash';
+import { getJson, setJson } from '../../upstash';
 import { getChildSettings } from '@/app/lib/settings-shared';
 
 async function getDailyLimit(): Promise<number> {
@@ -43,7 +43,7 @@ function getSupportiveMessage(grade: number): string | null {
 
 export async function POST(request: Request) {
   try {
-    const { childId, childName, mode, tasks, todayGrades, favoriteHeroes, resetCounter } = await request.json();
+    const { childId, childName, mode, tasks, todayGrades, resetCounter } = await request.json();
 
     const DAILY_LIMIT = await getDailyLimit();
     const today = new Date().toISOString().split('T')[0];
@@ -72,7 +72,10 @@ export async function POST(request: Request) {
     const openRouterKey = process.env.OPENROUTER_API_KEY;
     const openRouterUrl = aiPrefs.openRouterUrl || settings?.openRouterUrl || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
     const configuredModel = aiPrefs.aiModel || settings?.aiModel || process.env.HERO_AI_MODEL || 'openai/gpt-4o-mini';
-
+    const fallbackModel = aiPrefs.aiModelFallback || settings?.aiModelFallback || process.env.HERO_AI_MODEL_FALLBACK || configuredModel;
+    const baseSystemPrompt = (aiPrefs.systemPrompt || settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || 'Ты — герой-наставник для ребёнка. Отвечай коротко, тепло и по делу.').trim();
+    const deepPrompt = (aiPrefs.deepPrompt || settings?.deepPrompt || process.env.HERO_AI_DEEP_PROMPT || 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.').trim();
+    const systemPrompt = aiPrefs.richMode ? `${baseSystemPrompt} ${deepPrompt}`.trim() : baseSystemPrompt;
     if (!aiPrefs.enabled) {
       usage += 1;
       await setJson(usageKey, usage);
@@ -95,70 +98,55 @@ export async function POST(request: Request) {
       });
     }
 
+    const runtimeContext = await buildRuntimeContext({
+      childId: childId as 'ali' | 'said',
+      childName,
+      mode,
+      tasks,
+      todayGrades,
+      usage,
+      dailyLimit: DAILY_LIMIT,
+    });
+
     try {
-      const savedHeroes = aiPrefs.heroes || settings?.heroes;
-      const heroesList = Array.isArray(favoriteHeroes) && favoriteHeroes.length > 0
-        ? favoriteHeroes.slice(0, 10)
-        : (typeof savedHeroes === 'string' ? savedHeroes.split(',').map((h: string) => h.trim()).filter(Boolean) : ['Мухаммед Али', 'Тайсон', 'Роналду']);
-
-      const heroesPrompt = heroesList.length > 0
-        ? `Любимые герои ребёнка: ${heroesList.join(', ')}. Иногда мягко упоминай их как примеры силы, дисциплины и смелости.`
-        : '';
-
-      const richPrompt = [
-        'Ты — тёплый герой-наставник для ребёнка.',
-        'Отвечай 2-4 предложениями, живо, по-человечески и с небольшой глубиной.',
-        'Не будь сухим или канцелярским. Не пиши слишком общо.',
-        'Поддерживай усилие, характер, смелость и маленькие победы.',
-        'Не стыди и не угрожай. Не превращай ответ в бесконечный чат.',
-        'Старайся делать ответ запоминающимся, но не пафосным.',
-        heroesPrompt,
-      ].filter(Boolean).join(' ');
-
-      const basicPrompt = [
-        'Ты — герой-наставник для ребёнка.',
-        'Отвечай коротко и поддерживающе.',
-        'Не используй стыд и наказания.',
-        'Не создавай бесконечный диалог.',
-        heroesPrompt,
-      ].filter(Boolean).join(' ');
-
-      const configuredSystemPrompt = (aiPrefs.systemPrompt || settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || '').trim();
-      const systemPrompt = configuredSystemPrompt
-        ? `${configuredSystemPrompt} ${aiPrefs.richMode ? heroesPrompt : ''}`.trim()
-        : (aiPrefs.richMode ? richPrompt : basicPrompt);
-
-      const userPrompt = `Ребёнок: ${childName} (${mode === 'little-hero' ? 'little-hero режим' : 'полный режим'}). Выполнено задач сегодня: ${completedCount} из ${totalCount}. ${todayGrades && todayGrades.length > 0 ? `Сегодняшние оценки: ${todayGrades.map((g: any) => `${g.subjectName}: ${g.grade}`).join(', ')}.` : 'Оценок сегодня нет.'} Напиши короткое поддерживающее сообщение.`;
-
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-
-      const aiResponse = await fetch(`${openRouterUrl.replace(/\/+$/, '')}/chat/completions`, {
-        signal: controller.signal,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-        },
-        body: JSON.stringify({
-          model: configuredModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          max_tokens: 200,
-          temperature: 0.7,
-        })
+      const aiResponse = await callOpenRouter({
+        openRouterUrl,
+        openRouterKey,
+        model: configuredModel,
+        systemPrompt,
+        userPrompt: runtimeContext,
+        controller,
+        maxTokens: 200,
+        temperature: 0.7,
       });
-      clearTimeout(timeout);
 
-      if (!aiResponse.ok) {
-        throw new Error(`OpenRouter API error: ${aiResponse.status}`);
+      let data = aiResponse.ok ? await aiResponse.json() : null;
+      let message = data?.choices?.[0]?.message?.content?.trim();
+      let usedModel = configuredModel;
+
+      if (!aiResponse.ok || !message) {
+        if (fallbackModel && fallbackModel !== configuredModel) {
+          const fallbackResponse = await callOpenRouter({
+            openRouterUrl,
+            openRouterKey,
+            model: fallbackModel,
+            systemPrompt,
+            userPrompt: runtimeContext,
+            controller,
+            maxTokens: 200,
+            temperature: 0.7,
+          });
+
+          if (fallbackResponse.ok) {
+            data = await fallbackResponse.json();
+            message = data?.choices?.[0]?.message?.content?.trim();
+            if (message) {
+              usedModel = fallbackModel;
+            }
+          }
+        }
       }
-
-      const data = await aiResponse.json();
-      const message = data?.choices?.[0]?.message?.content?.trim();
 
       if (!message) {
         throw new Error('Empty AI response');
@@ -172,7 +160,7 @@ export async function POST(request: Request) {
         remaining: DAILY_LIMIT - usage,
         ai: true,
         mode: 'openrouter',
-        model: configuredModel
+        model: usedModel
       });
     } catch (aiError) {
       console.error('AI error, using fallback:', aiError);
@@ -192,5 +180,118 @@ export async function POST(request: Request) {
       remaining: 0,
       ai: false
     });
+  }
+}
+
+async function buildRuntimeContext(params: {
+  childId: 'ali' | 'said';
+  childName: string;
+  mode: string;
+  tasks: any[];
+  todayGrades: any[];
+  usage: number;
+  dailyLimit: number;
+}) {
+  const { childId, childName, mode, tasks, todayGrades, usage, dailyLimit } = params;
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString('ru-RU', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const taskList = Array.isArray(tasks) ? tasks : [];
+  const completedTasks = taskList.filter((task: any) => task?.completed);
+  const remainingTasks = taskList.filter((task: any) => !task?.completed);
+  const ledger = await getJson(`aq:star-ledger:${childId}`);
+  const starsBalance = Array.isArray(ledger)
+    ? ledger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0)
+    : 0;
+
+  const rewards = await getJson('aq:rewards');
+  const statuses = await getJson(`aq:reward-status:${childId}`);
+  const statusMap = new Map<string, string>();
+  if (Array.isArray(statuses)) {
+    statuses.forEach((item: any) => {
+      if (item?.rewardId) statusMap.set(String(item.rewardId), String(item.status || 'available'));
+    });
+  }
+
+  const availableRewards = Array.isArray(rewards)
+    ? rewards
+        .filter((reward: any) => reward?.active && (reward?.childId === childId || reward?.childId === 'both'))
+        .slice(0, 5)
+        .map((reward: any) => `${reward.title}${statusMap.get(String(reward.id)) ? ` (${statusMap.get(String(reward.id))})` : ''}`)
+    : [];
+
+  const gradeList = Array.isArray(todayGrades)
+    ? todayGrades
+        .filter((grade: any) => grade?.subjectName)
+        .slice(0, 6)
+        .map((grade: any) => `${grade.subjectName}: ${grade.grade}`)
+    : [];
+
+  const taskSummary = [
+    completedTasks.length > 0 ? `выполнено: ${completedTasks.slice(0, 4).map((task: any) => task.title).join(', ')}` : null,
+    remainingTasks.length > 0 ? `осталось: ${remainingTasks.slice(0, 4).map((task: any) => task.title).join(', ')}` : null,
+  ].filter(Boolean).join(' | ');
+
+  return [
+    'Сформируй короткое поддерживающее послание для ребёнка.',
+    `Дата: ${todayLabel}.`,
+    `Ребёнок: ${childName}.`,
+    `Профиль: ${mode === 'little-hero' ? 'little-hero' : 'full'}.`,
+    `Задач сегодня: ${completedTasks.length} выполнено из ${taskList.length}.`,
+    `Осталось посланий сегодня: ${Math.max(0, dailyLimit - usage)} из ${dailyLimit}.`,
+    `Звёзды сейчас: ${starsBalance}.`,
+    taskSummary ? `Задачи: ${taskSummary}.` : null,
+    gradeList.length > 0 ? `Оценки сегодня: ${gradeList.join(', ')}.` : 'Оценок сегодня нет.',
+    availableRewards.length > 0 ? `Награды: ${availableRewards.join(', ')}.` : 'Активных наград нет.',
+  ].filter(Boolean).join('\n');
+}
+
+async function callOpenRouter(params: {
+  openRouterUrl: string;
+  openRouterKey: string;
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  controller: AbortController;
+  maxTokens: number;
+  temperature: number;
+}) {
+  const {
+    openRouterUrl,
+    openRouterKey,
+    model,
+    systemPrompt,
+    userPrompt,
+    controller,
+    maxTokens,
+    temperature,
+  } = params;
+
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    return await fetch(`${openRouterUrl.replace(/\/+$/, '')}/chat/completions`, {
+      signal: controller.signal,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: maxTokens,
+        temperature,
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 }

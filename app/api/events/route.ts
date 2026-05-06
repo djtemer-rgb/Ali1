@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 import { getChildSettings, NOTIFICATION_EVENT_KEYS } from '@/app/lib/settings-shared';
 import { sendTelegramIfEnabled, sendWebPushToChild } from '@/app/lib/notifications';
-import { buildSubtaskSummary, formatDifficultyLabel, formatStarAmount } from '@/app/lib/reporting';
+import { buildSubtaskSummary, formatDifficultyLabel, formatRewardReserveLabel, formatStarAmount, getRewardStatusLabel } from '@/app/lib/reporting';
 
 function escapeHtml(input: string) {
   return input
@@ -49,24 +49,25 @@ function buildTaskNotificationTexts(event: any) {
   };
 }
 
-function buildRewardNotificationTexts(event: any) {
+function buildRewardNotificationTexts(event: any, currencyEnabled = true) {
   const details = event?.details || {};
   const childName = details.childName || getChildName(event.childId);
   const rewardTitle = details.rewardTitle || event.body || event.title || 'Награда';
   const costStars = typeof details.costStars === 'number' ? details.costStars : null;
   const status = details.status || event.type;
-  const reserved = costStars ? formatStarAmount(-Math.abs(costStars)) : null;
+  const reserveLabel = costStars ? formatRewardReserveLabel(costStars, currencyEnabled) : '';
+  const statusLabel = getRewardStatusLabel(status);
 
   const telegramParts = [
     `<b>${escapeHtml(childName)} выбрал награду:</b> ${escapeHtml(rewardTitle)}`,
-    reserved ? `Резерв: ${escapeHtml(reserved)}` : null,
-    status === 'selected' ? 'Статус: выбрано' : (status === 'reward-fulfilled' || status === 'fulfilled' ? 'Статус: подтверждено' : null),
+    reserveLabel ? `Сумма: ${escapeHtml(reserveLabel)}` : null,
+    `Статус: ${escapeHtml(statusLabel)}`,
   ].filter(Boolean);
 
   const pushParts = [
     rewardTitle,
-    reserved ? `Резерв: ${reserved}` : null,
-    status === 'selected' ? 'Статус: выбрано' : (status === 'reward-fulfilled' || status === 'fulfilled' ? 'Статус: подтверждено' : null),
+    reserveLabel ? `Сумма: ${reserveLabel}` : null,
+    `Статус: ${statusLabel}`,
   ].filter(Boolean);
 
   return {
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
     const defaultMessage = `🔔 <b>Новое событие!</b>\n\n<b>${escapeHtml(newEvent.title)}</b>\n${escapeHtml(newEvent.body)}`;
     const taskMessages = newEvent.type === 'task-completed' ? buildTaskNotificationTexts(newEvent) : null;
     const rewardMessages = newEvent.type === 'reward-selected' || newEvent.type === 'reward-fulfilled'
-      ? buildRewardNotificationTexts(newEvent)
+      ? buildRewardNotificationTexts(newEvent, settings?.currencyEnabled !== false)
       : null;
     const message = taskMessages?.telegram || rewardMessages?.telegram || defaultMessage;
 
