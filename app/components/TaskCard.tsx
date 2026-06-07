@@ -277,7 +277,7 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                 </div>
               )}
 
-              {task.requiresOpenDetails && !detailsOpened && (
+              {task.requiresOpenDetails && !detailsOpened ? (
                 <button
                   onClick={() => {
                     setDetailsOpened(true);
@@ -285,26 +285,24 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                   }}
                   className="w-full mb-3 bg-amber-50 border-2 border-amber-200 text-amber-700 py-3 rounded-xl font-bold hover:bg-amber-100 transition-colors"
                 >
-                  ✅ Я прочитал(а) и понял(а) условия
+                  ✅ Я прочитал и понял условия
                 </button>
-              )}
-
-              <button
-                onClick={handleModalComplete}
-                className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
-                  allSubtasksDone
-                    ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-200'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {task.requiresOpenDetails && !detailsOpened
-                  ? 'Я прочитал(а)'
-                  : task.requiresOpenDetails && subtasksEnabled && !allSubtasksDone
+              ) : (
+                <button
+                  onClick={handleModalComplete}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
+                    allSubtasksDone
+                      ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-200'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {task.requiresOpenDetails && subtasksEnabled && !allSubtasksDone
                     ? 'Закрыть'
                     : subtasksEnabled && !detailsOpened
                       ? 'Понятно'
                       : 'Завершить квест!'}
-              </button>
+                </button>
+              )}
             </motion.div>
           </div>
         )}
