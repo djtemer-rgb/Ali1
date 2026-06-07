@@ -88,8 +88,8 @@ const CHILD_IDS = ['ali', 'said'] as const;
 
 export default function SettingsPage() {
   const { currentChild, switchChild } = useChild();
-  const [settingsChildId, setSettingsChildId] = useState(currentChild.id);
-  const childName = settingsChildId === 'ali' ? 'Али' : 'Саид';
+  const [settingsChildId, setSettingsChildId] = useState<'ali' | 'said' | 'common'>(currentChild.id);
+  const childName = settingsChildId === 'ali' ? 'Али' : settingsChildId === 'said' ? 'Саид' : 'Общий';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState('');
@@ -200,15 +200,20 @@ export default function SettingsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
+      const refChildId = settingsChildId === 'common' ? 'ali' : settingsChildId;
+      const rewardsChildId = settingsChildId === 'common' ? 'both' : settingsChildId;
       const [subjRes, rewRes, authRes, setRes, tplRes] = await Promise.all([
-        fetch(`/api/grades?childId=${settingsChildId}`), fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`), fetch('/api/auth/parent/settings'),
-        fetch('/api/settings'), fetch('/api/tasks/templates')
+        fetch(`/api/grades?childId=${refChildId}`),
+        fetch(`/api/rewards?childId=${rewardsChildId}&includeInactive=1`),
+        fetch('/api/auth/parent/settings'),
+        fetch('/api/settings'),
+        fetch('/api/tasks/templates')
       ]);
       const subjData = await subjRes.json();
       const rewData = await rewRes.json(); setRewards(Array.isArray(rewData) ? rewData : []);
       setPinStatus(await authRes.json());
       const setData = await setRes.json();
-      const childSettings = getChildSettings(setData, settingsChildId);
+      const childSettings = getChildSettings(setData, refChildId);
       if (setData.systemPrompt) setSystemPrompt(setData.systemPrompt);
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
       if (setData.resetEnabled !== undefined) setResetEnabled(setData.resetEnabled);
@@ -219,7 +224,7 @@ export default function SettingsPage() {
       setNotificationPrefs(childSettings.notifications);
       setAiEnabled(childSettings.ai.enabled);
       setAiRichMode(childSettings.ai.richMode);
-      setGradesEnabled(childSettings.gradesEnabled ?? settingsChildId === 'ali');
+      setGradesEnabled(childSettings.gradesEnabled ?? refChildId === 'ali');
       setSubjects(childSettings.subjects);
       setGradeMapping({
         '5': `${childSettings.gradeToStars['5'] >= 0 ? '+' : ''}${childSettings.gradeToStars['5']}`,
@@ -246,7 +251,7 @@ export default function SettingsPage() {
       setSettingsData(setData);
       setTemplates(Array.isArray(tplData)
         ? tplData
-            .filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both')
+            .filter((t: TaskTemplate) => settingsChildId === 'common' ? t.childId === 'both' : (t.childId === settingsChildId || t.childId === 'both'))
             .sort((a: TaskTemplate, b: TaskTemplate) => {
               const orderA = Number.isFinite(Number(a.sortOrder)) ? Number(a.sortOrder) : 9999;
               const orderB = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : 9999;
@@ -489,12 +494,24 @@ export default function SettingsPage() {
     const gradeToStars = { '5': parseVal(gradeMapping['5']), '4': parseVal(gradeMapping['4']), '3': parseVal(gradeMapping['3']), '2': parseVal(gradeMapping['2']) };
     const settings = await (await fetch('/api/settings')).json();
     settings.childSettings = settings.childSettings || {};
-    settings.childSettings[settingsChildId] = {
-      ...getChildSettings(settings, settingsChildId),
-      gradeToStars: normalizeGradeToStars(gradeToStars),
-    };
-    if (settingsChildId === 'ali') {
-      settings.gradeToStars = settings.childSettings[settingsChildId].gradeToStars;
+    if (settingsChildId === 'common') {
+      settings.childSettings.ali = {
+        ...getChildSettings(settings, 'ali'),
+        gradeToStars: normalizeGradeToStars(gradeToStars),
+      };
+      settings.childSettings.said = {
+        ...getChildSettings(settings, 'said'),
+        gradeToStars: normalizeGradeToStars(gradeToStars),
+      };
+      settings.gradeToStars = settings.childSettings.ali.gradeToStars;
+    } else {
+      settings.childSettings[settingsChildId] = {
+        ...getChildSettings(settings, settingsChildId),
+        gradeToStars: normalizeGradeToStars(gradeToStars),
+      };
+      if (settingsChildId === 'ali') {
+        settings.gradeToStars = settings.childSettings[settingsChildId].gradeToStars;
+      }
     }
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     showSaved('Маппинг оценок сохранён');
@@ -542,18 +559,27 @@ export default function SettingsPage() {
       return dateB - dateA;
     });
 
-  const getRewardOrder = (reward: Reward) => Number.isFinite(Number(reward.sortOrderByChild?.[settingsChildId]))
-    ? Number(reward.sortOrderByChild?.[settingsChildId])
-    : 9999;
+  const getRewardOrder = (reward: Reward) => {
+    const sortChildId = settingsChildId === 'common' ? 'both' : settingsChildId;
+    return Number.isFinite(Number(reward.sortOrderByChild?.[sortChildId]))
+      ? Number(reward.sortOrderByChild[sortChildId])
+      : Number.isFinite(Number(reward.sortOrderByChild?.both))
+        ? Number(reward.sortOrderByChild.both)
+        : Number.isFinite(Number(reward.sortOrderByChild?.ali))
+          ? Number(reward.sortOrderByChild.ali)
+          : 9999;
+  };
 
   const refreshRewards = async () => {
-    const res = await fetch(`/api/rewards?childId=${settingsChildId}&includeInactive=1`);
+    const rewardsChildId = settingsChildId === 'common' ? 'both' : settingsChildId;
+    const res = await fetch(`/api/rewards?childId=${rewardsChildId}&includeInactive=1`);
     const data = await res.json();
     setRewards(Array.isArray(data) ? data : []);
   };
 
   const refreshSubjects = async () => {
-    const res = await fetch(`/api/grades?childId=${settingsChildId}`);
+    const refChildId = settingsChildId === 'common' ? 'ali' : settingsChildId;
+    const res = await fetch(`/api/grades?childId=${refChildId}`);
     const data = await res.json();
     setSubjects(Array.isArray(data) ? normalizeSubjects(data) : []);
   };
@@ -561,43 +587,86 @@ export default function SettingsPage() {
   const refreshTemplates = async () => {
     const res = await fetch('/api/tasks/templates');
     const data = await res.json();
-    setTemplates(Array.isArray(data) ? data.filter((t: TaskTemplate) => t.childId === settingsChildId || t.childId === 'both') : []);
+    setTemplates(Array.isArray(data) ? data.filter((t: TaskTemplate) => settingsChildId === 'common' ? t.childId === 'both' : (t.childId === settingsChildId || t.childId === 'both')) : []);
   };
 
   const deleteTemplatesByIds = async (ids: string[]) => {
     const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
     if (uniqueIds.length === 0) return;
     const today = new Date().toISOString().split('T')[0];
-    await fetch('/api/tasks/templates', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: uniqueIds, childId: settingsChildId, date: today })
-    });
+    if (settingsChildId === 'common') {
+      await Promise.all([
+        fetch('/api/tasks/templates', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: uniqueIds, childId: 'ali', date: today })
+        }),
+        fetch('/api/tasks/templates', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: uniqueIds, childId: 'said', date: today })
+        })
+      ]);
+    } else {
+      await fetch('/api/tasks/templates', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: uniqueIds, childId: settingsChildId, date: today })
+      });
+    }
     await refreshTemplates();
   };
 
   const saveSubjects = async (nextSubjects: Subject[]) => {
     const normalized = normalizeSubjects(nextSubjects);
     setSubjects(normalized);
-    await fetch('/api/grades', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId: settingsChildId, subjects: normalized })
-    });
+    if (settingsChildId === 'common') {
+      await Promise.all([
+        fetch('/api/grades', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: 'ali', subjects: normalized })
+        }),
+        fetch('/api/grades', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: 'said', subjects: normalized })
+        })
+      ]);
+    } else {
+      await fetch('/api/grades', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId: settingsChildId, subjects: normalized })
+      });
+    }
     await refreshSubjects();
   };
 
   const saveChildSettings = async (patch: Partial<ChildSettingsForm>) => {
     const settings = await (await fetch('/api/settings')).json();
-    const currentChild = getChildSettings(settings, settingsChildId);
     settings.childSettings = settings.childSettings || {};
-    settings.childSettings[settingsChildId] = {
-      ...currentChild,
-      ...(patch.taskCategories ? { taskCategories: patch.taskCategories } : {}),
-      ...(patch.notifications ? { notifications: patch.notifications } : {}),
-      ...(patch.ai ? { ai: { ...patch.ai, aiModelFallback: patch.ai.aiModelFallback || aiModelFallback } } : {}),
-      ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
-    };
+    if (settingsChildId === 'common') {
+      for (const cid of ['ali', 'said'] as const) {
+        const currentChild = getChildSettings(settings, cid);
+        settings.childSettings[cid] = {
+          ...currentChild,
+          ...(patch.taskCategories ? { taskCategories: patch.taskCategories } : {}),
+          ...(patch.notifications ? { notifications: patch.notifications } : {}),
+          ...(patch.ai ? { ai: { ...patch.ai, aiModelFallback: patch.ai.aiModelFallback || aiModelFallback } } : {}),
+          ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
+        };
+      }
+    } else {
+      const currentChild = getChildSettings(settings, settingsChildId);
+      settings.childSettings[settingsChildId] = {
+        ...currentChild,
+        ...(patch.taskCategories ? { taskCategories: patch.taskCategories } : {}),
+        ...(patch.notifications ? { notifications: patch.notifications } : {}),
+        ...(patch.ai ? { ai: { ...patch.ai, aiModelFallback: patch.ai.aiModelFallback || aiModelFallback } } : {}),
+        ...(patch.gradesEnabled !== undefined ? { gradesEnabled: patch.gradesEnabled } : {}),
+      };
+    }
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     setSettingsData(settings);
   };
@@ -674,11 +743,14 @@ export default function SettingsPage() {
 
     const existing = await registration.pushManager.getSubscription();
     if (existing) {
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ childId: settingsChildId, subscription: existing.toJSON() })
-      });
+      const cids = settingsChildId === 'common' ? ['ali', 'said'] : [settingsChildId];
+      await Promise.all(cids.map(cid =>
+        fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: cid, subscription: existing.toJSON() })
+        })
+      ));
       return true;
     }
 
@@ -688,11 +760,14 @@ export default function SettingsPage() {
       applicationServerKey: appServerKey,
     });
 
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ childId: settingsChildId, subscription: subscription.toJSON() })
-    });
+    const cids = settingsChildId === 'common' ? ['ali', 'said'] : [settingsChildId];
+    await Promise.all(cids.map(cid =>
+      fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId: cid, subscription: subscription.toJSON() })
+      })
+    ));
     return true;
   };
 
@@ -701,11 +776,14 @@ export default function SettingsPage() {
     const registration = await navigator.serviceWorker.getRegistration();
     const subscription = await registration?.pushManager.getSubscription();
     if (subscription) {
-      await fetch('/api/push/unsubscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ childId: settingsChildId, endpoint: subscription.endpoint })
-      });
+      const cids = settingsChildId === 'common' ? ['ali', 'said'] : [settingsChildId];
+      await Promise.all(cids.map(cid =>
+        fetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: cid, endpoint: subscription.endpoint })
+        })
+      ));
       await subscription.unsubscribe();
     }
     return true;
@@ -731,7 +809,9 @@ export default function SettingsPage() {
       ...reward,
       sortOrderByChild: {
         ...(reward.sortOrderByChild || {}),
-        [settingsChildId]: nextIndex,
+        ...(settingsChildId === 'common'
+          ? { ali: nextIndex, said: nextIndex, both: nextIndex }
+          : { [settingsChildId]: nextIndex })
       },
     }));
     setRewards(updated);
@@ -760,7 +840,11 @@ export default function SettingsPage() {
 
   const persistTemplateActiveState = async (template: TaskTemplate, nextActive: boolean) => {
     const today = new Date().toISOString().split('T')[0];
-    const nextTemplates = templates.map((item) => {
+    const allTemplatesRes = await fetch('/api/tasks/templates');
+    const allTemplates = await allTemplatesRes.json();
+    if (!Array.isArray(allTemplates)) return;
+
+    const updated = allTemplates.map((item: any) => {
       if (item.id !== template.id) return item;
       return {
         ...item,
@@ -770,12 +854,11 @@ export default function SettingsPage() {
         updatedAt: new Date().toISOString(),
       };
     });
-    const normalized = nextTemplates.map((item, index) => ({ ...item, sortOrder: index }));
-    setTemplates(normalized);
+
     await fetch('/api/tasks/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalized)
+      body: JSON.stringify(updated)
     });
     await refreshTemplates();
     showSaved(nextActive ? 'Задача включена' : 'Задача выключена');
@@ -828,7 +911,25 @@ export default function SettingsPage() {
   const addReward = async () => {
     if (!rName.trim() || !rCost) return;
     const nextOrder = sortedRewards.reduce((max, reward) => Math.max(max, getRewardOrder(reward)), -1) + 1;
-    await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: settingsChildId, title: rName.trim(), description: rDesc || undefined, costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, image: rImage || undefined, active: true, sortOrderByChild: { [settingsChildId]: nextOrder } }) });
+    const targetChildId = settingsChildId === 'common' ? 'both' : settingsChildId;
+    const sortOrderByChild = settingsChildId === 'common'
+      ? { ali: nextOrder, said: nextOrder, both: nextOrder }
+      : { [settingsChildId]: nextOrder };
+    await fetch('/api/rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        childId: targetChildId,
+        title: rName.trim(),
+        description: rDesc || undefined,
+        costStars: parseFloat(rCost),
+        icon: rIcon,
+        iconStyle: rStyle,
+        image: rImage || undefined,
+        active: true,
+        sortOrderByChild
+      })
+    });
     resetReward();
     await refreshRewards();
     showSaved('Награда добавлена');
@@ -927,7 +1028,8 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const settings = await (await fetch('/api/settings')).json();
-      const childSettings = getChildSettings(settings, settingsChildId);
+      const refChildId = settingsChildId === 'common' ? 'ali' : settingsChildId;
+      const childSettings = getChildSettings(settings, refChildId);
       settings.systemPrompt = systemPrompt;
       settings.deepPrompt = deepPrompt;
       settings.openRouterUrl = openRouterUrl;
@@ -936,7 +1038,7 @@ export default function SettingsPage() {
       settings.aiLimit = parseInt(aiLimit) || 3;
       settings.aiEnabled = aiEnabled;
       settings.childSettings = settings.childSettings || {};
-      settings.childSettings[settingsChildId] = {
+      settings.childSettings[refChildId] = {
         ...childSettings,
         ai: {
           ...childSettings.ai,
@@ -965,7 +1067,7 @@ export default function SettingsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          childId: settingsChildId,
+          childId: settingsChildId === 'common' ? 'ali' : settingsChildId,
           aiPrefs: {
             enabled: aiEnabled,
             richMode: aiRichMode,
@@ -1021,7 +1123,7 @@ export default function SettingsPage() {
     } else {
       updated.push({
         id: `tpl-${Date.now()}`,
-        childId: settingsChildId,
+        childId: settingsChildId === 'common' ? 'both' : settingsChildId,
         title: newTitle.trim(),
         category: categoryId,
         customCategory,
@@ -1052,11 +1154,28 @@ export default function SettingsPage() {
   const moveTemplate = async (index: number, dir: -1 | 1) => {
     const newIndex = index + dir;
     if (newIndex < 0 || newIndex >= activeTemplates.length) return;
-    const reordered = [...activeTemplates];
-    [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
-    const inactive = templates.filter(template => !template.active);
-    const updated = [...reordered, ...inactive].map((template, nextIndex) => ({ ...template, sortOrder: nextIndex }));
-    await fetch('/api/tasks/templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) });
+
+    const allTemplatesRes = await fetch('/api/tasks/templates');
+    const allTemplates = await allTemplatesRes.json();
+    if (!Array.isArray(allTemplates)) return;
+
+    const reorderedActive = [...activeTemplates];
+    [reorderedActive[index], reorderedActive[newIndex]] = [reorderedActive[newIndex], reorderedActive[index]];
+
+    const activeOrderMap = new Map(reorderedActive.map((t, idx) => [t.id, idx]));
+
+    const updated = allTemplates.map((t: any) => {
+      if (activeOrderMap.has(t.id)) {
+        return { ...t, sortOrder: activeOrderMap.get(t.id) };
+      }
+      return t;
+    });
+
+    await fetch('/api/tasks/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
     await refreshTemplates();
   };
   const clearInactiveTemplates = async () => {
@@ -1106,10 +1225,12 @@ export default function SettingsPage() {
             <Bell size={18} />
           </button>
           <div className="bg-slate-100 rounded-xl p-1 flex">
-            {(['ali', 'said'] as const).map(id => (
-              <button key={id} onClick={() => setSettingsChildId(id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === id ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{id === 'ali' ? 'Али' : 'Саид'}</button>
-            ))}
+            <button onClick={() => setSettingsChildId('ali')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === 'ali' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Али</button>
+            <button onClick={() => setSettingsChildId('common')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === 'common' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Общий</button>
+            <button onClick={() => setSettingsChildId('said')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${settingsChildId === 'said' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Саид</button>
           </div>
         </div>
       </header>
@@ -1522,67 +1643,69 @@ export default function SettingsPage() {
         </AccordionSection>
 
         {/* УПРАВЛЕНИЕ ЗВЁЗДАМИ */}
-        <AccordionSection id="manual-stars" title="Управление звёздами" accentColor="border-t-4 border-t-amber-500"
-          icon={<Crown size={18} className="text-amber-500" />}>
-          <div className="space-y-4">
-            <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2">
-              <User size={16} className="text-blue-500" />
-              <p className="text-xs font-semibold text-blue-700">
-                Действие применится к профилю: <span className="font-extrabold">{childName}</span>
-              </p>
-            </div>
+        {settingsChildId !== 'common' && (
+          <AccordionSection id="manual-stars" title="Управление звёздами" accentColor="border-t-4 border-t-amber-500"
+            icon={<Crown size={18} className="text-amber-500" />}>
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2">
+                <User size={16} className="text-blue-500" />
+                <p className="text-xs font-semibold text-blue-700">
+                  Действие применится к профилю: <span className="font-extrabold">{childName}</span>
+                </p>
+              </div>
 
-            <div className="flex gap-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setManualOp('add')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'add' ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <Plus size={14} /> Начислить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualOp('subtract')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'subtract' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <X size={14} /> Списать
+                </button>
+              </div>
+
+              <div className="flex gap-2 flex-col sm:flex-row">
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  placeholder="Количество звёзд"
+                  value={manualStars}
+                  onChange={e => setManualStars(e.target.value)}
+                  className="w-full sm:w-36 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-amber-500 transition-all font-semibold text-sm bg-white"
+                />
+                <input
+                  type="text"
+                  placeholder="За какое действие? (Комментарий для истории)"
+                  value={manualReason}
+                  onChange={e => setManualReason(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 transition-all font-medium text-sm bg-white"
+                />
+              </div>
+
               <button
-                type="button"
-                onClick={() => setManualOp('add')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'add' ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                onClick={handleAwardStars}
+                disabled={isSubmittingManualStars}
+                className={`w-full py-2.5 rounded-xl font-bold text-xs text-white transition-all shadow-md flex items-center justify-center gap-1.5 ${manualOp === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50`}
               >
-                <Plus size={14} /> Начислить
-              </button>
-              <button
-                type="button"
-                onClick={() => setManualOp('subtract')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'subtract' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-              >
-                <X size={14} /> Списать
+                {isSubmittingManualStars ? (
+                  <>Обработка...</>
+                ) : (
+                  <>
+                    <Save size={14} /> {manualOp === 'add' ? 'Начислить звёзды' : 'Списать звёзды'}
+                  </>
+                )}
               </button>
             </div>
-
-            <div className="flex gap-2 flex-col sm:flex-row">
-              <input
-                type="number"
-                min="0.5"
-                step="0.5"
-                placeholder="Количество звёзд"
-                value={manualStars}
-                onChange={e => setManualStars(e.target.value)}
-                className="w-full sm:w-36 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-amber-500 transition-all font-semibold text-sm bg-white"
-              />
-              <input
-                type="text"
-                placeholder="За какое действие? (Комментарий для истории)"
-                value={manualReason}
-                onChange={e => setManualReason(e.target.value)}
-                className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 transition-all font-medium text-sm bg-white"
-              />
-            </div>
-
-            <button
-              onClick={handleAwardStars}
-              disabled={isSubmittingManualStars}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs text-white transition-all shadow-md flex items-center justify-center gap-1.5 ${manualOp === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50`}
-            >
-              {isSubmittingManualStars ? (
-                <>Обработка...</>
-              ) : (
-                <>
-                  <Save size={14} /> {manualOp === 'add' ? 'Начислить звёзды' : 'Списать звёзды'}
-                </>
-              )}
-            </button>
-          </div>
-        </AccordionSection>
+          </AccordionSection>
+        )}
 
         {/* 5. REWARDS */}
         <AccordionSection id="rewards" title="Награды" accentColor="border-t-4 border-t-purple-500"
@@ -1774,147 +1897,151 @@ export default function SettingsPage() {
         </AccordionSection>
 
         {/* 7. AI */}
-        <AccordionSection id="ai" title="Послание героя" accentColor="border-t-4 border-t-indigo-500"
-          icon={<Bot size={18} className="text-indigo-500" />}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100 md:col-span-2">
-              <div>
-                <p className="text-sm font-bold text-slate-700">OpenRouter</p>
-                <p className="text-xs text-slate-400">Включает реальный ответ модели</p>
+        {settingsChildId !== 'common' && (
+          <AccordionSection id="ai" title="Послание героя" accentColor="border-t-4 border-t-indigo-500"
+            icon={<Bot size={18} className="text-indigo-500" />}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100 md:col-span-2">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">OpenRouter</p>
+                  <p className="text-xs text-slate-400">Включает реальный ответ модели</p>
+                </div>
+                <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
               </div>
-              <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
-            </div>
-            <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100 md:col-span-2">
-              <div>
-                <p className="text-sm font-bold text-slate-700">Глубокий режим</p>
-                <p className="text-xs text-slate-400">Добавляет один дополнительный смысловой слой к ответу</p>
+              <div className="flex items-center justify-between gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100 md:col-span-2">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">Глубокий режим</p>
+                  <p className="text-xs text-slate-400">Добавляет один дополнительный смысловой слой к ответу</p>
+                </div>
+                <Switch checked={aiRichMode} onCheckedChange={setAiRichMode} />
               </div>
-              <Switch checked={aiRichMode} onCheckedChange={setAiRichMode} />
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">OpenRouter Base URL</label>
+                <input type="text" value={openRouterUrl} onChange={e => setOpenRouterUrl(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Модель</label>
+                <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Модель fallback</label>
+                <input type="text" value={aiModelFallback} onChange={e => setAiModelFallback(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Лимит посланий в день</label>
+                <input type="number" min="1" max="10" value={aiLimit} onChange={e => setAiLimit(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Системный промпт</label>
+                <textarea rows={3} value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Промпт глубокого режима</label>
+                <textarea rows={4} value={deepPrompt} onChange={e => setDeepPrompt(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">OpenRouter Base URL</label>
-              <input type="text" value={openRouterUrl} onChange={e => setOpenRouterUrl(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
+            <div className="flex flex-wrap gap-2">
+              <button onClick={saveAI} disabled={saving}
+                className="bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50">
+                {saving ? 'Сохранение...' : <><Save size={14} className="inline mr-1" />Сохранить</>}
+              </button>
+              <button onClick={testAiConnection} disabled={testingAiConnection}
+                className="bg-white border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors disabled:opacity-50">
+                {testingAiConnection ? 'Проверяем...' : <><Wifi size={14} className="inline mr-1" />Проверить связь</>}
+              </button>
+              {aiConnectionStatus && <div className="text-xs font-medium text-slate-500 self-center">{aiConnectionStatus}</div>}
+              <button onClick={async () => {
+                const today = new Date().toISOString().split('T')[0];
+                await fetch(`/api/ai/hero-message`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ childId: settingsChildId, childName: childName, mode: 'full', tasks: [], resetCounter: true })
+                });
+                showSaved('Счётчик сброшен');
+              }}
+                className="bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-orange-200 transition-colors">
+                🔄 Сбросить счётчик
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Модель</label>
-              <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Модель fallback</label>
-              <input type="text" value={aiModelFallback} onChange={e => setAiModelFallback(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Лимит посланий в день</label>
-              <input type="number" min="1" max="10" value={aiLimit} onChange={e => setAiLimit(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Системный промпт</label>
-              <textarea rows={3} value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Промпт глубокого режима</label>
-              <textarea rows={4} value={deepPrompt} onChange={e => setDeepPrompt(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-medium text-sm resize-none" />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={saveAI} disabled={saving}
-              className="bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50">
-              {saving ? 'Сохранение...' : <><Save size={14} className="inline mr-1" />Сохранить</>}
-            </button>
-            <button onClick={testAiConnection} disabled={testingAiConnection}
-              className="bg-white border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors disabled:opacity-50">
-              {testingAiConnection ? 'Проверяем...' : <><Wifi size={14} className="inline mr-1" />Проверить связь</>}
-            </button>
-            {aiConnectionStatus && <div className="text-xs font-medium text-slate-500 self-center">{aiConnectionStatus}</div>}
-            <button onClick={async () => {
-              const today = new Date().toISOString().split('T')[0];
-              await fetch(`/api/ai/hero-message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ childId: settingsChildId, childName: childName, mode: 'full', tasks: [], resetCounter: true })
-              });
-              showSaved('Счётчик сброшен');
-            }}
-              className="bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-orange-200 transition-colors">
-              🔄 Сбросить счётчик
-            </button>
-          </div>
-        </AccordionSection>
+          </AccordionSection>
+        )}
 
         {/* 8. INTERFACE */}
-        <AccordionSection id="interface" title="Интерфейс" accentColor="border-t-4 border-t-teal-500"
-          icon={<User size={18} className="text-teal-500" />}>
-          <div className="space-y-4">
-            {(['ali', 'said'] as const).map(id => {
-              const isAli = id === 'ali';
-              const avatar = isAli ? avatarAli : avatarSaid;
-              const label = isAli ? 'Али' : 'Саид';
-              const childGradesEnabled = settingsData ? getChildSettings(settingsData, id).gradesEnabled : (id === 'ali');
-              return (
-                <div key={id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      {avatar ? (
-                        <img src={avatar} alt={label} className="w-14 h-14 rounded-full object-cover border-2 border-slate-200" />
-                      ) : (
-                        <div className="w-14 h-14 bg-blue-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
-                          {isAli ? 'А' : 'С'}
-                        </div>
-                      )}
+        {settingsChildId !== 'common' && (
+          <AccordionSection id="interface" title="Интерфейс" accentColor="border-t-4 border-t-teal-500"
+            icon={<User size={18} className="text-teal-500" />}>
+            <div className="space-y-4">
+              {(['ali', 'said'] as const).map(id => {
+                const isAli = id === 'ali';
+                const avatar = isAli ? avatarAli : avatarSaid;
+                const label = isAli ? 'Али' : 'Саид';
+                const childGradesEnabled = settingsData ? getChildSettings(settingsData, id).gradesEnabled : (id === 'ali');
+                return (
+                  <div key={id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        {avatar ? (
+                          <img src={avatar} alt={label} className="w-14 h-14 rounded-full object-cover border-2 border-slate-200" />
+                        ) : (
+                          <div className="w-14 h-14 bg-blue-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                            {isAli ? 'А' : 'С'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-700">{label}</p>
+                        <p className="text-xs text-slate-400 mb-2">Фото профиля</p>
+                        <label className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-300 cursor-pointer transition-colors">
+                          <Camera size={14} />
+                          {avatar ? 'Изменить' : 'Загрузить'}
+                          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
+                            const reader = new FileReader();
+                            reader.onload = async (ev) => {
+                              const dataUrl = ev.target?.result as string;
+                              if (isAli) setAvatarAli(dataUrl); else setAvatarSaid(dataUrl);
+                              await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: dataUrl }) });
+                              showSaved(`Фото ${label} обновлено`);
+                            };
+                            reader.readAsDataURL(file);
+                          }} />
+                        </label>
+                        {avatar && (
+                          <button onClick={async () => {
+                            if (isAli) setAvatarAli(null); else setAvatarSaid(null);
+                            await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: null }) });
+                            showSaved(`Фото ${label} удалено`);
+                          }} className="ml-2 text-xs text-red-400 hover:text-red-600 font-medium">Удалить</button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-700">{label}</p>
-                      <p className="text-xs text-slate-400 mb-2">Фото профиля</p>
-                      <label className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-300 cursor-pointer transition-colors">
-                        <Camera size={14} />
-                        {avatar ? 'Изменить' : 'Загрузить'}
-                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
-                          const reader = new FileReader();
-                          reader.onload = async (ev) => {
-                            const dataUrl = ev.target?.result as string;
-                            if (isAli) setAvatarAli(dataUrl); else setAvatarSaid(dataUrl);
-                            await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: dataUrl }) });
-                            showSaved(`Фото ${label} обновлено`);
-                          };
-                          reader.readAsDataURL(file);
-                        }} />
-                      </label>
-                      {avatar && (
-                        <button onClick={async () => {
-                          if (isAli) setAvatarAli(null); else setAvatarSaid(null);
-                          await fetch('/api/children', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, avatarUrl: null }) });
-                          showSaved(`Фото ${label} удалено`);
-                        }} className="ml-2 text-xs text-red-400 hover:text-red-600 font-medium">Удалить</button>
-                      )}
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-bold text-slate-700">Показывать оценки</p>
+                      </div>
+                      <Switch
+                        checked={childGradesEnabled}
+                        onCheckedChange={async (checked) => {
+                          if (id === settingsChildId) setGradesEnabled(checked);
+                          await saveChildGradesEnabled(id, checked);
+                          showSaved(`${label}: оценки ${checked ? 'включены' : 'скрыты'}`);
+                        }}
+                      />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">Показывать оценки</p>
-                    </div>
-                    <Switch
-                      checked={childGradesEnabled}
-                      onCheckedChange={async (checked) => {
-                        if (id === settingsChildId) setGradesEnabled(checked);
-                        await saveChildGradesEnabled(id, checked);
-                        showSaved(`${label}: оценки ${checked ? 'включены' : 'скрыты'}`);
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </AccordionSection>
+                );
+              })}
+            </div>
+          </AccordionSection>
+        )}
 
         {/* 9. SYSTEM */}
         <AccordionSection id="system" title="Система" accentColor="border-t-4 border-t-slate-500"

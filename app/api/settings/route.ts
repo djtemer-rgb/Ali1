@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 import { defaultChildSettings, defaultGradeToStars, defaultSubjects, getChildSettings, normalizeAiPrefs, normalizeGradeToStars, normalizeNotificationPrefs, normalizeSubjects, normalizeTaskCategories } from '@/app/lib/settings-shared';
 
+export const dynamic = 'force-dynamic';
+
 const SETTINGS_KEY = 'aq:settings';
 const GRADES_LAYER_SETTINGS_VERSION = 1;
 

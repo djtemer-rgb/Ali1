@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 
+export const dynamic = 'force-dynamic';
+
 const CHILDREN_KEY = 'aq:children';
 
 const DEFAULT_CHILDREN = [

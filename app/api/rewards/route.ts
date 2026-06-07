@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 import { invalidateReportCache } from '../report-cache';
 
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_REWARDS = [
   {
     id: 'reward-1',
