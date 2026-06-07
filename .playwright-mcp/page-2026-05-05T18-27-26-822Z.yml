@@ -1,0 +1,32 @@
+- generic [active] [ref=e2]:
+  - generic [ref=e20]:
+    - banner [ref=e21]:
+      - generic [ref=e22]:
+        - img [ref=e24]
+        - generic [ref=e27]:
+          - heading "Родительская зона" [level=1] [ref=e28]
+          - paragraph [ref=e29]: Управляй настройками и следи за прогрессом
+      - button "Выйти" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Выйти
+    - main [ref=e34]:
+      - generic [ref=e35]:
+        - heading "Добро пожаловать, Родитель!" [level=2] [ref=e36]
+        - paragraph [ref=e37]: Здесь будет Inbox с событиями и уведомлениями.
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - heading "Настройки" [level=3] [ref=e40]
+            - paragraph [ref=e41]: Настрой задачи, оценки, награды
+            - link "Перейти" [ref=e42] [cursor=pointer]:
+              - /url: /settings
+          - generic [ref=e43]:
+            - heading "Отчеты" [level=3] [ref=e44]
+            - paragraph [ref=e45]: Посмотри прогресс детей
+            - link "Перейти" [ref=e46] [cursor=pointer]:
+              - /url: /reports
+          - generic [ref=e47]:
+            - heading "Inbox" [level=3] [ref=e48]
+            - paragraph [ref=e49]: События и уведомления
+            - link "Открыть" [ref=e50] [cursor=pointer]:
+              - /url: /parent/inbox
+  - alert [ref=e1]

@@ -1,0 +1,40 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: А
+        - generic [ref=e6]:
+          - generic [ref=e7]: Привет,
+          - button "Али!" [ref=e9] [cursor=pointer]:
+            - generic [ref=e10]: Али!
+            - img [ref=e11]
+      - generic [ref=e13]:
+        - button "0" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+          - text: "0"
+        - button "Войти" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+    - navigation [ref=e21]:
+      - link "Главная" [ref=e22] [cursor=pointer]:
+        - /url: /
+        - img [ref=e23]
+        - text: Главная
+      - link "Оценки" [ref=e26] [cursor=pointer]:
+        - /url: /grades
+        - img [ref=e27]
+        - text: Оценки
+      - link "Отчёты" [ref=e29] [cursor=pointer]:
+        - /url: /reports
+        - img [ref=e30]
+        - text: Отчёты
+      - button "Послание героя (3)" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - text: Послание героя (3)
+    - main [ref=e37]:
+      - heading "🚀 Задачи на сегодня" [level=2] [ref=e39]:
+        - generic [ref=e40]: 🚀
+        - text: Задачи на сегодня
+      - heading "🎁 Магазин наград" [level=2] [ref=e46]:
+        - generic [ref=e47]: 🎁
+        - text: Магазин наград
+  - alert [ref=e52]

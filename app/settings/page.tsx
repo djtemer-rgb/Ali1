@@ -114,6 +114,12 @@ export default function SettingsPage() {
   const [pin1, setPin1] = useState(''); const [pin2, setPin2] = useState(''); const [recovery, setRecovery] = useState('');
   const [pinStatus, setPinStatus] = useState({ hasPin1: false, hasPin2: false, hasRecovery: false });
 
+  // Manual stars
+  const [manualStars, setManualStars] = useState('');
+  const [manualReason, setManualReason] = useState('');
+  const [manualOp, setManualOp] = useState<'add' | 'subtract'>('add');
+  const [isSubmittingManualStars, setIsSubmittingManualStars] = useState(false);
+
   // AI
   const [aiEnabled, setAiEnabled] = useState(true);
   const [aiRichMode, setAiRichMode] = useState(true);
@@ -810,6 +816,49 @@ export default function SettingsPage() {
   const removeReward = async (id: string) => { await fetch(`/api/rewards?id=${id}`, { method: 'DELETE' }); await refreshRewards(); showSaved('Награда удалена'); };
   const resetReward = () => { setRName(''); setRCost(''); setRDesc(''); setRIcon('🎁'); setRStyle('color'); setRImage(null); setEditId(null); };
 
+  const handleAwardStars = async () => {
+    const amount = parseFloat(manualStars);
+    if (Number.isNaN(amount) || amount <= 0) {
+      showSaved('Введите корректное число звёзд');
+      return;
+    }
+    const cleanReason = manualReason.trim();
+    if (!cleanReason) {
+      showSaved('Введите комментарий');
+      return;
+    }
+
+    const finalAmount = manualOp === 'add' ? amount : -amount;
+
+    setIsSubmittingManualStars(true);
+    try {
+      const res = await fetch('/api/star-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: settingsChildId,
+          amount: finalAmount,
+          source: 'manual',
+          reason: cleanReason
+        })
+      });
+
+      if (res.ok) {
+        const childName = settingsChildId === 'ali' ? 'Али' : 'Саида';
+        showSaved(`Успешно ${manualOp === 'add' ? 'начислено' : 'списано'} ${amount} ⭐ для ${childName}`);
+        setManualStars('');
+        setManualReason('');
+      } else {
+        showSaved('Ошибка при обновлении баланса звёзд');
+      }
+    } catch (e) {
+      console.error(e);
+      showSaved('Ошибка сети');
+    } finally {
+      setIsSubmittingManualStars(false);
+    }
+  };
+
   // PIN
   const savePin = async (slot: number, val: string) => {
     if (val.length < 4) return;
@@ -1420,6 +1469,69 @@ export default function SettingsPage() {
               </div>
             )}
             <button onClick={saveEconomy} className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить экономику</button>
+          </div>
+        </AccordionSection>
+
+        {/* УПРАВЛЕНИЕ ЗВЁЗДАМИ */}
+        <AccordionSection id="manual-stars" title="Управление звёздами" accentColor="border-t-4 border-t-amber-500"
+          icon={<Crown size={18} className="text-amber-500" />}>
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2">
+              <User size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-blue-700">
+                Действие применится к профилю: <span className="font-extrabold">{childName}</span>
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setManualOp('add')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'add' ? 'bg-green-500 text-white border-green-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+              >
+                <Plus size={14} /> Начислить
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualOp('subtract')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1 ${manualOp === 'subtract' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+              >
+                <X size={14} /> Списать
+              </button>
+            </div>
+
+            <div className="flex gap-2 flex-col sm:flex-row">
+              <input
+                type="number"
+                min="0.5"
+                step="0.5"
+                placeholder="Количество звёзд"
+                value={manualStars}
+                onChange={e => setManualStars(e.target.value)}
+                className="w-full sm:w-36 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-amber-500 transition-all font-semibold text-sm bg-white"
+              />
+              <input
+                type="text"
+                placeholder="За какое действие? (Комментарий для истории)"
+                value={manualReason}
+                onChange={e => setManualReason(e.target.value)}
+                className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-amber-500 transition-all font-medium text-sm bg-white"
+              />
+            </div>
+
+            <button
+              onClick={handleAwardStars}
+              disabled={isSubmittingManualStars}
+              className={`w-full py-2.5 rounded-xl font-bold text-xs text-white transition-all shadow-md flex items-center justify-center gap-1.5 ${manualOp === 'add' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50`}
+            >
+              {isSubmittingManualStars ? (
+                <>Обработка...</>
+              ) : (
+                <>
+                  <Save size={14} /> {manualOp === 'add' ? 'Начислить звёзды' : 'Списать звёзды'}
+                </>
+              )}
+            </button>
           </div>
         </AccordionSection>
 

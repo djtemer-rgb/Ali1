@@ -70,7 +70,7 @@ export default function StarHistoryModal({ childId, open, onClose }: { childId: 
                       {getIcon(item.source)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-slate-700 truncate">{item.reason}</p>
+                      <p className="text-xs font-medium text-slate-700 break-words leading-tight">{item.reason}</p>
                       <p className="text-[10px] text-slate-400">{formatDate(item.createdAt)}</p>
                     </div>
                     <div className={`text-xs font-extrabold shrink-0 ${item.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>

@@ -1,0 +1,154 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - text: 
+    - text: 
+  - generic [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e9]: Объекты
+      - generic "Общий поиск" [ref=e11]:
+        - textbox "Общий поиск" [ref=e12]
+        - text:  
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - link [ref=e17] [cursor=pointer]:
+            - /url: /userrating/all
+        - listitem [ref=e20]:
+          - generic [ref=e24] [cursor=pointer]: 
+          - text:  
+        - listitem [ref=e25]:
+          - generic "Создать заявку через режим подбора" [ref=e26] [cursor=pointer]:
+            - generic [ref=e28]: +
+        - listitem [ref=e29]:
+          - link " Интранет" [ref=e30] [cursor=pointer]:
+            - /url: "#Intranet"
+            - generic [ref=e32]: 
+            - generic [ref=e33]: Интранет
+        - listitem [ref=e34]:
+          - generic [ref=e35] [cursor=pointer]:
+            - img [ref=e37]
+            - generic [ref=e38]: Приложения
+          - text: 
+        - listitem [ref=e39]:
+          - generic [ref=e42] [cursor=pointer]: 
+        - listitem [ref=e43]:
+          - img [ref=e46] [cursor=pointer]
+        - listitem [ref=e47]:
+          - generic [ref=e52] [cursor=pointer]: 
+        - listitem [ref=e53]:
+          - generic [ref=e56] [cursor=pointer]: 
+        - listitem [ref=e57]:
+          - link [ref=e58] [cursor=pointer]:
+            - /url: //www.intrumnet.com/wiki/
+            - img [ref=e60]
+        - listitem [ref=e61]:
+          - link "Поддержка" [ref=e62] [cursor=pointer]:
+            - /url: /WiKi/externallink.php?link=aHR0cDovL3d3dy5pbnRydW1uZXQuY29tL3dpa2kvP2lkPTky
+            - img [ref=e64]
+            - generic [ref=e65]: Поддержка
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - link "avatar" [ref=e69] [cursor=pointer]:
+          - /url: "#UserProfile-7"
+          - img "avatar" [ref=e70]
+        - text:  
+      - generic:
+        - generic:
+          - generic "Рабочий стол":
+            - generic: "8"
+        - generic:
+          - generic "Контакты": +
+        - generic:
+          - generic "Объекты": +
+          - text: +
+        - generic:
+          - generic "Заявки": +
+          - text: + +
+        - generic:
+          - generic "Дополнительно": +
+          - text: + +
+        - generic:
+          - link "Онлайн-формы":
+            - /url: "#OnlineForms"
+        - generic:
+          - generic "Задачи": +
+        - generic:
+          - generic "Документы"
+        - generic:
+          - link "Сотрудники":
+            - /url: "#CompanyStructure"
+        - text: +
+        - generic:
+          - generic "ещё"
+      - generic [ref=e71] [cursor=pointer]: ▲
+      - generic [ref=e72] [cursor=pointer]: ▼
+    - generic:
+      - generic:
+        - generic [ref=e74]:
+          - generic [ref=e76]: 
+          - generic [ref=e77]: Уведомления помогут вам не пропустить важное сообщение от коллеги или руководителя
+          - button "Включить уведомления" [ref=e79] [cursor=pointer]
+          - generic [ref=e82] [cursor=pointer]: 
+        - generic:
+          - generic: 
+    - table [ref=e84]:
+      - rowgroup [ref=e85]:
+        - row " " [ref=e86]:
+          - cell " " [ref=e87]:
+            - generic [ref=e88]:
+              - generic "Прокрутка списка вверх" [ref=e89] [cursor=pointer]:
+                - generic [ref=e90]: 
+              - generic "Прокрутка списка вниз" [ref=e91] [cursor=pointer]:
+                - generic [ref=e92]: 
+          - cell [ref=e94]: 
+    - text: 
+  - text:  ... ... ... ...                             CRM     
+  - list [ref=e98]:
+    - listitem [ref=e99]:
+      - list [ref=e100]:
+        - listitem "Лента" [ref=e101] [cursor=pointer]:
+          - img [ref=e103]
+          - text: "0"
+    - listitem [ref=e104]:
+      - list [ref=e105]:
+        - listitem "Органайзер" [ref=e106] [cursor=pointer]:
+          - generic [ref=e108]: 
+          - text: 0 0 0
+    - listitem [ref=e109]:
+      - list [ref=e110]:
+        - listitem "Заметки" [ref=e111] [cursor=pointer]:
+          - generic [ref=e113]: 
+          - text: "0"
+    - listitem [ref=e114]:
+      - list [ref=e115]:
+        - listitem [ref=e116]: Сообщения
+        - listitem "Мамедов Заур" [ref=e117] [cursor=pointer]: 0 0
+    - listitem [ref=e120]:
+      - list [ref=e121]:
+        - listitem [ref=e122]: Груп. чат
+        - listitem "Создать" [ref=e123] [cursor=pointer]:
+          - generic [ref=e125]: 
+          - text: 0 0
+    - listitem [ref=e126]:
+      - list [ref=e127]:
+        - listitem "Внешние диалоги" [ref=e128] [cursor=pointer]:
+          - img [ref=e130]
+          - text: 0 0
+    - listitem [ref=e131]:
+      - list [ref=e132]:
+        - listitem "Ипотечный калькулятор" [ref=e133] [cursor=pointer]:
+          - img [ref=e135]
+          - text: "0"
+        - listitem "Реклама на доски объявлений" [ref=e136] [cursor=pointer]:
+          - img [ref=e138]
+          - text: "0"
+        - listitem "Отчёты по данным ЕГРН, оценка юр. рисков, проверка по базам" [ref=e139] [cursor=pointer]:
+          - img [ref=e141]
+          - text: "0"
+      - generic [ref=e142] [cursor=pointer]: Ещё
+    - listitem [ref=e143]:
+      - list [ref=e144]:
+        - listitem [ref=e145]: Робот
+        - listitem "Уведомления робота" [ref=e146] [cursor=pointer]:
+          - generic [ref=e148]: 
+          - text: 0 0
+    - listitem: "0"

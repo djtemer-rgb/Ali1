@@ -1,0 +1,155 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: А
+        - generic [ref=e7]:
+          - generic [ref=e8]: Привет,
+          - generic [ref=e9]:
+            - button "Али!" [active] [ref=e10] [cursor=pointer]:
+              - generic [ref=e11]: Али!
+              - img [ref=e12]
+            - button "Саид" [ref=e177] [cursor=pointer]
+      - generic [ref=e14]:
+        - button "-2.5" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: "-2.5"
+        - button "Войти" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+    - navigation [ref=e22]:
+      - link "Главная" [ref=e23] [cursor=pointer]:
+        - /url: /
+        - img [ref=e24]
+        - text: Главная
+      - link "Оценки" [ref=e27] [cursor=pointer]:
+        - /url: /grades
+        - img [ref=e28]
+        - text: Оценки
+      - link "Отчёты" [ref=e30] [cursor=pointer]:
+        - /url: /reports
+        - img [ref=e31]
+        - text: Отчёты
+      - button "Послание героя (3)" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - text: Послание героя (3)
+    - main [ref=e38]:
+      - generic [ref=e39]:
+        - heading "🚀 Задачи на сегодня" [level=2] [ref=e40]:
+          - generic [ref=e41]: 🚀
+          - text: Задачи на сегодня
+        - generic [ref=e42]:
+          - generic [ref=e43] [cursor=pointer]:
+            - button "Задача выполнена" [ref=e44]:
+              - img [ref=e45]
+            - 'button "Прочитать 10 страниц Сложность: Нормально reading" [ref=e47]':
+              - generic [ref=e49]:
+                - generic [ref=e50]: Прочитать 10 страниц
+                - generic [ref=e51]: "Сложность: Нормально"
+                - generic [ref=e52]: reading
+            - generic [ref=e54]:
+              - text: "+2"
+              - img [ref=e55]
+          - generic [ref=e57] [cursor=pointer]:
+            - button "Задача выполнена" [ref=e58]:
+              - img [ref=e59]
+            - button "Собрать портфель order" [ref=e61]:
+              - generic [ref=e63]:
+                - generic [ref=e64]: Собрать портфель
+                - generic [ref=e65]: order
+            - generic [ref=e67]:
+              - text: "+1"
+              - img [ref=e68]
+          - generic [ref=e70] [cursor=pointer]:
+            - button "Задача выполнена" [ref=e71]:
+              - img [ref=e72]
+            - 'button "Тестовая задача smoke 160306 Сложность: Нормально Тестовый раздел smoke 160306" [ref=e74]':
+              - generic [ref=e76]:
+                - generic [ref=e77]: Тестовая задача smoke 160306
+                - generic [ref=e78]: "Сложность: Нормально"
+                - generic [ref=e79]: Тестовый раздел smoke 160306
+            - generic [ref=e81]:
+              - text: "+1.5"
+              - img [ref=e82]
+      - generic [ref=e84]:
+        - heading "📅 Расписание" [level=2] [ref=e85]:
+          - generic [ref=e86]: 📅
+          - text: Расписание
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - generic [ref=e90]: Тренировка
+            - generic [ref=e91]:
+              - generic [ref=e92]: Ср
+              - generic [ref=e93]: 6 мая
+            - generic [ref=e94]: +3 ⭐
+          - generic [ref=e95]:
+            - generic [ref=e97]: Прочитать 10 страниц
+            - generic [ref=e98]:
+              - generic [ref=e99]: Сегодня
+              - generic [ref=e100]: 5 мая
+            - generic [ref=e101]: +2 ⭐
+          - generic [ref=e102]:
+            - generic [ref=e104]: Собрать портфель
+            - generic [ref=e105]:
+              - generic [ref=e106]: Сегодня
+              - generic [ref=e107]: 5 мая
+            - generic [ref=e108]: +1 ⭐
+          - generic [ref=e109]:
+            - generic [ref=e111]: Убраться в комнате
+            - generic [ref=e112]:
+              - generic [ref=e113]: Ср
+              - generic [ref=e114]: 6 мая
+            - generic [ref=e115]: +2 ⭐
+          - generic [ref=e116]:
+            - generic [ref=e118]: Тестовая задача smoke 160306
+            - generic [ref=e119]:
+              - generic [ref=e120]: Сегодня
+              - generic [ref=e121]: 5 мая
+            - generic [ref=e122]: +1.5 ⭐
+      - generic [ref=e123]:
+        - heading "🎁 Магазин наград" [level=2] [ref=e124]:
+          - generic [ref=e125]: 🎁
+          - text: Магазин наград
+        - generic [ref=e126]:
+          - generic [ref=e127] [cursor=pointer]:
+            - heading "🎁 Награда smoke B 160306" [level=3] [ref=e128]
+            - paragraph [ref=e129]: Описание Награда smoke B 160306
+            - generic [ref=e131]:
+              - text: "+3"
+              - img [ref=e132]
+          - generic [ref=e134] [cursor=pointer]:
+            - heading "🎁 Награда smoke A 160306" [level=3] [ref=e135]
+            - paragraph [ref=e136]: Описание Награда smoke A 160306
+            - generic [ref=e138]:
+              - text: "+2"
+              - img [ref=e139]
+          - generic [ref=e141] [cursor=pointer]:
+            - heading "🎮 1 час видеоигр" [level=3] [ref=e142]
+            - paragraph [ref=e143]: Можно играть 1 час в любимые игры
+            - generic [ref=e145]:
+              - text: "+10"
+              - img [ref=e146]
+          - generic [ref=e148] [cursor=pointer]:
+            - heading "🎬 Поход в кино" [level=3] [ref=e149]
+            - paragraph [ref=e150]: Поход в кинотеатр на любой фильм
+            - generic [ref=e152]:
+              - text: "+50"
+              - img [ref=e153]
+          - generic [ref=e155] [cursor=pointer]:
+            - heading "🧱 Новое Лего" [level=3] [ref=e156]
+            - paragraph [ref=e157]: Покупка нового набора Лего
+            - generic [ref=e159]:
+              - text: "+200"
+              - img [ref=e160]
+          - generic [ref=e162] [cursor=pointer]:
+            - heading "🚴 Парк" [level=3] [ref=e163]
+            - paragraph [ref=e164]: Катание на велосипеде в Мещерском лесу.
+            - generic [ref=e166]:
+              - text: "+30"
+              - img [ref=e167]
+          - generic [ref=e169] [cursor=pointer]:
+            - heading "🎁 Браузерная награда smoke" [level=3] [ref=e170]
+            - paragraph [ref=e171]: Награда для browser smoke
+            - generic [ref=e173]:
+              - text: "+0.5"
+              - img [ref=e174]
+  - alert [ref=e1]

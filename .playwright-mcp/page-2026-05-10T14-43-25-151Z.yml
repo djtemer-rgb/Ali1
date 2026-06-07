@@ -1,0 +1,18 @@
+- generic [ref=e7]:
+  - generic [ref=e9]:
+    - img [ref=e11]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Логин или email
+        - textbox "Логин" [active] [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]: Пароль
+        - textbox "Пароль" [ref=e20]
+      - button "Войти" [ref=e23] [cursor=pointer]
+      - link "Забыли пароль ?" [ref=e27] [cursor=pointer]:
+        - /url: /employeescontroller/restore/
+  - generic [ref=e28]:
+    - link "Техническая поддержка" [ref=e29] [cursor=pointer]:
+      - /url: https://www.intrumnet.com/wiki/tehnicheskaia_podderzhka-92
+    - link "Помощь" [ref=e30] [cursor=pointer]:
+      - /url: https://www.intrumnet.com/wiki/

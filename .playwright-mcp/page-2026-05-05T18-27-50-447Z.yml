@@ -1,0 +1,246 @@
+- generic [active] [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Входящие" [level=1] [ref=e6]
+        - paragraph [ref=e7]: События и уведомления
+      - generic [ref=e8]:
+        - button "✓ Прочитать все" [ref=e9] [cursor=pointer]
+        - button "Назад" [ref=e10] [cursor=pointer]
+    - main [ref=e11]:
+      - generic [ref=e12]:
+        - button "Все" [ref=e13] [cursor=pointer]
+        - button "Непрочитанные" [ref=e14] [cursor=pointer]
+        - button "Все дети" [ref=e15] [cursor=pointer]
+        - button "Али" [ref=e16] [cursor=pointer]
+        - button "Саид" [ref=e17] [cursor=pointer]
+      - generic [ref=e18]:
+        - generic [ref=e316]:
+          - generic [ref=e317]:
+            - generic [ref=e318]:
+              - generic [ref=e319]: Саид
+              - generic [ref=e320]: Система
+            - heading "Награда подтверждена" [level=3] [ref=e322]
+            - paragraph [ref=e323]: "Саид подтвердил награду: Тестовая награда A smoke (-1 ⭐)"
+            - paragraph [ref=e324]: 05.05.2026, 21:27:49
+          - generic [ref=e325]:
+            - button "Отметить прочитанным" [ref=e326] [cursor=pointer]:
+              - img [ref=e327]
+            - button "Удалить" [ref=e329] [cursor=pointer]:
+              - img [ref=e330]
+        - generic [ref=e334]:
+          - generic [ref=e335]:
+            - generic [ref=e336]:
+              - generic [ref=e337]: Саид
+              - generic [ref=e338]: Награда выбрана
+            - heading "Награда выбрана" [level=3] [ref=e340]
+            - paragraph [ref=e341]: "Саид выбрал награду: Тестовая награда A smoke (-1 ⭐)"
+            - generic [ref=e343]:
+              - generic [ref=e344]: Тестовая награда A smoke
+              - generic [ref=e345]:
+                - img [ref=e346]
+                - text: "-1"
+              - generic [ref=e348]: Резерв
+            - generic [ref=e349]:
+              - button "Подтвердить" [ref=e350] [cursor=pointer]:
+                - img [ref=e351]
+                - text: Подтвердить
+              - button "Отменить" [ref=e354] [cursor=pointer]:
+                - img [ref=e355]
+                - text: Отменить
+            - paragraph [ref=e358]: 05.05.2026, 21:26:58
+          - generic [ref=e359]:
+            - button "Отметить прочитанным" [ref=e360] [cursor=pointer]:
+              - img [ref=e361]
+            - button "Удалить" [ref=e363] [cursor=pointer]:
+              - img [ref=e364]
+        - generic [ref=e368]:
+          - generic [ref=e369]:
+            - generic [ref=e370]:
+              - generic [ref=e371]: Саид
+              - generic [ref=e372]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e374]
+            - paragraph [ref=e375]: "Саид выполнил задачу: Тестовая задача smoke"
+            - generic [ref=e376]:
+              - generic [ref=e377]:
+                - generic [ref=e378]: "Сложность: Нормально"
+                - generic [ref=e379]: +1.5 ⭐
+                - generic [ref=e380]: "Категория: Тестовый раздел"
+              - paragraph [ref=e381]: "Подзадачи: Шаг 1 • Шаг 2"
+              - group [ref=e382]:
+                - generic "Показать подзадачи" [ref=e383] [cursor=pointer]
+            - paragraph [ref=e384]: 05.05.2026, 21:26:42
+          - generic [ref=e385]:
+            - button "Отметить прочитанным" [ref=e386] [cursor=pointer]:
+              - img [ref=e387]
+            - button "Удалить" [ref=e389] [cursor=pointer]:
+              - img [ref=e390]
+        - generic [ref=e394]:
+          - generic [ref=e395]:
+            - generic [ref=e396]:
+              - generic [ref=e397]: Али
+              - generic [ref=e398]: Оценка добавлена
+            - heading "Оценка добавлена" [level=3] [ref=e400]
+            - paragraph [ref=e401]: Али получил оценку 2 по предмету Браузерный smoke (-5 ⭐)
+            - paragraph [ref=e402]: 05.05.2026, 21:21:47
+          - generic [ref=e403]:
+            - button "Отметить прочитанным" [ref=e404] [cursor=pointer]:
+              - img [ref=e405]
+            - button "Удалить" [ref=e407] [cursor=pointer]:
+              - img [ref=e408]
+        - generic [ref=e412]:
+          - generic [ref=e413]:
+            - generic [ref=e414]:
+              - generic [ref=e415]: Али
+              - generic [ref=e416]: Награда выбрана
+            - heading "Награда выбрана" [level=3] [ref=e418]
+            - paragraph [ref=e419]: "Али выбрал награду: 1 час видеоигр"
+            - generic [ref=e422]: 1 час видеоигр
+            - generic [ref=e423]:
+              - button "Подтвердить" [ref=e424] [cursor=pointer]:
+                - img [ref=e425]
+                - text: Подтвердить
+              - button "Отменить" [ref=e428] [cursor=pointer]:
+                - img [ref=e429]
+                - text: Отменить
+            - paragraph [ref=e432]: 05.05.2026, 20:50:55
+          - generic [ref=e433]:
+            - button "Отметить прочитанным" [ref=e434] [cursor=pointer]:
+              - img [ref=e435]
+            - button "Удалить" [ref=e437] [cursor=pointer]:
+              - img [ref=e438]
+        - generic [ref=e442]:
+          - generic [ref=e443]:
+            - generic [ref=e444]:
+              - generic [ref=e445]: Али
+              - generic [ref=e446]: Награда выбрана
+            - heading "Награда выбрана" [level=3] [ref=e448]
+            - paragraph [ref=e449]: "Али выбрал награду: Поход в кино"
+            - generic [ref=e452]: Поход в кино
+            - generic [ref=e453]:
+              - button "Подтвердить" [ref=e454] [cursor=pointer]:
+                - img [ref=e455]
+                - text: Подтвердить
+              - button "Отменить" [ref=e458] [cursor=pointer]:
+                - img [ref=e459]
+                - text: Отменить
+            - paragraph [ref=e462]: 05.05.2026, 20:50:54
+          - generic [ref=e463]:
+            - button "Отметить прочитанным" [ref=e464] [cursor=pointer]:
+              - img [ref=e465]
+            - button "Удалить" [ref=e467] [cursor=pointer]:
+              - img [ref=e468]
+        - generic [ref=e472]:
+          - generic [ref=e473]:
+            - generic [ref=e474]:
+              - generic [ref=e475]: Али
+              - generic [ref=e476]: Оценка добавлена
+            - heading "Оценка добавлена" [level=3] [ref=e478]
+            - paragraph [ref=e479]: Али получил оценку 5 по предмету Физкультура (+5 ⭐)
+            - paragraph [ref=e480]: 05.05.2026, 20:50:43
+          - generic [ref=e481]:
+            - button "Отметить прочитанным" [ref=e482] [cursor=pointer]:
+              - img [ref=e483]
+            - button "Удалить" [ref=e485] [cursor=pointer]:
+              - img [ref=e486]
+        - generic [ref=e490]:
+          - generic [ref=e491]:
+            - generic [ref=e492]:
+              - generic [ref=e493]: Али
+              - generic [ref=e494]: День завершен
+            - heading "День завершён" [level=3] [ref=e495]
+            - paragraph [ref=e496]: Али выполнил все задачи на сегодня! 🎉
+            - paragraph [ref=e497]: 05.05.2026, 17:08:59
+          - button "Удалить" [ref=e499] [cursor=pointer]:
+            - img [ref=e500]
+        - generic [ref=e504]:
+          - generic [ref=e505]:
+            - generic [ref=e506]:
+              - generic [ref=e507]: Али
+              - generic [ref=e508]: Оценка добавлена
+            - heading "Оценка добавлена" [level=3] [ref=e509]
+            - paragraph [ref=e510]: Али получил оценку 4 по предмету Окружающий мир (+2 ⭐)
+            - paragraph [ref=e511]: 05.05.2026, 16:19:01
+          - button "Удалить" [ref=e513] [cursor=pointer]:
+            - img [ref=e514]
+        - generic [ref=e518]:
+          - generic [ref=e519]:
+            - generic [ref=e520]:
+              - generic [ref=e521]: Али
+              - generic [ref=e522]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e523]
+            - paragraph [ref=e524]: "Али выполнил задачу: Собрать портфель"
+            - paragraph [ref=e525]: 05.05.2026, 16:18:34
+          - button "Удалить" [ref=e527] [cursor=pointer]:
+            - img [ref=e528]
+        - generic [ref=e532]:
+          - generic [ref=e533]:
+            - generic [ref=e534]:
+              - generic [ref=e535]: Али
+              - generic [ref=e536]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e537]
+            - paragraph [ref=e538]: "Али выполнил задачу: Тестовая задача smoke 160306"
+            - paragraph [ref=e539]: 05.05.2026, 16:10:15
+          - button "Удалить" [ref=e541] [cursor=pointer]:
+            - img [ref=e542]
+        - generic [ref=e546]:
+          - generic [ref=e547]:
+            - generic [ref=e548]:
+              - generic [ref=e549]: Али
+              - generic [ref=e550]: День завершен
+            - heading "День завершён" [level=3] [ref=e551]
+            - paragraph [ref=e552]: Али выполнил все задачи на сегодня! 🎉
+            - paragraph [ref=e553]: 05.05.2026, 12:26:13
+          - button "Удалить" [ref=e555] [cursor=pointer]:
+            - img [ref=e556]
+        - generic [ref=e560]:
+          - generic [ref=e561]:
+            - generic [ref=e562]:
+              - generic [ref=e563]: Али
+              - generic [ref=e564]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e565]
+            - paragraph [ref=e566]: "Али выполнил задачу: Прочитать 10 страниц"
+            - paragraph [ref=e567]: 05.05.2026, 12:26:11
+          - button "Удалить" [ref=e569] [cursor=pointer]:
+            - img [ref=e570]
+        - generic [ref=e574]:
+          - generic [ref=e575]:
+            - generic [ref=e576]:
+              - generic [ref=e577]: Али
+              - generic [ref=e578]: День завершен
+            - heading "День завершён" [level=3] [ref=e579]
+            - paragraph [ref=e580]: Али выполнил все задачи на сегодня! 🎉
+            - paragraph [ref=e581]: 05.05.2026, 02:45:51
+          - button "Удалить" [ref=e583] [cursor=pointer]:
+            - img [ref=e584]
+        - generic [ref=e588]:
+          - generic [ref=e589]:
+            - generic [ref=e590]:
+              - generic [ref=e591]: Али
+              - generic [ref=e592]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e593]
+            - paragraph [ref=e594]: "Али выполнил задачу: Тренировка"
+            - paragraph [ref=e595]: 05.05.2026, 02:45:48
+          - button "Удалить" [ref=e597] [cursor=pointer]:
+            - img [ref=e598]
+        - generic [ref=e602]:
+          - generic [ref=e603]:
+            - generic [ref=e604]:
+              - generic [ref=e605]: Али
+              - generic [ref=e606]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e607]
+            - paragraph [ref=e608]: "Али выполнил задачу: Собрать портфель"
+            - paragraph [ref=e609]: 05.05.2026, 02:45:41
+          - button "Удалить" [ref=e611] [cursor=pointer]:
+            - img [ref=e612]
+        - generic [ref=e616]:
+          - generic [ref=e617]:
+            - generic [ref=e618]:
+              - generic [ref=e619]: Али
+              - generic [ref=e620]: Задача выполнена
+            - heading "Задача выполнена" [level=3] [ref=e621]
+            - paragraph [ref=e622]: "Али выполнил задачу: Прочитать 10 страниц"
+            - paragraph [ref=e623]: 05.05.2026, 02:45:39
+          - button "Удалить" [ref=e625] [cursor=pointer]:
+            - img [ref=e626]
+  - alert [ref=e1]

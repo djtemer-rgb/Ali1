@@ -1,0 +1,122 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e183]:
+    - banner [ref=e184]:
+      - link "Назад" [ref=e185] [cursor=pointer]:
+        - /url: /
+        - img [ref=e186]
+        - text: Назад
+    - heading "Оценки" [level=1] [ref=e188]
+    - main [ref=e189]:
+      - generic [ref=e190]:
+        - heading "📖 Добавить оценку" [level=2] [ref=e191]:
+          - generic [ref=e192]: 📖
+          - text: Добавить оценку
+        - generic [ref=e193]:
+          - combobox [ref=e194]:
+            - option "Математика"
+            - option "Русский язык"
+            - option "Окружающий мир"
+            - option "Английский язык"
+            - option "Литература"
+            - option "Физкультура"
+            - option "Браузерный smoke" [selected]
+          - generic [ref=e195]:
+            - button "5" [ref=e196] [cursor=pointer]
+            - button "4" [ref=e197] [cursor=pointer]
+            - button "3" [ref=e198] [cursor=pointer]
+            - button "2" [ref=e199] [cursor=pointer]
+          - button "Добавить" [ref=e200] [cursor=pointer]
+        - paragraph [ref=e201]: Не расстраивайся, завтра будет новый шанс! Ты герой! 🥊
+      - generic [ref=e202]:
+        - heading "Дневник" [level=2] [ref=e203]:
+          - img [ref=e204]
+          - text: Дневник
+        - generic [ref=e206]:
+          - generic [ref=e285]:
+            - generic [ref=e286]:
+              - generic [ref=e287]: "2"
+              - paragraph [ref=e289]:
+                - text: Браузерный smoke
+                - generic [ref=e290]: (5 мая 2026 г.)
+            - generic [ref=e291]:
+              - text: "+0"
+              - img [ref=e292]
+          - generic [ref=e294]:
+            - generic [ref=e295]:
+              - generic [ref=e296]: "5"
+              - paragraph [ref=e298]:
+                - text: Физкультура
+                - generic [ref=e299]: (5 мая 2026 г.)
+            - generic [ref=e300]:
+              - text: "+5"
+              - img [ref=e301]
+          - generic [ref=e303]:
+            - generic [ref=e304]:
+              - generic [ref=e305]: "4"
+              - paragraph [ref=e307]:
+                - text: Окружающий мир
+                - generic [ref=e308]: (5 мая 2026 г.)
+            - generic [ref=e309]:
+              - text: "+2"
+              - img [ref=e310]
+          - generic [ref=e312]:
+            - generic [ref=e313]:
+              - generic [ref=e314]: "5"
+              - paragraph [ref=e316]:
+                - text: Английский язык
+                - generic [ref=e317]: (5 мая 2026 г.)
+            - generic [ref=e318]:
+              - text: "+5"
+              - img [ref=e319]
+          - generic [ref=e321]:
+            - generic [ref=e322]:
+              - generic [ref=e323]: "5"
+              - paragraph [ref=e325]:
+                - text: Русский язык
+                - generic [ref=e326]: (5 мая 2026 г.)
+            - generic [ref=e327]:
+              - text: "+5"
+              - img [ref=e328]
+          - generic [ref=e330]:
+            - generic [ref=e331]:
+              - generic [ref=e332]: "5"
+              - paragraph [ref=e334]:
+                - text: Математика
+                - generic [ref=e335]: (5 мая 2026 г.)
+            - generic [ref=e336]:
+              - text: "+5"
+              - img [ref=e337]
+          - generic [ref=e339]:
+            - generic [ref=e340]:
+              - generic [ref=e341]: "4"
+              - paragraph [ref=e343]:
+                - text: Русский язык
+                - generic [ref=e344]: (4 мая 2026 г.)
+            - generic [ref=e345]:
+              - text: "+2"
+              - img [ref=e346]
+          - generic [ref=e348]:
+            - generic [ref=e349]:
+              - generic [ref=e350]: "5"
+              - paragraph [ref=e352]:
+                - text: Математика
+                - generic [ref=e353]: (4 мая 2026 г.)
+            - generic [ref=e354]:
+              - text: "+5"
+              - img [ref=e355]
+      - generic [ref=e270]:
+        - paragraph [ref=e271]: Как начисляются звёзды
+        - generic [ref=e272]:
+          - generic [ref=e273]:
+            - text: 5 = +5
+            - img [ref=e274]
+          - generic [ref=e276]:
+            - text: 4 = +2
+            - img [ref=e277]
+          - generic [ref=e279]:
+            - text: 3 = +0
+            - img [ref=e280]
+          - generic [ref=e282]:
+            - text: 2 = +0
+            - img [ref=e283]
+  - alert [ref=e52]: Путь героя
