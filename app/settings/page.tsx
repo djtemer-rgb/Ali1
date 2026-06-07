@@ -11,7 +11,7 @@ import { BUILTIN_TASK_CATEGORIES, NOTIFICATION_EVENT_KEYS, NOTIFICATION_EVENT_LA
 import type { TaskCategory, Subject } from "@/app/lib/settings-shared";
 import { formatRewardReserveLabel, formatStarAmount, getCategoryLabel, getInboxEventTypeLabel, getRewardStatusLabel, normalizeInboxText } from "@/app/lib/reporting";
 
-interface Reward { id: string; childId?: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; sortOrderByChild?: Record<string, number>; }
+interface Reward { id: string; childId?: string; title: string; description?: string; costStars: number; icon: string; iconStyle: 'color' | 'minimal'; active: boolean; sortOrderByChild?: Record<string, number>; image?: string | null; }
 interface TaskTemplate {
   id: string;
   title: string;
@@ -108,6 +108,7 @@ export default function SettingsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [rName, setRName] = useState(''); const [rCost, setRCost] = useState(''); const [rDesc, setRDesc] = useState('');
   const [rIcon, setRIcon] = useState('🎁'); const [rStyle, setRStyle] = useState<'color' | 'minimal'>('color'); const [showIcons, setShowIcons] = useState(false);
+  const [rImage, setRImage] = useState<string | null>(null);
 
   // PIN
   const [pin1, setPin1] = useState(''); const [pin2, setPin2] = useState(''); const [recovery, setRecovery] = useState('');
@@ -794,20 +795,20 @@ export default function SettingsPage() {
   const addReward = async () => {
     if (!rName.trim() || !rCost) return;
     const nextOrder = sortedRewards.reduce((max, reward) => Math.max(max, getRewardOrder(reward)), -1) + 1;
-    await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: settingsChildId, title: rName.trim(), description: rDesc || undefined, costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, active: true, sortOrderByChild: { [settingsChildId]: nextOrder } }) });
+    await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: settingsChildId, title: rName.trim(), description: rDesc || undefined, costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, image: rImage || undefined, active: true, sortOrderByChild: { [settingsChildId]: nextOrder } }) });
     resetReward();
     await refreshRewards();
     showSaved('Награда добавлена');
   };
-  const editReward = (r: Reward) => { setEditId(r.id); setRName(r.title); setRCost(String(r.costStars)); setRDesc(r.description || ''); setRIcon(r.icon); setRStyle(r.iconStyle); };
+  const editReward = (r: Reward) => { setEditId(r.id); setRName(r.title); setRCost(String(r.costStars)); setRDesc(r.description || ''); setRIcon(r.icon); setRStyle(r.iconStyle); setRImage(r.image || null); };
   const saveEditReward = async () => {
     if (!editId) return;
     const reward = rewards.find(item => item.id === editId);
-    await fetch('/api/rewards', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editId, title: rName.trim(), description: rDesc || '', costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, sortOrderByChild: reward?.sortOrderByChild || {} }) });
+    await fetch('/api/rewards', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editId, title: rName.trim(), description: rDesc || '', costStars: parseFloat(rCost), icon: rIcon, iconStyle: rStyle, image: rImage || null, sortOrderByChild: reward?.sortOrderByChild || {} }) });
     setEditId(null); resetReward(); await refreshRewards(); showSaved('Награда обновлена');
   };
   const removeReward = async (id: string) => { await fetch(`/api/rewards?id=${id}`, { method: 'DELETE' }); await refreshRewards(); showSaved('Награда удалена'); };
-  const resetReward = () => { setRName(''); setRCost(''); setRDesc(''); setRIcon('🎁'); setRStyle('color'); setEditId(null); };
+  const resetReward = () => { setRName(''); setRCost(''); setRDesc(''); setRIcon('🎁'); setRStyle('color'); setRImage(null); setEditId(null); };
 
   // PIN
   const savePin = async (slot: number, val: string) => {
@@ -1441,6 +1442,42 @@ export default function SettingsPage() {
             </div>
             <input type="text" placeholder="Описание (необязательно)" value={rDesc} onChange={e => setRDesc(e.target.value)}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 transition-all font-medium text-sm" />
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="relative shrink-0">
+                {rImage ? (
+                  <img src={rImage} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-200" />
+                ) : (
+                  <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-sm font-bold border border-slate-200">
+                    <Trophy size={20} />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-slate-700">Изображение награды</p>
+                <p className="text-[10px] text-slate-400">JPEG, PNG, BMP (до 1MB)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-purple-300 cursor-pointer transition-colors">
+                  Загрузить
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      setRImage(dataUrl);
+                    };
+                    reader.readAsDataURL(file);
+                  }} />
+                </label>
+                {rImage && (
+                  <button type="button" onClick={() => setRImage(null)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                    Удалить
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           {showIcons && (
             <div className="mb-4 bg-slate-50 rounded-2xl p-3 max-h-40 overflow-y-auto border border-slate-200">
@@ -1461,7 +1498,11 @@ export default function SettingsPage() {
               <div key={r.id} className={`group relative overflow-hidden rounded-2xl p-3 flex items-center justify-between transition-all duration-500 ${r.active ? 'bg-slate-50 border border-slate-100 shadow-sm shadow-amber-100/30' : 'bg-slate-100 border border-slate-200 opacity-75'}`}>
                 <div className={`pointer-events-none absolute inset-0 rounded-2xl ${r.active ? 'bg-gradient-to-r from-amber-100/55 via-transparent to-amber-50/20 animate-reward-glow' : 'bg-gradient-to-r from-slate-200/20 via-transparent to-slate-100/10 opacity-40'}`} />
                 <div className="relative z-10 flex items-center gap-2.5 min-w-0">
-                  <span className="text-lg shrink-0">{r.icon}</span>
+                  {r.image ? (
+                    <img src={r.image} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
+                  ) : (
+                    <span className="text-lg shrink-0">{r.icon}</span>
+                  )}
                   <div className="min-w-0">
                     <span className={`font-bold text-sm block truncate ${r.active ? 'text-slate-800' : 'text-slate-500'}`}>{r.title}</span>
                     {r.description && <p className="text-[11px] text-slate-400 truncate">{r.description}</p>}

@@ -20,7 +20,7 @@ interface Task {
   difficulty?: 'easy' | 'normal' | 'hard'; askDifficultyAfterDone?: boolean; category?: string; customCategory?: string;
   createdAt?: string; updatedAt?: string;
 }
-interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; }
+interface Reward { id: string; title: string; description?: string; costStars: number; icon: string; image?: string | null; }
 interface TaskTemplate { id: string; title: string; category: string; repeatDays: number[]; stars: number; oneTimeDate?: string; sortOrder?: number; createdAt?: string; }
 
 const DAY_NAMES_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
@@ -477,15 +477,18 @@ export default function Home() {
           <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-white mb-4">
             <span>🎁</span> Магазин наград
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[122px] grid-flow-row-dense">
             {loadingRewards && <>{[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-white/15 animate-pulse" />)}</>}
             {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
+              const hasImage = !!reward.image;
               return (
                 <div
                   key={reward.id}
                   onClick={() => buyReward(reward)}
-                  className={`group relative isolate overflow-hidden border rounded-2xl p-3 flex flex-col gap-2 transition-all duration-500 cursor-pointer ${
+                  className={`group relative isolate overflow-hidden border rounded-2xl p-2 md:p-2.5 flex flex-col transition-all duration-500 cursor-pointer ${
+                    hasImage ? 'row-span-2 h-full justify-between gap-1.5' : 'h-full justify-center gap-1'
+                  } ${
                     canAfford
                       ? 'bg-white/30 border-white/45 hover:bg-white/35 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_9px_20px_rgba(251,191,36,0.10)]'
                       : 'bg-white/7 border-white/12 opacity-80 hover:bg-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_7px_16px_rgba(96,165,250,0.05)]'
@@ -511,22 +514,31 @@ export default function Home() {
                       <div className="absolute inset-y-[12%] left-[-18%] w-[10%] skew-x-[-14deg] rounded-full bg-[linear-gradient(180deg,rgba(191,219,254,0.00)_0%,rgba(191,219,254,0.30)_24%,rgba(255,255,255,0.18)_50%,rgba(191,219,254,0.34)_78%,rgba(191,219,254,0.00)_100%)] blur-[1px] animate-reward-shimmer-cool [animation-delay:1.8s] opacity-95" />
                     </div>
                   )}
-                  <div className="relative z-10 flex flex-col gap-2 h-full">
-                    <h3 className="text-white font-bold text-sm leading-tight truncate"><span>{reward.icon}</span> {reward.title}</h3>
-                    {reward.description && (
-                      <p className={canAfford ? 'text-white text-[11px] leading-tight line-clamp-2' : 'text-white/60 text-[11px] leading-tight line-clamp-2'}>
-                        {reward.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-auto">
+                  <div className="relative z-10 flex flex-col h-full justify-between">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="min-w-0">
+                        <h3 className="text-white font-bold text-xs md:text-sm leading-tight line-clamp-2">
+                          <span>{reward.icon}</span> {reward.title}
+                        </h3>
+                        {reward.description && (
+                          <p className={`text-[10px] md:text-xs leading-tight mt-1 line-clamp-2 ${canAfford ? 'text-white/80' : 'text-white/50'}`}>
+                            {reward.description}
+                          </p>
+                        )}
+                      </div>
                       <div
-                        className={`rounded-lg px-2.5 py-1 flex items-center gap-1 font-extrabold text-xs transition-colors ${
+                        className={`rounded-lg px-2 py-0.5 flex items-center gap-0.5 font-extrabold text-[10px] md:text-xs shrink-0 transition-colors ${
                           canAfford ? 'bg-white/95 text-amber-600 shadow-[0_0_24px_rgba(251,191,36,0.24)]' : 'bg-white/15 text-white/55'
                         }`}
                       >
-                        {Math.max(0, Math.abs(reward.costStars))} <Star size={11} className={canAfford ? 'fill-amber-400 text-amber-400' : 'fill-white/35 text-white/35'} />
+                        {Math.max(0, Math.abs(reward.costStars))} <Star size={10} className={canAfford ? 'fill-amber-400 text-amber-400' : 'fill-white/35 text-white/35'} />
                       </div>
                     </div>
+                    {hasImage && (
+                      <div className="h-[165px] w-full relative overflow-hidden rounded-xl bg-black/10 border border-white/10 flex items-center justify-center shrink-0">
+                        <img src={reward.image!} alt={reward.title} className="w-full h-full object-cover" />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
