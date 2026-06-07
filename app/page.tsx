@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles } from "lucide-react";
+import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles, X } from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -163,6 +163,7 @@ export default function Home() {
   const [gradesEnabled, setGradesEnabled] = useState(true);
   const [currencyEnabled, setCurrencyEnabled] = useState(true);
   const [reserveStars, setReserveStars] = useState(0);
+  const [showAvatarZoom, setShowAvatarZoom] = useState(false);
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
@@ -318,7 +319,11 @@ export default function Home() {
       {/* HEADER */}
       <header className="bg-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 md:w-11 md:h-11 bg-blue-500 text-white rounded-full flex items-center justify-center text-base md:text-lg font-bold shrink-0 overflow-hidden">
+          <div
+            onClick={() => setShowAvatarZoom(true)}
+            className="w-9 h-9 md:w-11 md:h-11 bg-blue-500 text-white rounded-full flex items-center justify-center text-base md:text-lg font-bold shrink-0 overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
+            title="Посмотреть фото"
+          >
             {currentChild.avatarUrl ? (
               <img src={currentChild.avatarUrl} alt={currentChild.name} className="w-full h-full object-cover" />
             ) : (
@@ -558,6 +563,52 @@ export default function Home() {
               onClick={e => e.stopPropagation()} className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
               <p className="text-slate-700 text-base mb-5">{modalMessage}</p>
               <button onClick={() => setModalMessage(null)} className="bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-600 transition-colors">Понятно</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* AVATAR ZOOM MODAL */}
+      <AnimatePresence>
+        {showAvatarZoom && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md"
+            onClick={() => setShowAvatarZoom(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="relative bg-white rounded-3xl p-4 md:p-6 shadow-2xl max-w-sm w-full border border-slate-100 flex flex-col items-center"
+            >
+              <button
+                onClick={() => setShowAvatarZoom(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer z-10"
+                aria-label="Закрыть"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-slate-50 border-4 border-white shadow-xl relative flex items-center justify-center mt-4 mb-2">
+                {currentChild.avatarUrl ? (
+                  <img
+                    src={currentChild.avatarUrl}
+                    alt={currentChild.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-8xl font-black">
+                    {currentChild.letter}
+                  </div>
+                )}
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mt-2 mb-1">
+                {currentChild.name}
+              </h3>
+              <p className="text-xs text-slate-400 font-bold tracking-wide uppercase">
+                Профиль героя
+              </p>
             </motion.div>
           </div>
         )}

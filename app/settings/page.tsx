@@ -1459,9 +1459,13 @@ export default function SettingsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-slate-800 text-sm truncate">{t.title}</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getTaskCategoryLabel(t.category, t.customCategory)}</span>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700">ON</span>
                     </div>
+                    {t.detailsText && (
+                      <div className="mt-1 text-[11px] text-slate-400 font-medium line-clamp-2">
+                        {t.detailsText}
+                      </div>
+                    )}
                     {(t as any).subtasks?.length > 0 && (
                       <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
                         {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}
@@ -1507,9 +1511,13 @@ export default function SettingsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-700 text-sm truncate">{t.title}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">{getTaskCategoryLabel(t.category, t.customCategory)}</span>
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">OFF</span>
                         </div>
+                        {t.detailsText && (
+                          <div className="mt-1 text-[11px] text-slate-400 font-medium line-clamp-2">
+                            {t.detailsText}
+                          </div>
+                        )}
                         {(t as any).subtasks?.length > 0 && (
                           <div className="mt-1 text-[11px] text-slate-500 line-clamp-2">
                             {(t as any).subtasks.map((st: any) => st.title).filter(Boolean).join(' • ')}

@@ -178,9 +178,9 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                   Сложность: {task.difficulty === 'easy' ? 'Легко' : task.difficulty === 'normal' ? 'Нормально' : 'Сложно'}
                 </span>
               )}
-              {categoryLabel && (
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
-                  {categoryLabel}
+              {task.detailsText && (
+                <span className="text-[11px] text-slate-500 font-medium mt-0.5 block">
+                  {task.detailsText}
                 </span>
               )}
             </div>
@@ -229,11 +229,6 @@ export default function TaskCard({ task, onComplete, onDetailsOpened, onSubtasks
                 <div className="font-extrabold text-amber-500 bg-amber-50 px-2.5 py-1 rounded-lg text-sm flex items-center gap-1">
                   +{task.stars} <Star size={14} className="fill-amber-400" />
                 </div>
-                {task.category && (
-                  <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-lg capitalize">
-                    {categoryLabel || task.category}
-                  </span>
-                )}
               </div>
 
               <h2 className="text-xl md:text-2xl font-extrabold text-slate-800 mt-3 mb-4 leading-tight">
