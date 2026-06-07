@@ -89,6 +89,7 @@ const INBOX_EVENT_TYPE_LABELS: Record<string, string> = {
   'grade-added': 'Оценка добавлена',
   'reward-selected': 'Награда выбрана',
   'reward-fulfilled': 'Награда подтверждена',
+  'manual-stars': 'Управление звёздами',
   system: 'Система',
 };
 

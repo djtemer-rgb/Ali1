@@ -53,3 +53,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to add ledger item' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const ledgerId = url.searchParams.get('ledgerId');
+    const childId = url.searchParams.get('childId');
+    const eventId = url.searchParams.get('eventId');
+
+    if (!ledgerId || !childId) {
+      return NextResponse.json({ error: 'ledgerId and childId are required' }, { status: 400 });
+    }
+
+    const ledgerKey = `aq:star-ledger:${childId}`;
+    const ledger = await getJson(ledgerKey) || [];
+    
+    // Find if item exists
+    const itemIndex = ledger.findIndex((item: any) => item.id === ledgerId);
+    if (itemIndex >= 0) {
+      ledger.splice(itemIndex, 1);
+      await setJson(ledgerKey, ledger);
+    }
+
+    // If eventId is provided, mark the event as reverted
+    if (eventId) {
+      const eventsKey = 'aq:events:parent';
+      const events = await getJson(eventsKey) || [];
+      const eventIndex = events.findIndex((e: any) => e.id === eventId);
+      if (eventIndex >= 0) {
+        events[eventIndex] = {
+          ...events[eventIndex],
+          details: {
+            ...(events[eventIndex].details || {}),
+            reverted: true
+          }
+        };
+        await setJson(eventsKey, events);
+      }
+    }
+
+    await invalidateReportCache(childId);
+
+    // Calculate new balance
+    const balance = ledger.reduce((sum: number, item: any) => sum + item.amount, 0);
+
+    return NextResponse.json({ success: true, balance });
+  } catch (error) {
+    console.error('Error deleting star ledger item:', error);
+    return NextResponse.json({ error: 'Failed to delete ledger item' }, { status: 500 });
+  }
+}
+

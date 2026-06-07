@@ -63,6 +63,9 @@ interface ParentEvent {
     rewardTitle?: string;
     costStars?: number;
     status?: 'available' | 'selected' | 'fulfilled';
+    ledgerId?: string;
+    reverted?: boolean;
+    reason?: string;
   };
 }
 interface ChildSettingsForm {
@@ -376,50 +379,74 @@ export default function SettingsPage() {
   };
 
   const revertTask = async (event: ParentEvent) => {
-    if (!event.details?.taskId) return;
+    if (event.type !== 'manual-stars' && !event.details?.taskId) return;
     setRevertError('');
     setRevertTarget(event);
   };
 
   const confirmRevertTask = async () => {
-    if (!revertTarget?.details?.taskId) return;
-    const taskTitle = revertTarget.details.taskTitle || revertTarget.body || 'Задача';
-    const date = revertTarget.details.completedAt ? new Date(revertTarget.details.completedAt).toISOString().split('T')[0] : new Date(revertTarget.createdAt).toISOString().split('T')[0];
+    if (!revertTarget) return;
     setRevertLoading(true);
 
     try {
-      const revertRes = await fetch('/api/tasks/revert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ childId: revertTarget.childId, date, taskId: revertTarget.details.taskId })
-      });
-      const revertData = await revertRes.json();
-      if (!revertRes.ok) {
-        setRevertError(revertData?.error || 'Не удалось отменить задачу');
-        return;
+      if (revertTarget.type === 'manual-stars') {
+        const ledgerId = revertTarget.details?.ledgerId;
+        if (!ledgerId) {
+          setRevertError('ID корректировки не найден');
+          return;
+        }
+
+        const revertRes = await fetch(`/api/star-ledger?ledgerId=${ledgerId}&childId=${revertTarget.childId}&eventId=${revertTarget.id}`, {
+          method: 'DELETE'
+        });
+        const revertData = await revertRes.json();
+        if (!revertRes.ok) {
+          setRevertError(revertData?.error || 'Не удалось отменить корректировку');
+          return;
+        }
+
+        showSaved('Корректировка отменена');
+        loadEvents();
+        loadAll();
+        setRevertTarget(null);
+      } else {
+        if (!revertTarget.details?.taskId) return;
+        const taskTitle = revertTarget.details.taskTitle || revertTarget.body || 'Задача';
+        const date = revertTarget.details.completedAt ? new Date(revertTarget.details.completedAt).toISOString().split('T')[0] : new Date(revertTarget.createdAt).toISOString().split('T')[0];
+
+        const revertRes = await fetch('/api/tasks/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: revertTarget.childId, date, taskId: revertTarget.details.taskId })
+        });
+        const revertData = await revertRes.json();
+        if (!revertRes.ok) {
+          setRevertError(revertData?.error || 'Не удалось отменить задачу');
+          return;
+        }
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: revertTarget.childId,
+            type: 'system',
+            title: 'Задача отменена',
+            body: `${getChildName(revertTarget.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
+            details: {
+              childName: getChildName(revertTarget.childId),
+              taskId: revertTarget.details.taskId,
+              taskTitle,
+              stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
+              completedAt: revertTarget.details.completedAt || revertTarget.createdAt,
+            }
+          })
+        });
+
+        showSaved('Задача отменена');
+        loadEvents();
+        setRevertTarget(null);
       }
-
-      await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          childId: revertTarget.childId,
-          type: 'system',
-          title: 'Задача отменена',
-          body: `${getChildName(revertTarget.childId)} отменил выполнение задачи: ${taskTitle}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
-          details: {
-            childName: getChildName(revertTarget.childId),
-            taskId: revertTarget.details.taskId,
-            taskTitle,
-            stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
-            completedAt: revertTarget.details.completedAt || revertTarget.createdAt,
-          }
-        })
-      });
-
-      showSaved('Задача отменена');
-      loadEvents();
-      setRevertTarget(null);
     } finally {
       setRevertLoading(false);
     }
@@ -844,10 +871,32 @@ export default function SettingsPage() {
       });
 
       if (res.ok) {
-        const childName = settingsChildId === 'ali' ? 'Али' : 'Саида';
-        showSaved(`Успешно ${manualOp === 'add' ? 'начислено' : 'списано'} ${amount} ⭐ для ${childName}`);
+        const data = await res.json();
+        const childNameText = settingsChildId === 'ali' ? 'Али' : 'Саид';
+        const childNameTextGen = settingsChildId === 'ali' ? 'Али' : 'Саида';
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: settingsChildId,
+            type: 'manual-stars',
+            title: manualOp === 'add' ? 'Звёзды начислены вручную' : 'Звёзды списаны вручную',
+            body: `${manualOp === 'add' ? 'Начислено' : 'Списано'} ${amount} ⭐. Комментарий: ${cleanReason}`,
+            details: {
+              childName: childNameText,
+              stars: finalAmount,
+              reason: cleanReason,
+              ledgerId: data?.item?.id,
+              reverted: false
+            }
+          })
+        });
+
+        showSaved(`Успешно ${manualOp === 'add' ? 'начислено' : 'списано'} ${amount} ⭐ для ${childNameTextGen}`);
         setManualStars('');
         setManualReason('');
+        loadEvents();
       } else {
         showSaved('Ошибка при обновлении баланса звёзд');
       }
@@ -2054,6 +2103,30 @@ export default function SettingsPage() {
                             )}
                           </div>
                         )}
+                        {event.type === 'manual-stars' && event.details && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              {event.details.reverted ? (
+                                <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                  Отменено
+                                </span>
+                              ) : (
+                                <span className={`px-2 py-1 rounded-full border ${event.details.stars >= 0 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                  {event.details.stars >= 0 ? 'Начисление' : 'Списание'}
+                                </span>
+                              )}
+                              <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                <Star size={11} className="fill-amber-400" />
+                                {formatStarAmount(event.details.stars, false)} ⭐
+                              </span>
+                            </div>
+                            {event.details.reason && (
+                              <p className="mt-2 text-[11px] leading-relaxed break-words">
+                                Комментарий: {event.details.reason}
+                              </p>
+                            )}
+                          </div>
+                        )}
                         <p className="text-xs text-slate-400 mt-2">{new Date(event.createdAt).toLocaleString('ru-RU')}</p>
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
@@ -2072,6 +2145,15 @@ export default function SettingsPage() {
                             onClick={() => revertTask(event)}
                             className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
                             title="Отменить выполнение задачи"
+                          >
+                            <Ban size={16} />
+                          </button>
+                        )}
+                        {event.type === 'manual-stars' && event.details && !event.details.reverted && (
+                          <button
+                            onClick={() => revertTask(event)}
+                            className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                            title="Отменить корректировку звёзд"
                           >
                             <Ban size={16} />
                           </button>
@@ -2096,9 +2178,13 @@ export default function SettingsPage() {
               onClick={e => e.stopPropagation()}
               className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6"
             >
-              <h2 className="text-lg font-extrabold text-slate-800">Отменить выполнение?</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Задача вернётся в невыполненные, а начисленные звёзды будут пересчитаны.
+              <h2 className="text-lg font-extrabold text-slate-800 font-sans">
+                {revertTarget.type === 'manual-stars' ? 'Отменить ручную корректировку?' : 'Отменить выполнение?'}
+              </h2>
+              <p className="text-sm text-slate-500 mt-1 font-sans">
+                {revertTarget.type === 'manual-stars'
+                  ? 'Корректировка звёзд будет удалена, а баланс ребёнка пересчитан.'
+                  : 'Задача вернётся в невыполненные, а начисленные звёзды будут пересчитаны.'}
               </p>
               {revertError && (
                 <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
