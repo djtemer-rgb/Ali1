@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../upstash';
 import { getChildSettings, NOTIFICATION_EVENT_KEYS } from '@/app/lib/settings-shared';
 import { sendTelegramIfEnabled, sendWebPushToChild } from '@/app/lib/notifications';
-import { buildSubtaskSummary, formatDifficultyLabel, formatRewardReserveLabel, formatStarAmount, getRewardStatusLabel } from '@/app/lib/reporting';
+import { buildSubtaskSummary, formatDifficultyLabel, formatStarAmount, getRewardStatusLabel } from '@/app/lib/reporting';
 
 function escapeHtml(input: string) {
   return input
@@ -54,20 +54,28 @@ function buildRewardNotificationTexts(event: any, currencyEnabled = true) {
   const childName = details.childName || getChildName(event.childId);
   const rewardTitle = details.rewardTitle || event.body || event.title || 'Награда';
   const costStars = typeof details.costStars === 'number' ? details.costStars : null;
+  const balanceAfter = typeof details.balanceAfter === 'number' ? details.balanceAfter : null;
   const status = details.status || event.type;
-  const reserveLabel = costStars ? formatRewardReserveLabel(costStars, currencyEnabled) : '';
-  const statusLabel = getRewardStatusLabel(status);
+  const reserveLabel = currencyEnabled && costStars ? `Резерв: -${Math.abs(costStars)} ⭐` : '';
+  const totalLabel = currencyEnabled && balanceAfter !== null ? `Всего: ${balanceAfter} ⭐` : '';
+  const statusLabel = status === 'selected'
+    ? 'выбрано'
+    : status === 'fulfilled'
+      ? 'подтверждено'
+      : getRewardStatusLabel(status);
 
   const telegramParts = [
     `<b>${escapeHtml(childName)} выбрал награду:</b> ${escapeHtml(rewardTitle)}`,
-    reserveLabel ? `Сумма: ${escapeHtml(reserveLabel)}` : null,
+    reserveLabel ? escapeHtml(reserveLabel) : null,
     `Статус: ${escapeHtml(statusLabel)}`,
+    totalLabel ? escapeHtml(totalLabel) : null,
   ].filter(Boolean);
 
   const pushParts = [
     rewardTitle,
-    reserveLabel ? `Сумма: ${reserveLabel}` : null,
+    reserveLabel ? reserveLabel : null,
     `Статус: ${statusLabel}`,
+    totalLabel ? totalLabel : null,
   ].filter(Boolean);
 
   return {
