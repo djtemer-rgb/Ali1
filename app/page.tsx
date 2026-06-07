@@ -477,7 +477,7 @@ export default function Home() {
           <h2 className="text-lg md:text-xl font-extrabold flex items-center gap-2 text-white mb-4">
             <span>🎁</span> Магазин наград
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[122px] grid-flow-row-dense">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,340px))] justify-center gap-3 auto-rows-[122px] grid-flow-row-dense w-full">
             {loadingRewards && <>{[1,2,3].map(i => <div key={i} className="h-28 rounded-2xl bg-white/15 animate-pulse" />)}</>}
             {!loadingRewards && rewards.map(reward => {
               const canAfford = stars >= reward.costStars;
