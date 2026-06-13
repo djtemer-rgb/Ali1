@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getJson, setJson } from '../../upstash';
 import { invalidateReportCache } from '../../report-cache';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);

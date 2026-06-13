@@ -245,34 +245,41 @@ export default function Home() {
     const isOneTimeTask = !!task.oneTimeDate;
     const bonusAmount = bonusAllTasksToday;
 
+    // First save the task state, standard task ledger, and completion event concurrently
     await Promise.all([
       fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
       fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }) }),
       fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }) }),
-      ...(allDone && bonusAmount > 0 ? [
-        fetch('/api/star-ledger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            childId: currentChild.id,
-            amount: bonusAmount,
-            source: 'day-bonus',
-            sourceId: today,
-            reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
+    ]);
+
+    // Then, if all tasks are done, save the day completion bonus and event sequentially to avoid race condition on aq:star-ledger
+    if (allDone) {
+      if (bonusAmount > 0) {
+        await Promise.all([
+          fetch('/api/star-ledger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              childId: currentChild.id,
+              amount: bonusAmount,
+              source: 'day-bonus',
+              sourceId: today,
+              reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
+            })
+          }),
+          fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              childId: currentChild.id,
+              type: 'day-completed',
+              title: 'День завершён',
+              body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
+            })
           })
-        }),
-        fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            childId: currentChild.id,
-            type: 'day-completed',
-            title: 'День завершён',
-            body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
-          })
-        })
-      ] : (allDone ? [
-        fetch('/api/events', {
+        ]);
+      } else {
+        await fetch('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -281,9 +288,9 @@ export default function Home() {
             title: 'День завершён',
             body: `${currentChild.name} выполнил все задачи на сегодня! 🎉`
           })
-        })
-      ] : []))
-    ]);
+        });
+      }
+    }
 
     if (isOneTimeTask && task.templateId) {
       try {
