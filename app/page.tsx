@@ -164,6 +164,7 @@ export default function Home() {
   const [currencyEnabled, setCurrencyEnabled] = useState(true);
   const [reserveStars, setReserveStars] = useState(0);
   const [showAvatarZoom, setShowAvatarZoom] = useState(false);
+  const [bonusAllTasksToday, setBonusAllTasksToday] = useState(5);
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
@@ -209,6 +210,7 @@ export default function Home() {
         const childSettings = getChildSettings(settingsData, currentChild.id);
         setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
         setCurrencyEnabled(settingsData?.currencyEnabled !== false);
+        setBonusAllTasksToday(childSettings.bonusAllTasksToday ?? 5);
         setTemplates(Array.isArray(tplData)
           ? sortScheduleTemplates(tplData.filter((t: any) =>
               t.active !== false &&
@@ -241,12 +243,46 @@ export default function Home() {
     setTasks(updatedTasks);
     const allDone = updatedTasks.every(t => t.completed);
     const isOneTimeTask = !!task.oneTimeDate;
+    const bonusAmount = bonusAllTasksToday;
 
     await Promise.all([
       fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
       fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }) }),
       fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }) }),
-      ...(allDone ? [fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'day-completed', title: 'День завершён', body: `${currentChild.name} выполнил все задачи на сегодня! 🎉` }) })] : [])
+      ...(allDone && bonusAmount > 0 ? [
+        fetch('/api/star-ledger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: currentChild.id,
+            amount: bonusAmount,
+            source: 'day-bonus',
+            sourceId: today,
+            reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
+          })
+        }),
+        fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: currentChild.id,
+            type: 'day-completed',
+            title: 'День завершён',
+            body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
+          })
+        })
+      ] : (allDone ? [
+        fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: currentChild.id,
+            type: 'day-completed',
+            title: 'День завершён',
+            body: `${currentChild.name} выполнил все задачи на сегодня! 🎉`
+          })
+        })
+      ] : []))
     ]);
 
     if (isOneTimeTask && task.templateId) {
@@ -276,7 +312,7 @@ export default function Home() {
       }
     }
 
-    setStars(prev => prev + task.stars);
+    setStars(prev => prev + task.stars + (allDone && bonusAmount > 0 ? bonusAmount : 0));
   };
 
   const handleDetailsOpened = async (taskId: string) => {

@@ -74,6 +74,7 @@ export async function POST(request: Request) {
         gradesEnabled: incomingChildSettings?.ali?.gradesEnabled !== undefined ? !!incomingChildSettings.ali.gradesEnabled : true,
         subjects: normalizeSubjects(incomingChildSettings?.ali?.subjects ?? body.subjects ?? current.subjects ?? DEFAULT_SETTINGS.subjects),
         gradeToStars: normalizeGradeToStars(incomingChildSettings?.ali?.gradeToStars ?? body.gradeToStars ?? current.gradeToStars ?? DEFAULT_SETTINGS.gradeToStars),
+        bonusAllTasksToday: incomingChildSettings?.ali?.bonusAllTasksToday !== undefined ? Number(incomingChildSettings.ali.bonusAllTasksToday) : (current.childSettings?.ali?.bonusAllTasksToday ?? 5),
       },
       said: {
         taskCategories: normalizeTaskCategories(incomingChildSettings?.said?.taskCategories),
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
         gradesEnabled: incomingChildSettings?.said?.gradesEnabled !== undefined ? !!incomingChildSettings.said.gradesEnabled : false,
         subjects: normalizeSubjects(incomingChildSettings?.said?.subjects ?? DEFAULT_SETTINGS.subjects),
         gradeToStars: normalizeGradeToStars(incomingChildSettings?.said?.gradeToStars ?? DEFAULT_SETTINGS.gradeToStars),
+        bonusAllTasksToday: incomingChildSettings?.said?.bonusAllTasksToday !== undefined ? Number(incomingChildSettings.said.bonusAllTasksToday) : (current.childSettings?.said?.bonusAllTasksToday ?? 5),
       }
     };
     const settings = {

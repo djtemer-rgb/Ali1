@@ -28,6 +28,14 @@ export async function POST(request: Request) {
     
     const ledger = await getJson(`aq:star-ledger:${childId}`) || [];
     
+    if (source === 'day-bonus') {
+      const existing = ledger.find((item: any) => item.source === 'day-bonus' && item.sourceId === sourceId);
+      if (existing) {
+        const balance = ledger.reduce((sum: number, item: any) => sum + item.amount, 0);
+        return NextResponse.json({ balance, item: existing, alreadyAwarded: true });
+      }
+    }
+    
     const newItem = {
       id: `ledger-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       childId,

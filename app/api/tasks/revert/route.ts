@@ -45,11 +45,16 @@ export async function POST(request: Request) {
     const removedEntries = ledger.filter((item: any) => item?.source === 'task' && item?.sourceId === taskId);
     const remainingLedger = ledger.filter((item: any) => !(item?.source === 'task' && item?.sourceId === taskId));
 
-    await setJson(ledgerKey, remainingLedger);
+    // Also find and remove the day-bonus entry for this date from remainingLedger
+    const dayBonusEntries = remainingLedger.filter((item: any) => item?.source === 'day-bonus' && item?.sourceId === date);
+    const finalLedger = remainingLedger.filter((item: any) => !(item?.source === 'day-bonus' && item?.sourceId === date));
+
+    await setJson(ledgerKey, finalLedger);
     await invalidateReportCache(childId);
 
-    const removedStars = removedEntries.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
-    const balance = remainingLedger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
+    const removedStars = removedEntries.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0) +
+                          dayBonusEntries.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
+    const balance = finalLedger.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
 
     return NextResponse.json({
       task: revertedTask,

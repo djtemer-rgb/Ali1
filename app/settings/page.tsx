@@ -133,6 +133,7 @@ export default function SettingsPage() {
   const [aiModel, setAiModel] = useState('openai/gpt-4o-mini');
   const [aiModelFallback, setAiModelFallback] = useState('openai/gpt-4o-mini');
   const [aiLimit, setAiLimit] = useState('3');
+  const [bonusAllTasksToday, setBonusAllTasksToday] = useState('5');
   const [aiConnectionStatus, setAiConnectionStatus] = useState('');
   const [testingAiConnection, setTestingAiConnection] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
@@ -238,6 +239,7 @@ export default function SettingsPage() {
       setSystemPrompt(childSettings.ai.systemPrompt || setData.systemPrompt || '');
       setDeepPrompt(childSettings.ai.deepPrompt || setData.deepPrompt || 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.');
       setAiLimit(String(childSettings.ai.aiLimit || setData.aiLimit || 3));
+      setBonusAllTasksToday(String(childSettings.bonusAllTasksToday ?? 5));
       // Load avatars from children API
       const childrenRes = await fetch('/api/children');
       const childrenData = await childrenRes.json();
@@ -532,6 +534,26 @@ export default function SettingsPage() {
     settings.currencyEnabled = currencyEnabled;
     settings.resetEnabled = resetEnabled;
     settings.resetDays = parseInt(resetDays) || 90;
+    
+    settings.childSettings = settings.childSettings || {};
+    const bonusValue = Number(bonusAllTasksToday) >= 0 ? Number(bonusAllTasksToday) : 0;
+
+    if (settingsChildId === 'common') {
+      settings.childSettings.ali = {
+        ...getChildSettings(settings, 'ali'),
+        bonusAllTasksToday: bonusValue,
+      };
+      settings.childSettings.said = {
+        ...getChildSettings(settings, 'said'),
+        bonusAllTasksToday: bonusValue,
+      };
+    } else {
+      settings.childSettings[settingsChildId] = {
+        ...getChildSettings(settings, settingsChildId),
+        bonusAllTasksToday: bonusValue,
+      };
+    }
+
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     showSaved('Экономика сохранена');
   };
@@ -1646,6 +1668,25 @@ export default function SettingsPage() {
                 <span className="text-xs font-bold text-slate-500">дней</span>
               </div>
             )}
+            <div className="flex flex-col gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">Бонус за выполнение всех задач за день</p>
+                  <p className="text-xs text-slate-400">Начисляется дополнительно, когда все задачи на сегодня завершены</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={bonusAllTasksToday}
+                    onChange={e => setBonusAllTasksToday(e.target.value)}
+                    className="w-16 border border-slate-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-amber-500 transition-all font-bold text-sm text-center bg-white"
+                  />
+                  <span className="text-xs font-bold text-slate-500">⭐</span>
+                </div>
+              </div>
+            </div>
             <button onClick={saveEconomy} className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить экономику</button>
           </div>
         </AccordionSection>

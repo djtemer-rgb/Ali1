@@ -58,6 +58,7 @@ export type ChildSettings = {
   gradesEnabled: boolean;
   subjects: Subject[];
   gradeToStars: GradeToStars;
+  bonusAllTasksToday?: number;
 };
 
 export const BUILTIN_TASK_CATEGORIES: TaskCategory[] = [
@@ -133,6 +134,7 @@ export function defaultChildSettings(childId: ChildId = 'ali'): ChildSettings {
     gradesEnabled: childId === 'ali',
     subjects: defaultSubjects(),
     gradeToStars: defaultGradeToStars(),
+    bonusAllTasksToday: 5,
   };
 }
 
@@ -261,6 +263,7 @@ export function getChildSettings(settings: any, childId: ChildId): ChildSettings
     gradesEnabled: root.gradesEnabled !== undefined ? !!root.gradesEnabled : childId === 'ali',
     subjects: normalizeSubjects(root.subjects ?? legacySubjects ?? defaultSubjects()),
     gradeToStars: normalizeGradeToStars(root.gradeToStars ?? legacyGradeToStars ?? defaultGradeToStars()),
+    bonusAllTasksToday: typeof root.bonusAllTasksToday === 'number' ? root.bonusAllTasksToday : 5,
   };
 }
 
@@ -275,5 +278,6 @@ export function buildChildSettings(settings: any, childId: ChildId, updates: Par
     gradesEnabled: updates.gradesEnabled !== undefined ? !!updates.gradesEnabled : current.gradesEnabled,
     subjects: updates.subjects ? normalizeSubjects(updates.subjects) : current.subjects,
     gradeToStars: updates.gradeToStars ? normalizeGradeToStars(updates.gradeToStars) : current.gradeToStars,
+    bonusAllTasksToday: updates.bonusAllTasksToday !== undefined ? Number(updates.bonusAllTasksToday) : current.bonusAllTasksToday,
   };
 }
