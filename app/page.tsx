@@ -872,7 +872,7 @@ export default function Home() {
                           className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
                             isUnlocked
                               ? 'border-slate-200 ring-2 ring-purple-100 bg-white shadow-sm hover:shadow-lg'
-                              : 'border-purple-200 bg-white shadow-sm hover:shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:border-purple-300'
+                              : 'border-purple-200/80 bg-gradient-to-br from-purple-50/80 via-slate-50/40 to-indigo-50/50 shadow-[0_4px_14px_rgba(168,85,247,0.08)] hover:shadow-[0_6px_20px_rgba(168,85,247,0.18)] hover:border-purple-300/80'
                           }`}
                         >
                           {/* Sticker / Badge */}
@@ -901,15 +901,15 @@ export default function Home() {
                           </div>
 
                           {/* Row 2: Description (5x1 ratio) */}
-                          <div className="h-[14%] flex items-center">
-                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">
+                          <div className="h-[14%] flex items-center justify-center text-center w-full">
+                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 whitespace-pre-line w-full">
                               {reward.description || 'Без описания'}
                             </p>
                           </div>
 
                           {/* Row 3: Image (5x5 ratio) */}
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-slate-50 border-purple-100'
+                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-purple-100/70'
                           }`}>
                             {isUnlocked ? (
                               reward.image ? (
@@ -945,7 +945,9 @@ export default function Home() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={e => e.stopPropagation()}
-              className="relative bg-white border-slate-100 rounded-[36px] p-6 shadow-2xl max-w-sm w-full border flex flex-col items-center transition-colors duration-300"
+              className={`relative bg-white rounded-[36px] p-6 shadow-2xl max-w-sm w-full border flex flex-col items-center transition-colors duration-300 ${
+                isZoomedUnlocked ? 'border-slate-100' : 'border-purple-200/80 shadow-[0_8px_32px_rgba(168,85,247,0.12)]'
+              }`}
             >
               <button
                 onClick={() => setZoomedReward(null)}
@@ -955,7 +957,7 @@ export default function Home() {
               </button>
 
               <div className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 ${
-                isZoomedUnlocked ? 'border-slate-200 bg-white' : 'border-purple-100 bg-slate-50'
+                isZoomedUnlocked ? 'border-slate-200 bg-white' : 'border-purple-200/85 bg-gradient-to-br from-purple-50/90 via-slate-50/40 to-indigo-50/50 shadow-[0_4px_14px_rgba(168,85,247,0.08)]'
               }`}>
                 {/* Row 1 */}
                 <div className="h-[14%] flex items-center gap-2 min-w-0">
@@ -970,15 +972,15 @@ export default function Home() {
                 </div>
 
                 {/* Row 2 */}
-                <div className="h-[14%] flex items-center">
-                  <p className="text-xs text-slate-500 leading-normal line-clamp-2">
+                <div className="h-[14%] flex items-center justify-center text-center w-full">
+                  <p className="text-xs text-slate-500 leading-normal line-clamp-2 whitespace-pre-line w-full font-medium">
                     {zoomedReward.description || 'Без описания'}
                   </p>
                 </div>
 
                 {/* Row 3 */}
                 <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100' : 'bg-slate-50 border-purple-100'
+                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100' : 'bg-white shadow-inner border-purple-100/80'
                 }`}>
                   {isZoomedUnlocked ? (
                     zoomedReward.image ? (

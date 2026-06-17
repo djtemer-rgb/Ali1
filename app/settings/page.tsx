@@ -2004,8 +2004,13 @@ export default function SettingsPage() {
                 <button type="button" onClick={() => setShowSrEmojiModal(true)}
                   className="w-11 h-11 rounded-xl border-2 border-slate-200 flex items-center justify-center text-xl hover:border-purple-300 transition-colors justify-self-center">{srEmoji}</button>
               </div>
-              <input type="text" placeholder="Описание (необязательно, до 2 строк)" value={srDescription} onChange={e => setSrDescription(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 transition-all font-medium text-sm" />
+              <textarea
+                placeholder="Описание (необязательно, до 2 строк)"
+                value={srDescription}
+                onChange={e => setSrDescription(e.target.value)}
+                rows={2}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-purple-500 transition-all font-medium text-sm resize-none whitespace-pre-wrap"
+              />
               
               <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="relative shrink-0">
