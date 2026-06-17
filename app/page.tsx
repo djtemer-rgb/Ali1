@@ -147,6 +147,81 @@ function sortScheduleTemplates(list: TaskTemplate[]) {
   });
 }
 
+const playMagicSound = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+    
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      
+      gain.gain.setValueAtTime(0.12, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.35);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 0.4);
+    });
+  } catch (e) {
+    console.error('Audio play error:', e);
+  }
+};
+
+const playSuccessSound = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+    
+    // Joyful Success Chime
+    const notes = [587.33, 659.25, 698.46, 880.00, 1046.50]; // D5, E5, F5, A5, C6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+      
+      gain.gain.setValueAtTime(0.15, now + idx * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.45);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.07);
+      osc.stop(now + idx * 0.07 + 0.5);
+    });
+
+    // Whistle/sweep frequency rising
+    const oscSweep = ctx.createOscillator();
+    const gainSweep = ctx.createGain();
+    
+    oscSweep.type = 'sine';
+    oscSweep.frequency.setValueAtTime(550, now);
+    oscSweep.frequency.exponentialRampToValueAtTime(1600, now + 0.28);
+    
+    gainSweep.gain.setValueAtTime(0.06, now);
+    gainSweep.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    
+    oscSweep.connect(gainSweep);
+    gainSweep.connect(ctx.destination);
+    oscSweep.start(now);
+    oscSweep.stop(now + 0.3);
+  } catch (e) {
+    console.error('Audio play error:', e);
+  }
+};
+
 export default function Home() {
   const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
@@ -784,17 +859,20 @@ export default function Home() {
                           onClick={() => {
                             setZoomedReward(reward);
                             if (isUnlocked) {
+                              playSuccessSound();
                               confetti({
                                 particleCount: 60,
                                 spread: 50,
                                 origin: { y: 0.65 }
                               });
+                            } else {
+                              playMagicSound();
                             }
                           }}
                           className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
                             isUnlocked
                               ? 'border-slate-200 ring-2 ring-purple-100 bg-white shadow-sm hover:shadow-lg'
-                              : 'border-purple-900/30 bg-slate-900 shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:border-purple-500/50'
+                              : 'border-purple-200 bg-white shadow-sm hover:shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:border-purple-300'
                           }`}
                         >
                           {/* Sticker / Badge */}
@@ -805,7 +883,7 @@ export default function Home() {
                           )}
 
                           {!isUnlocked && (
-                            <div className="absolute top-2 right-2 bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded-[12px] font-bold text-[9px] border border-purple-800/40 z-10">
+                            <div className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-[12px] font-bold text-[9px] border border-purple-200 z-10">
                               {reward.daysStreak} дн.
                             </div>
                           )}
@@ -816,7 +894,7 @@ export default function Home() {
                               {reward.emoji}
                             </span>
                             <h4 className={`font-extrabold text-xs md:text-sm leading-tight truncate ${
-                              isUnlocked ? 'text-slate-800' : 'text-purple-300/40 blur-[3.5px] select-none'
+                              isUnlocked ? 'text-slate-800' : 'text-slate-800/40 blur-[3.5px] select-none'
                             }`}>
                               {reward.title}
                             </h4>
@@ -824,16 +902,14 @@ export default function Home() {
 
                           {/* Row 2: Description (5x1 ratio) */}
                           <div className="h-[14%] flex items-center">
-                            <p className={`text-[10px] leading-tight line-clamp-2 ${
-                              isUnlocked ? 'text-slate-400' : 'text-purple-200/60'
-                            }`}>
+                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">
                               {reward.description || 'Без описания'}
                             </p>
                           </div>
 
                           {/* Row 3: Image (5x5 ratio) */}
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-slate-950 border-purple-900/40'
+                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-slate-50 border-purple-100'
                           }`}>
                             {isUnlocked ? (
                               reward.image ? (
@@ -843,9 +919,9 @@ export default function Home() {
                               )
                             ) : (
                               <>
-                                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(168,85,247,0.25)_0%,transparent_70%)] animate-pulse" />
-                                <div className="absolute w-20 h-20 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.25)_45deg,transparent_90deg,rgba(251,191,36,0.15)_135deg,transparent_180deg,rgba(168,85,247,0.25)_225deg,transparent_270deg,rgba(251,191,36,0.15)_315deg,transparent_360deg)] animate-[spin_12s_linear_infinite] opacity-60" />
-                                <span className="text-amber-400 font-black text-3xl select-none drop-shadow-[0_0_8px_rgba(251,191,36,0.7)] animate-pulse">?</span>
+                                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(244,63,94,0.08)_0%,rgba(168,85,247,0.08)_50%,transparent_100%)] animate-pulse" />
+                                <div className="absolute w-28 h-28 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.15)_45deg,transparent_90deg,rgba(251,191,36,0.15)_135deg,transparent_180deg,rgba(168,85,247,0.15)_225deg,transparent_270deg,rgba(251,191,36,0.15)_315deg,transparent_360deg)] animate-[spin_16s_linear_infinite] opacity-80" />
+                                <span className="text-amber-500 font-extrabold text-5xl select-none drop-shadow-[0_2px_8px_rgba(245,158,11,0.4)] animate-pulse">?</span>
                               </>
                             )}
                           </div>
@@ -869,21 +945,17 @@ export default function Home() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={e => e.stopPropagation()}
-              className={`relative rounded-[36px] p-6 shadow-2xl max-w-sm w-full border flex flex-col items-center transition-colors duration-300 ${
-                isZoomedUnlocked ? 'bg-white border-slate-100' : 'bg-slate-900 border-purple-950/80'
-              }`}
+              className="relative bg-white border-slate-100 rounded-[36px] p-6 shadow-2xl max-w-sm w-full border flex flex-col items-center transition-colors duration-300"
             >
               <button
                 onClick={() => setZoomedReward(null)}
-                className={`absolute top-4 right-4 transition-colors w-8 h-8 rounded-full flex items-center justify-center cursor-pointer z-10 ${
-                  isZoomedUnlocked ? 'text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200' : 'text-purple-300 hover:text-purple-100 bg-purple-950 hover:bg-purple-900'
-                }`}
+                className="absolute top-4 right-4 transition-colors w-8 h-8 rounded-full flex items-center justify-center cursor-pointer z-10 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200"
               >
                 <X size={18} />
               </button>
 
               <div className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 ${
-                isZoomedUnlocked ? 'border-slate-200 bg-white' : 'border-purple-900/40 bg-slate-950'
+                isZoomedUnlocked ? 'border-slate-200 bg-white' : 'border-purple-100 bg-slate-50'
               }`}>
                 {/* Row 1 */}
                 <div className="h-[14%] flex items-center gap-2 min-w-0">
@@ -891,7 +963,7 @@ export default function Home() {
                     {zoomedReward.emoji}
                   </span>
                   <h4 className={`font-extrabold text-base md:text-lg leading-tight truncate ${
-                    isZoomedUnlocked ? 'text-slate-800' : 'text-purple-300/40 blur-[3.5px] select-none'
+                    isZoomedUnlocked ? 'text-slate-800' : 'text-slate-800/40 blur-[3.5px] select-none'
                   }`}>
                     {zoomedReward.title}
                   </h4>
@@ -899,16 +971,14 @@ export default function Home() {
 
                 {/* Row 2 */}
                 <div className="h-[14%] flex items-center">
-                  <p className={`text-xs leading-normal line-clamp-2 ${
-                    isZoomedUnlocked ? 'text-slate-500' : 'text-purple-200/60'
-                  }`}>
+                  <p className="text-xs text-slate-500 leading-normal line-clamp-2">
                     {zoomedReward.description || 'Без описания'}
                   </p>
                 </div>
 
                 {/* Row 3 */}
                 <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100' : 'bg-slate-950 border-purple-900/50'
+                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100' : 'bg-slate-50 border-purple-100'
                 }`}>
                   {isZoomedUnlocked ? (
                     zoomedReward.image ? (
@@ -918,15 +988,15 @@ export default function Home() {
                     )
                   ) : (
                     <>
-                      <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(168,85,247,0.3)_0%,transparent_70%)] animate-pulse" />
-                      <div className="absolute w-28 h-28 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.3)_45deg,transparent_90deg,rgba(251,191,36,0.2)_135deg,transparent_180deg,rgba(168,85,247,0.3)_225deg,transparent_270deg,rgba(251,191,36,0.2)_315deg,transparent_360deg)] animate-[spin_12s_linear_infinite] opacity-60" />
-                      <span className="text-amber-400 font-black text-5xl select-none drop-shadow-[0_0_12px_rgba(251,191,36,0.8)] animate-pulse">?</span>
+                      <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(244,63,94,0.1)_0%,rgba(168,85,247,0.1)_50%,transparent_100%)] animate-pulse" />
+                      <div className="absolute w-36 h-36 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.15)_45deg,transparent_90deg,rgba(251,191,36,0.15)_135deg,transparent_180deg,rgba(168,85,247,0.15)_225deg,transparent_270deg,rgba(251,191,36,0.15)_315deg,transparent_360deg)] animate-[spin_16s_linear_infinite] opacity-80" />
+                      <span className="text-amber-500 font-extrabold text-7xl select-none drop-shadow-[0_3px_12px_rgba(245,158,11,0.5)] animate-pulse">?</span>
                     </>
                   )}
                 </div>
               </div>
 
-              <div className="mt-5 text-center w-full">
+              <div className="mt-5 text-center w-full font-sans">
                 {isZoomedUnlocked ? (
                   <>
                     <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
@@ -937,13 +1007,13 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-extrabold text-purple-300">
+                    <p className="text-sm font-extrabold text-purple-600">
                       Этот секретный трофей откроется через {zoomedReward.daysStreak} дней подряд!
                     </p>
-                    <p className="text-xs text-amber-400 font-bold mt-1">
+                    <p className="text-xs text-amber-600 font-bold mt-1">
                       Награда: +{zoomedReward.bonusStars} звёзд ⭐
                     </p>
-                    <p className="text-xs text-purple-300 font-extrabold mt-3 bg-purple-950/80 border border-purple-800/40 px-4 py-1.5 rounded-full inline-block animate-pulse">
+                    <p className="text-xs text-purple-600 font-extrabold mt-3 bg-purple-50 border border-purple-100 px-4 py-1.5 rounded-full inline-block animate-pulse">
                       Продолжай серию! 🔥
                     </p>
                   </>
