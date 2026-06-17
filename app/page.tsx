@@ -181,6 +181,21 @@ export default function Home() {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
   }, []);
 
+  // Trigger confetti when opening an unlocked streak reward
+  useEffect(() => {
+    if (zoomedReward) {
+      const isUnlocked = (streakProgress.earned?.[zoomedReward.id] || 0) > 0;
+      if (isUnlocked) {
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA']
+        });
+      }
+    }
+  }, [zoomedReward, streakProgress.earned]);
+
   useEffect(() => {
     const doLoad = async () => {
       const today = new Date().toISOString().split('T')[0];
@@ -784,7 +799,7 @@ export default function Home() {
                           className={`relative flex flex-col border rounded-3xl overflow-hidden bg-white shadow-sm aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
                             isUnlocked
                               ? 'border-slate-200 ring-2 ring-purple-100 hover:shadow-lg'
-                              : 'border-slate-100 opacity-60 filter grayscale'
+                              : 'border-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.25)] hover:shadow-[0_0_20px_rgba(168,85,247,0.45)] hover:border-purple-400'
                           }`}
                         >
                           {/* Sticker / Badge */}
@@ -795,35 +810,37 @@ export default function Home() {
                           )}
 
                           {!isUnlocked && (
-                            <div className="absolute top-2 right-2 bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold text-[9px] border border-slate-200 z-10">
+                            <div className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold text-[9px] border border-purple-200 z-10">
                               {reward.daysStreak} дн.
                             </div>
                           )}
 
                           {/* Row 1: Title & Icon (5x1 ratio) */}
-                          <div className="h-[14%] flex items-center gap-1.5 min-w-0">
+                          <div className={`h-[14%] flex items-center gap-1.5 min-w-0 transition-all ${!isUnlocked ? 'filter blur-[3px] select-none opacity-40' : ''}`}>
                             <span className="text-lg shrink-0">{reward.emoji}</span>
                             <h4 className="font-extrabold text-slate-800 text-xs md:text-sm leading-tight truncate">{reward.title}</h4>
                           </div>
 
                           {/* Row 2: Description (5x1 ratio) */}
                           <div className="h-[14%] flex items-center">
-                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">{reward.description || 'Без описания'}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold leading-tight line-clamp-2">{reward.description || 'Без описания'}</p>
                           </div>
 
                           {/* Row 3: Image (5x5 ratio) */}
-                          <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100/50">
-                            {reward.image ? (
-                              <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2" />
+                          <div className="h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100/50">
+                            {isUnlocked ? (
+                              reward.image ? (
+                                <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2" />
+                              ) : (
+                                <div className="text-slate-300 font-extrabold text-3xl">🎁</div>
+                              )
                             ) : (
-                              <div className="text-slate-300 font-extrabold text-3xl">🎁</div>
-                            )}
-                            {!isUnlocked && (
-                              <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-[1px] flex items-center justify-center">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-400">
-                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                </svg>
+                              /* Glowing mystery placeholder template */
+                              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-950 via-slate-900 to-purple-950 flex items-center justify-center overflow-hidden">
+                                <div className="absolute w-20 h-20 rounded-full bg-[radial-gradient(circle,rgba(251,191,36,0.25)_0%,transparent_70%)] animate-pulse" />
+                                <div className="absolute w-24 h-24 rounded-full border border-yellow-500/10 animate-[spin_15s_linear_infinite] border-dashed" />
+                                <div className="absolute w-18 h-18 rounded-full border border-purple-500/20 animate-[spin_10s_linear_infinite_reverse] border-dashed" />
+                                <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] select-none">?</span>
                               </div>
                             )}
                           </div>
@@ -840,57 +857,70 @@ export default function Home() {
 
       {/* ZOOMED REWARD VIEW */}
       <AnimatePresence>
-        {zoomedReward && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md font-sans" onClick={() => setZoomedReward(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={e => e.stopPropagation()}
-              className="relative bg-white rounded-[36px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 flex flex-col items-center"
-            >
-              <button onClick={() => setZoomedReward(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer z-10">
-                <X size={18} />
-              </button>
+        {zoomedReward && (() => {
+          const isUnlocked = (streakProgress.earned?.[zoomedReward.id] || 0) > 0;
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md font-sans" onClick={() => setZoomedReward(null)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={e => e.stopPropagation()}
+                className="relative bg-white rounded-[36px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 flex flex-col items-center"
+              >
+                <button onClick={() => setZoomedReward(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer z-10">
+                  <X size={18} />
+                </button>
 
-              <div className="w-full flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-xl aspect-[5/7] p-5 justify-between relative mt-4">
-                {/* Row 1 */}
-                <div className="h-[14%] flex items-center gap-2 min-w-0">
-                  <span className="text-2xl shrink-0">{zoomedReward.emoji}</span>
-                  <h4 className="font-extrabold text-slate-800 text-base md:text-lg leading-tight truncate">{zoomedReward.title}</h4>
+                <div className="w-full flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-xl aspect-[5/7] p-5 justify-between relative mt-4">
+                  {/* Row 1 */}
+                  <div className={`h-[14%] flex items-center gap-2 min-w-0 transition-all ${!isUnlocked ? 'filter blur-[4px] select-none opacity-40' : ''}`}>
+                    <span className="text-2xl shrink-0">{zoomedReward.emoji}</span>
+                    <h4 className="font-extrabold text-slate-800 text-base md:text-lg leading-tight truncate">{zoomedReward.title}</h4>
+                  </div>
+
+                  {/* Row 2 */}
+                  <div className="h-[14%] flex items-center">
+                    <p className="text-xs text-slate-500 leading-normal line-clamp-2">{zoomedReward.description || 'Без описания'}</p>
+                  </div>
+
+                  {/* Row 3 */}
+                  <div className="h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100">
+                    {isUnlocked ? (
+                      zoomedReward.image ? (
+                        <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4" />
+                      ) : (
+                        <div className="text-slate-300 font-extrabold text-5xl">🎁</div>
+                      )
+                    ) : (
+                      /* Glowing mystery placeholder template in Zoom */
+                      <div className="absolute inset-0 bg-gradient-to-tr from-indigo-950 via-slate-900 to-purple-950 flex items-center justify-center overflow-hidden">
+                        <div className="absolute w-32 h-32 rounded-full bg-[radial-gradient(circle,rgba(251,191,36,0.25)_0%,transparent_70%)] animate-pulse" />
+                        <div className="absolute w-36 h-36 rounded-full border border-yellow-500/10 animate-[spin_18s_linear_infinite] border-dashed" />
+                        <div className="absolute w-28 h-28 rounded-full border border-purple-500/20 animate-[spin_12s_linear_infinite_reverse] border-dashed" />
+                        <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)] select-none">?</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Row 2 */}
-                <div className="h-[14%] flex items-center">
-                  <p className="text-xs text-slate-500 leading-normal line-clamp-2">{zoomedReward.description || 'Без описания'}</p>
-                </div>
-
-                {/* Row 3 */}
-                <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100">
-                  {zoomedReward.image ? (
-                    <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4" />
+                <div className="mt-5 text-center w-full">
+                  <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
+                  <p className="text-xs text-amber-600 font-bold mt-1">Награда: +{zoomedReward.bonusStars} звёзд ⭐</p>
+                  {isUnlocked ? (
+                    <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
+                      Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0} 🎉
+                    </p>
                   ) : (
-                    <div className="text-slate-300 font-extrabold text-5xl">🎁</div>
+                    <p className="text-xs font-bold mt-3 text-purple-600 bg-purple-50 px-4 py-2.5 rounded-2xl border border-purple-100 inline-block max-w-[280px] leading-relaxed shadow-sm">
+                      Этот секретный трофей откроется через <span className="font-extrabold text-amber-500 text-sm">{zoomedReward.daysStreak}</span> дней подряд. Продолжай серию! 🔥
+                    </p>
                   )}
                 </div>
-              </div>
-
-              <div className="mt-5 text-center w-full">
-                <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
-                <p className="text-xs text-amber-600 font-bold mt-1">Награда: +{zoomedReward.bonusStars} звёзд ⭐</p>
-                {streakProgress.earned?.[zoomedReward.id] ? (
-                  <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
-                    Получено раз: {streakProgress.earned[zoomedReward.id]}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-slate-400 font-bold mt-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-100 inline-block">
-                    Ещё не получено
-                  </p>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* AWARDING OVERLAY ANIMATION */}
