@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Star, Home as HomeIcon, BookOpen, BarChart3, Sparkles, X, Award } from "lucide-react";
 import confetti from "canvas-confetti";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -166,6 +166,17 @@ export default function Home() {
   const [showAvatarZoom, setShowAvatarZoom] = useState(false);
   const [bonusAllTasksToday, setBonusAllTasksToday] = useState(5);
 
+  // Streak Rewards States
+  const [streakRewards, setStreakRewards] = useState<any[]>([]);
+  const [streakProgress, setStreakProgress] = useState<any>({ currentStreak: 0, lastCompletedDate: '', earned: {} });
+  const [showStreakRewardsModal, setShowStreakRewardsModal] = useState(false);
+  const [zoomedReward, setZoomedReward] = useState<any | null>(null);
+  const [earnedStreakReward, setEarnedStreakReward] = useState<any | null>(null);
+  const [animationStep, setAnimationStep] = useState<'idle' | 'award' | 'fly'>('idle');
+  const [flyCoords, setFlyCoords] = useState({ x: 0, y: 0 });
+  const [animateNavButton, setAnimateNavButton] = useState(false);
+  const animatingCardRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
   }, []);
@@ -175,19 +186,20 @@ export default function Home() {
       const today = new Date().toISOString().split('T')[0];
       setLoadingTasks(true); setLoadingRewards(true);
       try {
-        const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes] = await Promise.all([
+        const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes, streakRewRes, streakProgRes] = await Promise.all([
           fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`),
           fetch(`/api/star-ledger?childId=${currentChild.id}`),
           fetch(`/api/rewards?childId=${currentChild.id}`),
           fetch(`/api/tasks/templates`),
-          fetch(`/api/rewards/status?childId=${currentChild.id}`)
+          fetch(`/api/rewards/status?childId=${currentChild.id}`),
+          fetch('/api/streak-rewards'),
+          fetch(`/api/streak/progress?childId=${currentChild.id}`)
         ]);
-        const [tasksData, starsData, rewardsData, tplData] = await Promise.all([
-          tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json()
+        const [tasksData, starsData, rewardsData, tplData, rewardStatusData, streakRewData, streakProgData] = await Promise.all([
+          tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json(), rewardStatusRes.json(), streakRewRes.json(), streakProgRes.json()
         ]);
         const settingsRes = await fetch('/api/settings');
         const settingsData = await settingsRes.json();
-        const rewardStatusData = await rewardStatusRes.json();
         const allTemplates = Array.isArray(tplData) ? tplData : [];
         const templateIds = new Set(allTemplates.map((template: any) => template.id));
         setTasks(Array.isArray(tasksData)
@@ -207,6 +219,8 @@ export default function Home() {
           : 0;
         setReserveStars(reserve);
         setRewards([...childRewards].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)));
+        setStreakRewards(Array.isArray(streakRewData) ? streakRewData : []);
+        setStreakProgress(streakProgData || { currentStreak: 0, lastCompletedDate: '', earned: {} });
         const childSettings = getChildSettings(settingsData, currentChild.id);
         setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
         setCurrencyEnabled(settingsData?.currencyEnabled !== false);
@@ -290,6 +304,63 @@ export default function Home() {
           })
         });
       }
+
+      // Call complete-day streak API
+      try {
+        const streakRes = await fetch('/api/streak/complete-day', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: currentChild.id, date: today })
+        });
+        const streakData = await streakRes.json();
+        if (streakData.success) {
+          setStreakProgress(prev => ({
+            ...prev,
+            currentStreak: streakData.newStreak,
+            lastCompletedDate: today
+          }));
+
+          if (streakData.earnedReward) {
+            setEarnedStreakReward(streakData.earnedReward);
+            setAnimationStep('award');
+            if (Number(streakData.earnedReward.bonusStars) > 0) {
+              setStars(prev => prev + Number(streakData.earnedReward.bonusStars));
+            }
+            confetti({ particleCount: 180, spread: 100, origin: { y: 0.4 }, colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA'] });
+
+            setTimeout(() => {
+              const targetEl = document.getElementById("nav-item-streak-rewards");
+              const cardEl = document.getElementById("animating-streak-card");
+              if (targetEl && cardEl) {
+                const targetRect = targetEl.getBoundingClientRect();
+                const cardRect = cardEl.getBoundingClientRect();
+                setFlyCoords({
+                  x: (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2),
+                  y: (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2)
+                });
+              }
+            }, 100);
+
+            setTimeout(() => {
+              setAnimationStep('fly');
+            }, 2200);
+
+            setTimeout(async () => {
+              setEarnedStreakReward(null);
+              setAnimationStep('idle');
+              setAnimateNavButton(true);
+              setTimeout(() => setAnimateNavButton(false), 800);
+
+              const progressRes = await fetch(`/api/streak/progress?childId=${currentChild.id}`);
+              const progressData = await progressRes.json();
+              setStreakProgress(progressData);
+              confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
+            }, 3000);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to update streak progress:', err);
+      }
     }
 
     if (isOneTimeTask && task.templateId) {
@@ -352,9 +423,10 @@ export default function Home() {
 
   const navItems = [
     { href: "/", label: "Главная", icon: HomeIcon },
+    { href: "#rewards", label: "Награды", icon: Award },
+    { href: "#hero", label: "Послание героя", icon: Sparkles },
     ...(gradesEnabled ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
     { href: "/reports", label: "Отчёты", icon: BarChart3 },
-    { href: "#hero", label: "Послание героя", icon: Sparkles },
   ];
 
   return (
@@ -440,6 +512,21 @@ export default function Home() {
               <div key="hero" className="flex-shrink-0">
                 <HeroMessage childId={currentChild.id} childName={currentChild.name} mode={currentChild.mode} tasks={tasks} />
               </div>
+            );
+          }
+          if (item.href === "#rewards") {
+            return (
+              <button
+                key="rewards"
+                id="nav-item-streak-rewards"
+                onClick={() => setShowStreakRewardsModal(true)}
+                className={`bg-white text-slate-700 px-4 py-2.5 rounded-[14px] font-bold text-sm flex items-center gap-1.5 whitespace-nowrap shadow-sm hover:bg-slate-50 transition-all cursor-pointer ${
+                  animateNavButton ? 'scale-110 ring-2 ring-yellow-400 bg-yellow-50 animate-bounce' : ''
+                }`}
+              >
+                <item.icon size={16} className={animateNavButton ? 'text-yellow-500' : 'text-slate-400'} />
+                {item.label}
+              </button>
             );
           }
           return (
@@ -653,6 +740,235 @@ export default function Home() {
                 Профиль героя
               </p>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* STREAK REWARDS MODAL */}
+      <AnimatePresence>
+        {showStreakRewardsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowStreakRewardsModal(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-slate-50 rounded-[32px] p-5 w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0 font-sans">
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                    <Award size={22} className="text-purple-500" /> Награды за серию
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Твоя серия: <span className="font-extrabold text-slate-700">{streakProgress.currentStreak || 0} дней подряд</span> 🔥
+                  </p>
+                </div>
+                <button onClick={() => setShowStreakRewardsModal(false)} className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 font-sans">
+                {streakRewards.length === 0 ? (
+                  <p className="text-slate-400 text-center py-12 text-sm font-semibold">Пока нет наград за серию. Попроси родителей добавить их в настройках!</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 pb-2">
+                    {streakRewards.map((reward) => {
+                      const count = streakProgress.earned?.[reward.id] || 0;
+                      const isUnlocked = count > 0;
+                      return (
+                        <div
+                          key={reward.id}
+                          onClick={() => setZoomedReward(reward)}
+                          className={`relative flex flex-col border rounded-3xl overflow-hidden bg-white shadow-sm aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
+                            isUnlocked
+                              ? 'border-slate-200 ring-2 ring-purple-100 hover:shadow-lg'
+                              : 'border-slate-100 opacity-60 filter grayscale'
+                          }`}
+                        >
+                          {/* Sticker / Badge */}
+                          {isUnlocked && (
+                            <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white animate-pulse z-10">
+                              {count}
+                            </div>
+                          )}
+
+                          {!isUnlocked && (
+                            <div className="absolute top-2 right-2 bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold text-[9px] border border-slate-200 z-10">
+                              {reward.daysStreak} дн.
+                            </div>
+                          )}
+
+                          {/* Row 1: Title & Icon (5x1 ratio) */}
+                          <div className="h-[14%] flex items-center gap-1.5 min-w-0">
+                            <span className="text-lg shrink-0">{reward.emoji}</span>
+                            <h4 className="font-extrabold text-slate-800 text-xs md:text-sm leading-tight truncate">{reward.title}</h4>
+                          </div>
+
+                          {/* Row 2: Description (5x1 ratio) */}
+                          <div className="h-[14%] flex items-center">
+                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2">{reward.description || 'Без описания'}</p>
+                          </div>
+
+                          {/* Row 3: Image (5x5 ratio) */}
+                          <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100/50">
+                            {reward.image ? (
+                              <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2" />
+                            ) : (
+                              <div className="text-slate-300 font-extrabold text-3xl">🎁</div>
+                            )}
+                            {!isUnlocked && (
+                              <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-[1px] flex items-center justify-center">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-400">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ZOOMED REWARD VIEW */}
+      <AnimatePresence>
+        {zoomedReward && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md font-sans" onClick={() => setZoomedReward(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={e => e.stopPropagation()}
+              className="relative bg-white rounded-[36px] p-6 shadow-2xl max-w-sm w-full border border-slate-100 flex flex-col items-center"
+            >
+              <button onClick={() => setZoomedReward(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer z-10">
+                <X size={18} />
+              </button>
+
+              <div className="w-full flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-xl aspect-[5/7] p-5 justify-between relative mt-4">
+                {/* Row 1 */}
+                <div className="h-[14%] flex items-center gap-2 min-w-0">
+                  <span className="text-2xl shrink-0">{zoomedReward.emoji}</span>
+                  <h4 className="font-extrabold text-slate-800 text-base md:text-lg leading-tight truncate">{zoomedReward.title}</h4>
+                </div>
+
+                {/* Row 2 */}
+                <div className="h-[14%] flex items-center">
+                  <p className="text-xs text-slate-500 leading-normal line-clamp-2">{zoomedReward.description || 'Без описания'}</p>
+                </div>
+
+                {/* Row 3 */}
+                <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100">
+                  {zoomedReward.image ? (
+                    <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4" />
+                  ) : (
+                    <div className="text-slate-300 font-extrabold text-5xl">🎁</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 text-center w-full">
+                <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
+                <p className="text-xs text-amber-600 font-bold mt-1">Награда: +{zoomedReward.bonusStars} звёзд ⭐</p>
+                {streakProgress.earned?.[zoomedReward.id] ? (
+                  <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
+                    Получено раз: {streakProgress.earned[zoomedReward.id]}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-400 font-bold mt-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-100 inline-block">
+                    Ещё не получено
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* AWARDING OVERLAY ANIMATION */}
+      <AnimatePresence>
+        {earnedStreakReward && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md pointer-events-auto font-sans">
+            {animationStep === 'award' && (
+              <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(253,224,71,0.25)_0%,transparent_60%)] pointer-events-none flex items-center justify-center">
+                <div className="w-[600px] h-[600px] rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(253,224,71,0.35)_30deg,transparent_60deg,rgba(253,224,71,0.35)_90deg,transparent_120deg,rgba(253,224,71,0.35)_150deg,transparent_180deg,rgba(253,224,71,0.35)_210deg,transparent_240deg,rgba(253,224,71,0.35)_270deg,transparent_300deg,rgba(253,224,71,0.35)_330deg,transparent_360deg)] animate-[spin_8s_linear_infinite] opacity-60" />
+              </div>
+            )}
+
+            <div className="text-center flex flex-col items-center relative">
+              <AnimatePresence>
+                {animationStep === 'award' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -45 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -25 }}
+                    className="mb-6 z-10 text-center"
+                  >
+                    <h2 className="text-2xl md:text-3xl font-black text-yellow-400 tracking-wide drop-shadow-[0_4px_12px_rgba(234,179,8,0.4)] animate-bounce">
+                      НОВАЯ НАГРАДА! 🎉
+                    </h2>
+                    <p className="text-white font-extrabold text-sm md:text-base mt-2 drop-shadow-md">
+                      Серия из {earnedStreakReward.daysStreak} дней подряд пройдена!
+                    </p>
+                    <p className="text-yellow-300 font-black text-lg md:text-xl mt-1 drop-shadow-md">
+                      +{earnedStreakReward.bonusStars} звёзд ⭐
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <motion.div
+                id="animating-streak-card"
+                ref={animatingCardRef}
+                initial={{ scale: 0.3, rotate: -45, opacity: 0 }}
+                animate={
+                  animationStep === 'fly'
+                    ? {
+                        x: flyCoords.x,
+                        y: flyCoords.y,
+                        scale: 0.05,
+                        opacity: 0,
+                        rotate: 720,
+                      }
+                    : {
+                        scale: 1,
+                        rotate: 0,
+                        opacity: 1,
+                        transition: { type: "spring", stiffness: 150, damping: 14 }
+                      }
+                }
+                transition={{
+                  duration: animationStep === 'fly' ? 0.75 : 0.5,
+                  ease: animationStep === 'fly' ? "easeInOut" : "easeOut"
+                }}
+                className="w-64 flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-2xl aspect-[5/7] p-5 justify-between relative z-20 origin-center"
+              >
+                <div className="h-[14%] flex items-center gap-1.5 min-w-0">
+                  <span className="text-2xl shrink-0">{earnedStreakReward.emoji}</span>
+                  <h4 className="font-extrabold text-slate-800 text-sm md:text-base leading-tight truncate">{earnedStreakReward.title}</h4>
+                </div>
+
+                <div className="h-[14%] flex items-center">
+                  <p className="text-xs text-slate-400 leading-tight line-clamp-2">{earnedStreakReward.description}</p>
+                </div>
+
+                <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100">
+                  {earnedStreakReward.image ? (
+                    <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-3" />
+                  ) : (
+                    <div className="text-slate-300 font-extrabold text-4xl">🎁</div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>

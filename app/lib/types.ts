@@ -107,6 +107,8 @@ export type ParentEvent = {
   createdAt: string;
 };
 
+
+
 // Subject
 export type Subject = {
   id: string;
@@ -133,4 +135,24 @@ export type RewardStatus = {
   status: 'available' | 'selected' | 'fulfilled';
   selectedAt?: string;
   fulfilledAt?: string;
+};
+
+// Streak Reward definition
+export type StreakReward = {
+  id: string;
+  title: string;
+  description?: string;
+  emoji: string;
+  image?: string | null; // Base64 Data URL
+  daysStreak: number; // N days (3, 7, 14, 30)
+  bonusStars: number; // Additional stars awarded
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Child streak progress
+export type StreakProgress = {
+  currentStreak: number;
+  lastCompletedDate: string; // YYYY-MM-DD
 };

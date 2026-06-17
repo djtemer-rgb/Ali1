@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X, Bell, CheckCheck, ChevronUp, ChevronDown, CheckCircle2, Wifi, Crown, BellRing, ArrowUp, ArrowDown, ToggleLeft, ToggleRight, ShieldCheck, Webhook, Ban } from "lucide-react";
+import { Book, Trophy, Star, Key, Bot, Plus, Trash2, Edit3, Check, RefreshCw, Calendar, DollarSign, Save, User, Camera, X, Bell, CheckCheck, ChevronUp, ChevronDown, CheckCircle2, Wifi, Crown, BellRing, ArrowUp, ArrowDown, ToggleLeft, ToggleRight, ShieldCheck, Webhook, Ban, Award } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useChild } from "@/app/lib/ChildContext";
 import AccordionSection from "../components/AccordionSection";
@@ -113,6 +113,17 @@ export default function SettingsPage() {
   const [rIcon, setRIcon] = useState('🎁'); const [rStyle, setRStyle] = useState<'color' | 'minimal'>('color'); const [showIcons, setShowIcons] = useState(false);
   const [rImage, setRImage] = useState<string | null>(null);
 
+  // Streak Rewards
+  const [streakRewards, setStreakRewards] = useState<any[]>([]);
+  const [srEditId, setSrEditId] = useState<string | null>(null);
+  const [srTitle, setSrTitle] = useState('');
+  const [srDescription, setSrDescription] = useState('');
+  const [srEmoji, setSrEmoji] = useState('🏆');
+  const [srImage, setSrImage] = useState<string | null>(null);
+  const [srDaysStreak, setSrDaysStreak] = useState(3);
+  const [srBonusStars, setSrBonusStars] = useState('15');
+  const [showSrEmojiModal, setShowSrEmojiModal] = useState(false);
+
   // PIN
   const [pin1, setPin1] = useState(''); const [pin2, setPin2] = useState(''); const [recovery, setRecovery] = useState('');
   const [pinStatus, setPinStatus] = useState({ hasPin1: false, hasPin2: false, hasRecovery: false });
@@ -203,17 +214,20 @@ export default function SettingsPage() {
     try {
       const refChildId = settingsChildId === 'common' ? 'ali' : settingsChildId;
       const rewardsChildId = settingsChildId === 'common' ? 'both' : settingsChildId;
-      const [subjRes, rewRes, authRes, setRes, tplRes] = await Promise.all([
+      const [subjRes, rewRes, authRes, setRes, tplRes, streakRewRes] = await Promise.all([
         fetch(`/api/grades?childId=${refChildId}`),
         fetch(`/api/rewards?childId=${rewardsChildId}&includeInactive=1`),
         fetch('/api/auth/parent/settings'),
         fetch('/api/settings'),
-        fetch('/api/tasks/templates')
+        fetch('/api/tasks/templates'),
+        fetch('/api/streak-rewards')
       ]);
       const subjData = await subjRes.json();
       const rewData = await rewRes.json(); setRewards(Array.isArray(rewData) ? rewData : []);
       setPinStatus(await authRes.json());
       const setData = await setRes.json();
+      const streakRewData = await streakRewRes.json();
+      setStreakRewards(Array.isArray(streakRewData) ? streakRewData : []);
       const childSettings = getChildSettings(setData, refChildId);
       if (setData.systemPrompt) setSystemPrompt(setData.systemPrompt);
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
@@ -965,6 +979,112 @@ export default function SettingsPage() {
   };
   const removeReward = async (id: string) => { await fetch(`/api/rewards?id=${id}`, { method: 'DELETE' }); await refreshRewards(); showSaved('Награда удалена'); };
   const resetReward = () => { setRName(''); setRCost(''); setRDesc(''); setRIcon('🎁'); setRStyle('color'); setRImage(null); setEditId(null); };
+
+  // Streak Rewards CRUD
+  const refreshStreakRewards = async () => {
+    const res = await fetch('/api/streak-rewards');
+    const data = await res.json();
+    setStreakRewards(Array.isArray(data) ? data : []);
+  };
+
+  const addStreakReward = async () => {
+    if (!srTitle.trim() || !srBonusStars) return;
+    await fetch('/api/streak-rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: srTitle.trim(),
+        description: srDescription || '',
+        emoji: srEmoji,
+        image: srImage || null,
+        daysStreak: srDaysStreak,
+        bonusStars: parseFloat(srBonusStars),
+        active: true
+      })
+    });
+    resetStreakReward();
+    await refreshStreakRewards();
+    showSaved('Награда добавлена');
+  };
+
+  const editStreakReward = (r: any) => {
+    setSrEditId(r.id);
+    setSrTitle(r.title);
+    setSrDescription(r.description || '');
+    setSrEmoji(r.emoji);
+    setSrImage(r.image || null);
+    setSrDaysStreak(r.daysStreak);
+    setSrBonusStars(String(r.bonusStars));
+  };
+
+  const saveEditStreakReward = async () => {
+    if (!srEditId) return;
+    await fetch('/api/streak-rewards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: srEditId,
+        title: srTitle.trim(),
+        description: srDescription || '',
+        emoji: srEmoji,
+        image: srImage || null,
+        daysStreak: srDaysStreak,
+        bonusStars: parseFloat(srBonusStars)
+      })
+    });
+    resetStreakReward();
+    await refreshStreakRewards();
+    showSaved('Награда обновлена');
+  };
+
+  const removeStreakReward = async (id: string) => {
+    await fetch(`/api/streak-rewards?id=${id}`, { method: 'DELETE' });
+    await refreshStreakRewards();
+    showSaved('Награда удалена');
+  };
+
+  const resetStreakReward = () => {
+    setSrTitle('');
+    setSrDescription('');
+    setSrEmoji('🏆');
+    setSrImage(null);
+    setSrDaysStreak(3);
+    setSrBonusStars('15');
+    setSrEditId(null);
+  };
+
+  const toggleStreakRewardActive = async (id: string, active: boolean) => {
+    await fetch('/api/streak-rewards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active })
+    });
+    await refreshStreakRewards();
+    showSaved(active ? 'Награда включена' : 'Награда выключена');
+  };
+
+  const moveStreakReward = async (index: number, dir: -1 | 1) => {
+    const nextIndex = index + dir;
+    if (nextIndex < 0 || nextIndex >= streakRewards.length) return;
+    const reordered = [...streakRewards];
+    [reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]];
+    const updated = reordered.map((r, idx) => ({
+      ...r,
+      sortOrder: idx
+    }));
+    setStreakRewards(updated);
+    await fetch('/api/streak-rewards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: updated.map((r) => ({
+          id: r.id,
+          sortOrder: r.sortOrder
+        }))
+      })
+    });
+    await refreshStreakRewards();
+  };
 
   const handleAwardStars = async () => {
     const amount = parseFloat(manualStars);
@@ -1874,6 +1994,134 @@ export default function SettingsPage() {
           </div>
         </AccordionSection>
 
+        {settingsChildId === 'common' && (
+          <AccordionSection id="streak-rewards" title="Награды за серию побед" accentColor="border-t-4 border-t-purple-600"
+            icon={<Award size={18} className="text-purple-600" />}>
+            <div className="space-y-2 mb-4">
+              <div className="grid grid-cols-[1fr_44px] gap-2">
+                <input type="text" placeholder="Название награды" value={srTitle} onChange={e => setSrTitle(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-medium text-sm" />
+                <button type="button" onClick={() => setShowSrEmojiModal(true)}
+                  className="w-11 h-11 rounded-xl border-2 border-slate-200 flex items-center justify-center text-xl hover:border-purple-300 transition-colors justify-self-center">{srEmoji}</button>
+              </div>
+              <input type="text" placeholder="Описание (необязательно, до 2 строк)" value={srDescription} onChange={e => setSrDescription(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 transition-all font-medium text-sm" />
+              
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="relative shrink-0">
+                  {srImage ? (
+                    <img src={srImage} alt="Preview" className="w-12 h-12 rounded-xl object-cover border border-slate-200" />
+                  ) : (
+                    <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-sm font-bold border border-slate-200">
+                      <Trophy size={20} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-slate-700">Изображение награды</p>
+                  <p className="text-[10px] text-slate-400">JPEG, PNG, BMP, GIF (до 1MB)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:border-purple-300 cursor-pointer transition-colors">
+                    Загрузить
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 1 * 1024 * 1024) { showSaved('Файл слишком большой (макс 1MB)'); return; }
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const dataUrl = ev.target?.result as string;
+                        setSrImage(dataUrl);
+                      };
+                      reader.readAsDataURL(file);
+                    }} />
+                  </label>
+                  {srImage && (
+                    <button type="button" onClick={() => setSrImage(null)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                      Удалить
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Серия дней (N)</label>
+                  <select value={srDaysStreak} onChange={e => setSrDaysStreak(Number(e.target.value))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-purple-500 bg-white font-medium text-sm">
+                    <option value={3}>3 дня</option>
+                    <option value={7}>7 дней</option>
+                    <option value={14}>14 дней</option>
+                    <option value={30}>30 дней</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Бонусные звёзды</label>
+                  <input type="number" placeholder="Например: 15" value={srBonusStars} onChange={e => setSrBonusStars(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 font-medium text-sm" />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                {srEditId ? (
+                  <>
+                    <button type="button" onClick={saveEditStreakReward} className="flex-1 bg-green-500 text-white py-2 rounded-xl font-bold text-xs hover:bg-green-600 transition-colors">Сохранить изменения</button>
+                    <button type="button" onClick={resetStreakReward} className="bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs hover:bg-slate-300 transition-colors">Отмена</button>
+                  </>
+                ) : (
+                  <button type="button" onClick={addStreakReward} className="w-full bg-purple-600 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-purple-700 transition-all flex items-center justify-center gap-1.5">
+                    <Plus size={14} /> Добавить награду за серию
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pt-4 border-t border-slate-100">
+              {streakRewards.map((r, idx) => (
+                <div key={r.id} className={`group relative overflow-hidden rounded-2xl p-3 flex items-center justify-between transition-all duration-500 ${r.active ? 'bg-slate-50 border border-slate-100 shadow-sm shadow-purple-100/30' : 'bg-slate-100 border border-slate-200 opacity-75'}`}>
+                  <div className="relative z-10 flex items-center gap-2.5 min-w-0">
+                    {r.image ? (
+                      <img src={r.image} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" />
+                    ) : (
+                      <span className="text-lg shrink-0">{r.emoji}</span>
+                    )}
+                    <div className="min-w-0">
+                      <span className={`font-bold text-sm block truncate ${r.active ? 'text-slate-800' : 'text-slate-500'}`}>{r.title}</span>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {r.description || 'Без описания'} • Серия: {r.daysStreak} дн. • +{r.bonusStars} ★
+                      </p>
+                    </div>
+                  </div>
+                  <div className="relative z-10 flex items-center gap-2 shrink-0 ml-2">
+                    <Switch checked={r.active} onCheckedChange={(checked) => toggleStreakRewardActive(r.id, checked)} />
+                    <button
+                      type="button"
+                      onClick={() => moveStreakReward(idx, -1)}
+                      disabled={idx === 0}
+                      className="w-7 h-7 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-500 disabled:opacity-30 flex items-center justify-center"
+                      title="Выше"
+                    >
+                      <ArrowUp size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveStreakReward(idx, 1)}
+                      disabled={idx === streakRewards.length - 1}
+                      className="w-7 h-7 rounded-lg border border-slate-200 text-slate-400 hover:text-blue-500 disabled:opacity-30 flex items-center justify-center"
+                      title="Ниже"
+                    >
+                      <ArrowDown size={12} />
+                    </button>
+                    <button type="button" onClick={() => editStreakReward(r)} className="text-slate-300 hover:text-blue-500"><Edit3 size={13} /></button>
+                    <button type="button" onClick={() => removeStreakReward(r.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              ))}
+              {streakRewards.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет наград за серию побед</p>}
+            </div>
+          </AccordionSection>
+        )}
+
         {/* 6. NOTIFICATIONS */}
         <AccordionSection id="notifications" title="Уведомления" accentColor="border-t-4 border-t-pink-500"
           icon={<BellRing size={18} className="text-pink-500" />}>
@@ -2470,6 +2718,24 @@ export default function SettingsPage() {
                 >
                   Отмена
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSrEmojiModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowSrEmojiModal(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} onClick={e => e.stopPropagation()} className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-extrabold text-slate-800">Выберите эмодзи</h3>
+                <button onClick={() => setShowSrEmojiModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+              <div className="grid grid-cols-6 gap-2 max-h-60 overflow-y-auto p-1 justify-items-center">
+                {['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '⭐', '🌟', '✨', '🚀', '👑', '💎', '🛡️', '⚔️', '🎓', '🎨', '🏎️', '⚽', '🥊', '🎮', '♟️', '📖', '🧘', '🍕', '🍦', '🧸', '🦖', '🦁', '🦅', '🦸'].map((emoji) => (
+                  <button key={emoji} type="button" onClick={() => { setSrEmoji(emoji); setShowSrEmojiModal(false); }} className={`w-11 h-11 rounded-xl text-2xl flex items-center justify-center hover:bg-slate-100 transition-colors ${srEmoji === emoji ? 'bg-purple-100 ring-2 ring-purple-400' : ''}`}>{emoji}</button>
+                ))}
               </div>
             </motion.div>
           </div>

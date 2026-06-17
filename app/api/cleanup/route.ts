@@ -11,6 +11,8 @@ const PURGE_PATTERNS = [
   'aq:report:cache:*',
   'aq:ai:usage:*',
   'aq:webpush:subs:*',
+  'aq:streak-progress:*',
+  'aq:streak-rewards:earned:*',
 ];
 
 const PRESERVE_PATTERNS = [
@@ -21,6 +23,7 @@ const PRESERVE_PATTERNS = [
   'aq:subjects',
   'aq:rewards',
   'aq:parent:auth',
+  'aq:streak-rewards',
 ];
 
 export async function POST() {
