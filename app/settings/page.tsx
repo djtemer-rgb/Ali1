@@ -1093,6 +1093,13 @@ export default function SettingsPage() {
     await refreshStreakRewards();
   };
 
+  const testAnimationOnDashboard = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('aq:trigger-test-animation', 'true');
+      window.location.href = '/';
+    }
+  };
+
   const handleAwardStars = async () => {
     const amount = parseFloat(manualStars);
     if (Number.isNaN(amount) || amount <= 0) {
@@ -2207,6 +2214,18 @@ export default function SettingsPage() {
                 </div>
               ))}
               {streakRewards.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет наград за серию побед</p>}
+              
+              {streakRewards.length > 0 && (
+                <div className="pt-4 border-t border-slate-100 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={testAnimationOnDashboard}
+                    className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🎭</span> Протестировать анимацию на Дашборде
+                  </button>
+                </div>
+              )}
             </div>
           </AccordionSection>
         )}

@@ -353,6 +353,18 @@ export default function Home() {
     doLoad();
   }, [currentChild.id]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && streakRewards.length > 0) {
+      const trigger = localStorage.getItem('aq:trigger-test-animation');
+      if (trigger === 'true') {
+        localStorage.removeItem('aq:trigger-test-animation');
+        setTimeout(() => {
+          triggerTestAnimation();
+        }, 600);
+      }
+    }
+  }, [streakRewards]);
+
   const completeTask = async (taskId: string, difficulty?: 'easy' | 'normal' | 'hard') => {
     const today = new Date().toISOString().split('T')[0];
     const task = tasks.find(t => t.id === taskId);
@@ -1052,7 +1064,7 @@ export default function Home() {
                             )}
                             {isUnlocked ? (
                               reward.image ? (
-                                <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2" />
+                                <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2 relative z-10" />
                               ) : (
                                 <div className="text-slate-300 font-extrabold text-3xl">🎁</div>
                               )
@@ -1150,7 +1162,7 @@ export default function Home() {
                   )}
                   {isZoomedUnlocked ? (
                     zoomedReward.image ? (
-                      <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4" />
+                      <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4 relative z-10" />
                     ) : (
                       <div className="text-slate-300 font-extrabold text-5xl">🎁</div>
                     )
@@ -1277,7 +1289,7 @@ export default function Home() {
                     }}
                   />
                   {earnedStreakReward.image ? (
-                    <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-3" />
+                    <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-3 relative z-10" />
                   ) : (
                     <div className="text-slate-300 font-extrabold text-4xl">🎁</div>
                   )}
