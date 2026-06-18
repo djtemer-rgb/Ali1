@@ -17,7 +17,6 @@ export default function PinModal({ open, onClose }: { open: boolean; onClose: ()
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/parent/login', {
         method: 'POST',
@@ -25,12 +24,34 @@ export default function PinModal({ open, onClose }: { open: boolean; onClose: ()
         body: JSON.stringify(useRecovery ? { recoveryWord } : { pin })
       });
       const data = await res.json();
-
       if (res.ok && data.success) {
         onClose();
         router.push('/settings');
       } else {
         setError(data.error || 'Ошибка входа');
+      }
+    } catch {
+      setError('Ошибка соединения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDevBypass = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/parent/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bypass: true })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onClose();
+        router.push('/settings');
+      } else {
+        setError(data.error || 'Ошибка Dev-входа');
       }
     } catch {
       setError('Ошибка соединения');
@@ -77,6 +98,16 @@ export default function PinModal({ open, onClose }: { open: boolean; onClose: ()
               <KeyRound size={14} />
               {useRecovery ? 'Ввести PIN' : 'Забыли PIN?'}
             </button>
+
+            {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+              <button
+                type="button"
+                onClick={handleDevBypass}
+                className="w-full mt-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 py-2.5 rounded-xl font-bold text-xs transition-colors border border-emerald-200 cursor-pointer"
+              >
+                🛠️ Войти для разработки (без PIN)
+              </button>
+            )}
           </motion.div>
         </div>
       )}

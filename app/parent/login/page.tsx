@@ -40,6 +40,28 @@ export default function ParentLogin() {
     }
   };
 
+  const handleDevBypass = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/parent/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bypass: true })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        router.push(searchParams.get('redirect') || '/parent');
+      } else {
+        setError(data.error || 'Ошибка Dev-входа');
+      }
+    } catch (err) {
+      setError('Ошибка соединения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center p-4">
       <div className="bg-white rounded-[32px] p-8 shadow-lg max-w-md w-full">
@@ -96,6 +118,16 @@ export default function ParentLogin() {
           <KeyRound size={16} />
           {useRecovery ? 'Ввести PIN вместо recovery' : 'Забыли PIN? Используйте recovery слово'}
         </button>
+
+        {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+          <button
+            type="button"
+            onClick={handleDevBypass}
+            className="w-full mt-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 py-3.5 rounded-2xl font-bold text-sm transition-colors border border-emerald-200 cursor-pointer"
+          >
+            🛠️ Войти для разработки (без PIN)
+          </button>
+        )}
 
         <p className="text-center text-slate-400 text-sm mt-6">
           Используйте PIN, установленный в настройках

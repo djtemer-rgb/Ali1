@@ -2822,7 +2822,7 @@ export default function SettingsPage() {
                 <button onClick={() => setShowSrEmojiModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
               </div>
               <div className="grid grid-cols-6 gap-2 max-h-60 overflow-y-auto p-1 justify-items-center">
-                {['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '⭐', '🌟', '✨', '🚀', '👑', '💎', '🛡️', '⚔️', '🎓', '🎨', '🏎️', '⚽', '🥊', '🎮', '♟️', '📖', '🧘', '🍕', '🍦', '🧸', '🦖', '🦁', '🦅', '🦸'].map((emoji) => (
+                {['🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '⭐', '🌟', '✨', '🚀', '👑', '💎', '🛡️', '⚔️', '🎓', '🎨', '🏎️', '⚽', '🥊', '🎮', '♟️', '📖', '🧘', '🍕', '🍦', '🧸', '🦸', '🐼', '🦫', '🦝', '🐧', '🐶', '🐺', '🦊', '🐯', '🦁', '🐨', '🐻', '🦅', '🐊', '🦎', '🐉', '🐲', '🦏', '🐆', '🦈', '🐳', '🐙', '🦄', '🐝', '🕷️', '🦖', '🦍', '🐃', '🐂', '🐈', '🐇', '🐿️', '🦔', '🦉'].map((emoji) => (
                   <button key={emoji} type="button" onClick={() => { setSrEmoji(emoji); setShowSrEmojiModal(false); }} className={`w-11 h-11 rounded-xl text-2xl flex items-center justify-center hover:bg-slate-100 transition-colors ${srEmoji === emoji ? 'bg-purple-100 ring-2 ring-purple-400' : ''}`}>{emoji}</button>
                 ))}
               </div>

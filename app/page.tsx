@@ -226,32 +226,32 @@ function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
   
   if (isUnlocked) {
     switch (c) {
-      case 'blue': return 'border-blue-200 bg-white hover:shadow-[0_8px_24px_rgba(59,130,246,0.16)] hover:border-blue-300';
-      case 'orange': return 'border-orange-200 bg-white hover:shadow-[0_8px_24px_rgba(249,115,22,0.16)] hover:border-orange-300';
-      case 'red': return 'border-red-200 bg-white hover:shadow-[0_8px_24px_rgba(239,68,68,0.16)] hover:border-red-300';
-      case 'purple': return 'border-purple-200 bg-white hover:shadow-[0_8px_24px_rgba(168,85,247,0.16)] hover:border-purple-300';
-      case 'green': return 'border-emerald-200 bg-white hover:shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:border-emerald-300';
-      case 'teal': return 'border-teal-200 bg-white hover:shadow-[0_8px_24px_rgba(20,184,166,0.16)] hover:border-teal-300';
-      case 'pink': return 'border-pink-200 bg-white hover:shadow-[0_8px_24px_rgba(236,72,153,0.16)] hover:border-pink-300';
-      case 'yellow': return 'border-amber-200 bg-white hover:shadow-[0_8px_24px_rgba(245,158,11,0.16)] hover:border-amber-300';
-      case 'cyan': return 'border-cyan-200 bg-white hover:shadow-[0_8px_24px_rgba(6,182,212,0.16)] hover:border-cyan-300';
-      case 'indigo': return 'border-indigo-200 bg-white hover:shadow-[0_8px_24px_rgba(99,102,241,0.16)] hover:border-indigo-300';
-      default: return 'border-slate-200 bg-white hover:shadow-[0_8px_24px_rgba(71,85,105,0.12)] hover:border-slate-300';
+      case 'blue': return 'border-2 border-blue-400 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 hover:shadow-[0_8px_24px_rgba(59,130,246,0.25)] hover:border-blue-500';
+      case 'orange': return 'border-2 border-orange-400 bg-gradient-to-br from-orange-50/90 to-amber-50/70 hover:shadow-[0_8px_24px_rgba(249,115,22,0.25)] hover:border-orange-500';
+      case 'red': return 'border-2 border-red-400 bg-gradient-to-br from-red-50/90 to-rose-50/70 hover:shadow-[0_8px_24px_rgba(239,68,68,0.25)] hover:border-red-500';
+      case 'purple': return 'border-2 border-purple-400 bg-gradient-to-br from-purple-50/90 to-fuchsia-50/70 hover:shadow-[0_8px_24px_rgba(168,85,247,0.25)] hover:border-purple-500';
+      case 'green': return 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50/90 to-teal-50/70 hover:shadow-[0_8px_24px_rgba(16,185,129,0.25)] hover:border-emerald-500';
+      case 'teal': return 'border-2 border-teal-400 bg-gradient-to-br from-teal-50/90 to-cyan-50/70 hover:shadow-[0_8px_24px_rgba(20,184,166,0.25)] hover:border-teal-500';
+      case 'pink': return 'border-2 border-pink-400 bg-gradient-to-br from-pink-50/90 to-rose-50/70 hover:shadow-[0_8px_24px_rgba(236,72,153,0.25)] hover:border-pink-500';
+      case 'yellow': return 'border-2 border-amber-400 bg-gradient-to-br from-yellow-50/90 to-amber-50/70 hover:shadow-[0_8px_24px_rgba(245,158,11,0.25)] hover:border-amber-500';
+      case 'cyan': return 'border-2 border-cyan-400 bg-gradient-to-br from-cyan-50/90 to-sky-50/70 hover:shadow-[0_8px_24px_rgba(6,182,212,0.25)] hover:border-cyan-500';
+      case 'indigo': return 'border-2 border-indigo-400 bg-gradient-to-br from-indigo-50/90 to-blue-50/70 hover:shadow-[0_8px_24px_rgba(99,102,241,0.25)] hover:border-indigo-500';
+      default: return 'border-2 border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 hover:shadow-[0_8px_24px_rgba(71,85,105,0.15)] hover:border-slate-400';
     }
   } else {
-    // Locked card styles: gradient of color series but faded and desaturated
+    // Locked card styles: gradient of color series but faded, desaturated and border-dashed
     switch (c) {
-      case 'blue': return 'border-blue-100 bg-gradient-to-br from-blue-50/50 to-slate-50/70 hover:border-blue-200';
-      case 'orange': return 'border-orange-100 bg-gradient-to-br from-orange-50/50 to-slate-50/70 hover:border-orange-200';
-      case 'red': return 'border-red-100 bg-gradient-to-br from-red-50/50 to-slate-50/70 hover:border-red-200';
-      case 'purple': return 'border-purple-100 bg-gradient-to-br from-purple-50/50 to-slate-50/70 hover:border-purple-200';
-      case 'green': return 'border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-slate-50/70 hover:border-emerald-200';
-      case 'teal': return 'border-teal-100 bg-gradient-to-br from-teal-50/50 to-slate-50/70 hover:border-teal-200';
-      case 'pink': return 'border-pink-100 bg-gradient-to-br from-pink-50/50 to-slate-50/70 hover:border-pink-200';
-      case 'yellow': return 'border-amber-100 bg-gradient-to-br from-amber-50/50 to-slate-50/70 hover:border-amber-200';
-      case 'cyan': return 'border-cyan-100 bg-gradient-to-br from-cyan-50/50 to-slate-50/70 hover:border-cyan-200';
-      case 'indigo': return 'border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-slate-50/70 hover:border-indigo-200';
-      default: return 'border-purple-100 bg-gradient-to-br from-purple-50/50 to-slate-50/70 hover:border-purple-200';
+      case 'blue': return 'border border-dashed border-blue-300 bg-gradient-to-br from-blue-50/40 to-slate-100/40 opacity-75 hover:border-blue-400';
+      case 'orange': return 'border border-dashed border-orange-300 bg-gradient-to-br from-orange-50/40 to-slate-100/40 opacity-75 hover:border-orange-400';
+      case 'red': return 'border border-dashed border-red-300 bg-gradient-to-br from-red-50/40 to-slate-100/40 opacity-75 hover:border-red-400';
+      case 'purple': return 'border border-dashed border-purple-300 bg-gradient-to-br from-purple-50/40 to-slate-100/40 opacity-75 hover:border-purple-400';
+      case 'green': return 'border border-dashed border-emerald-300 bg-gradient-to-br from-emerald-50/40 to-slate-100/40 opacity-75 hover:border-emerald-400';
+      case 'teal': return 'border border-dashed border-teal-300 bg-gradient-to-br from-teal-50/40 to-slate-100/40 opacity-75 hover:border-teal-400';
+      case 'pink': return 'border border-dashed border-pink-300 bg-gradient-to-br from-pink-50/40 to-slate-100/40 opacity-75 hover:border-pink-400';
+      case 'yellow': return 'border border-dashed border-amber-300 bg-gradient-to-br from-yellow-50/40 to-slate-100/40 opacity-75 hover:border-amber-400';
+      case 'cyan': return 'border border-dashed border-cyan-300 bg-gradient-to-br from-cyan-50/40 to-slate-100/40 opacity-75 hover:border-cyan-400';
+      case 'indigo': return 'border border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/40 to-slate-100/40 opacity-75 hover:border-indigo-400';
+      default: return 'border border-dashed border-slate-300 bg-gradient-to-br from-slate-50/40 to-slate-100/40 opacity-75 hover:border-slate-400';
     }
   }
 }
@@ -519,6 +519,51 @@ export default function Home() {
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, subtasks } : t);
     setTasks(updatedTasks);
     await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
+  };
+
+  const triggerTestAnimation = () => {
+    setShowStreakRewardsModal(false);
+    
+    const sampleReward = streakRewards.find(r => r.image) || streakRewards[0] || {
+      id: 'test-reward',
+      title: 'Пандочка — Бамбу',
+      description: 'Выполняй все задачи 3 дня подряд!\nСерия: Базовые',
+      emoji: '🐼',
+      daysStreak: 3,
+      bonusStars: 10,
+      color: 'blue',
+      image: '/images/rewards/1.png'
+    };
+    
+    setEarnedStreakReward(sampleReward);
+    setAnimationStep('award');
+    
+    confetti({ particleCount: 180, spread: 100, origin: { y: 0.4 }, colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA'] });
+
+    setTimeout(() => {
+      const targetEl = document.getElementById("nav-item-streak-rewards");
+      const cardEl = document.getElementById("animating-streak-card");
+      if (targetEl && cardEl) {
+        const targetRect = targetEl.getBoundingClientRect();
+        const cardRect = cardEl.getBoundingClientRect();
+        setFlyCoords({
+          x: (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2),
+          y: (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2)
+        });
+      }
+    }, 100);
+
+    setTimeout(() => {
+      setAnimationStep('fly');
+    }, 2200);
+
+    setTimeout(() => {
+      setEarnedStreakReward(null);
+      setAnimationStep('idle');
+      setAnimateNavButton(true);
+      setTimeout(() => setAnimateNavButton(false), 800);
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
+    }, 3000);
   };
 
   const buyReward = async (reward: Reward) => {
@@ -1024,6 +1069,15 @@ export default function Home() {
                     })}
                   </div>
                 )}
+              </div>
+              
+              <div className="p-4 bg-white border-t border-slate-100 flex justify-center shrink-0">
+                <button
+                  onClick={triggerTestAnimation}
+                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>🎭</span> Проверить анимацию награды (Тест)
+                </button>
               </div>
             </motion.div>
           </div>
