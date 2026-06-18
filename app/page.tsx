@@ -221,6 +221,122 @@ const playSuccessSound = () => {
     console.error('Audio play error:', e);
   }
 };
+
+const playTriumphSound = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+    
+    // Magical harp arpeggio (C major 7 / 9)
+    const notes = [523.25, 659.25, 783.99, 987.77, 1174.66, 1318.51, 1567.98]; // C5, E5, G5, B5, D6, E6, G6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+      
+      gain.gain.setValueAtTime(0.1, now + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.95);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.06);
+      osc.stop(now + idx * 0.06 + 1.0);
+    });
+  } catch (e) {
+    console.error('Audio play error:', e);
+  }
+};
+
+function getTextColorClass(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'text-blue-600';
+    case 'orange': return 'text-orange-600';
+    case 'red': return 'text-red-600';
+    case 'purple': return 'text-purple-600';
+    case 'green': return 'text-emerald-600';
+    case 'teal': return 'text-teal-600';
+    case 'pink': return 'text-pink-600';
+    case 'yellow': return 'text-amber-600';
+    case 'cyan': return 'text-cyan-600';
+    case 'indigo': return 'text-indigo-600';
+    default: return 'text-slate-600';
+  }
+}
+
+function getBadgeStyleClasses(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'bg-blue-100/90 text-blue-700 border border-blue-200';
+    case 'orange': return 'bg-orange-100/90 text-orange-700 border border-orange-200';
+    case 'red': return 'bg-red-100/90 text-red-700 border border-red-200';
+    case 'purple': return 'bg-purple-100/90 text-purple-700 border border-purple-200';
+    case 'green': return 'bg-emerald-100/90 text-emerald-700 border border-emerald-200';
+    case 'teal': return 'bg-teal-100/90 text-teal-700 border border-teal-200';
+    case 'pink': return 'bg-pink-100/90 text-pink-700 border border-pink-200';
+    case 'yellow': return 'bg-amber-100/90 text-amber-800 border border-amber-200';
+    case 'cyan': return 'bg-cyan-100/90 text-cyan-700 border border-cyan-200';
+    case 'indigo': return 'bg-indigo-100/90 text-indigo-700 border border-indigo-200';
+    default: return 'bg-slate-100/90 text-slate-700 border border-slate-200';
+  }
+}
+
+function getLockedQuestionMarkColor(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'text-blue-500 drop-shadow-[0_2px_8px_rgba(59,130,246,0.5)]';
+    case 'orange': return 'text-orange-500 drop-shadow-[0_2px_8px_rgba(249,115,22,0.5)]';
+    case 'red': return 'text-red-500 drop-shadow-[0_2px_8px_rgba(239,68,68,0.5)]';
+    case 'purple': return 'text-purple-500 drop-shadow-[0_2px_8px_rgba(168,85,247,0.5)]';
+    case 'green': return 'text-emerald-500 drop-shadow-[0_2px_8px_rgba(16,185,129,0.5)]';
+    case 'teal': return 'text-teal-500 drop-shadow-[0_2px_8px_rgba(20,184,166,0.5)]';
+    case 'pink': return 'text-pink-500 drop-shadow-[0_2px_8px_rgba(236,72,153,0.5)]';
+    case 'yellow': return 'text-amber-500 drop-shadow-[0_2px_8px_rgba(245,158,11,0.5)]';
+    case 'cyan': return 'text-cyan-500 drop-shadow-[0_2px_8px_rgba(6,182,212,0.5)]';
+    case 'indigo': return 'text-indigo-500 drop-shadow-[0_2px_8px_rgba(99,102,241,0.5)]';
+    default: return 'text-slate-400 drop-shadow-[0_2px_8px_rgba(148,163,184,0.4)]';
+  }
+}
+
+function getLockedRadialGradient(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'rgba(59,130,246,0.18)';
+    case 'orange': return 'rgba(249,115,22,0.18)';
+    case 'red': return 'rgba(239,68,68,0.18)';
+    case 'purple': return 'rgba(168,85,247,0.18)';
+    case 'green': return 'rgba(16,185,129,0.18)';
+    case 'teal': return 'rgba(20,184,166,0.18)';
+    case 'pink': return 'rgba(236,72,153,0.18)';
+    case 'yellow': return 'rgba(245,158,11,0.18)';
+    case 'cyan': return 'rgba(6,182,212,0.18)';
+    case 'indigo': return 'rgba(99,102,241,0.18)';
+    default: return 'rgba(148,163,184,0.1)';
+  }
+}
+
+function getLockedConicColors(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'rgba(59,130,246,0.25)';
+    case 'orange': return 'rgba(249,115,22,0.25)';
+    case 'red': return 'rgba(239,68,68,0.25)';
+    case 'purple': return 'rgba(168,85,247,0.25)';
+    case 'green': return 'rgba(16,185,129,0.25)';
+    case 'teal': return 'rgba(20,184,166,0.25)';
+    case 'pink': return 'rgba(236,72,153,0.25)';
+    case 'yellow': return 'rgba(245,158,11,0.25)';
+    case 'cyan': return 'rgba(6,182,212,0.25)';
+    case 'indigo': return 'rgba(99,102,241,0.25)';
+    default: return 'rgba(148,163,184,0.18)';
+  }
+}
+
 function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
   const c = color.toLowerCase();
   
@@ -241,17 +357,17 @@ function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
   } else {
     // Locked card styles: gradient of color series but faded, desaturated and border-dashed
     switch (c) {
-      case 'blue': return 'border border-dashed border-blue-300 bg-gradient-to-br from-blue-50/40 to-slate-100/40 opacity-75 hover:border-blue-400';
-      case 'orange': return 'border border-dashed border-orange-300 bg-gradient-to-br from-orange-50/40 to-slate-100/40 opacity-75 hover:border-orange-400';
-      case 'red': return 'border border-dashed border-red-300 bg-gradient-to-br from-red-50/40 to-slate-100/40 opacity-75 hover:border-red-400';
-      case 'purple': return 'border border-dashed border-purple-300 bg-gradient-to-br from-purple-50/40 to-slate-100/40 opacity-75 hover:border-purple-400';
-      case 'green': return 'border border-dashed border-emerald-300 bg-gradient-to-br from-emerald-50/40 to-slate-100/40 opacity-75 hover:border-emerald-400';
-      case 'teal': return 'border border-dashed border-teal-300 bg-gradient-to-br from-teal-50/40 to-slate-100/40 opacity-75 hover:border-teal-400';
-      case 'pink': return 'border border-dashed border-pink-300 bg-gradient-to-br from-pink-50/40 to-slate-100/40 opacity-75 hover:border-pink-400';
-      case 'yellow': return 'border border-dashed border-amber-300 bg-gradient-to-br from-yellow-50/40 to-slate-100/40 opacity-75 hover:border-amber-400';
-      case 'cyan': return 'border border-dashed border-cyan-300 bg-gradient-to-br from-cyan-50/40 to-slate-100/40 opacity-75 hover:border-cyan-400';
-      case 'indigo': return 'border border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/40 to-slate-100/40 opacity-75 hover:border-indigo-400';
-      default: return 'border border-dashed border-slate-300 bg-gradient-to-br from-slate-50/40 to-slate-100/40 opacity-75 hover:border-slate-400';
+      case 'blue': return 'border-2 border-dashed border-blue-400/80 bg-gradient-to-br from-blue-100/70 to-indigo-50/40 hover:border-blue-500';
+      case 'orange': return 'border-2 border-dashed border-orange-400/80 bg-gradient-to-br from-orange-100/70 to-amber-50/40 hover:border-orange-500';
+      case 'red': return 'border-2 border-dashed border-red-400/80 bg-gradient-to-br from-red-100/70 to-rose-50/40 hover:border-red-500';
+      case 'purple': return 'border-2 border-dashed border-purple-400/80 bg-gradient-to-br from-purple-100/70 to-fuchsia-50/40 hover:border-purple-500';
+      case 'green': return 'border-2 border-dashed border-emerald-400/80 bg-gradient-to-br from-emerald-100/70 to-teal-50/40 hover:border-emerald-500';
+      case 'teal': return 'border-2 border-dashed border-teal-400/80 bg-gradient-to-br from-teal-100/70 to-cyan-50/40 hover:border-teal-500';
+      case 'pink': return 'border-2 border-dashed border-pink-400/80 bg-gradient-to-br from-pink-100/70 to-rose-50/40 hover:border-pink-500';
+      case 'yellow': return 'border-2 border-dashed border-amber-400/80 bg-gradient-to-br from-yellow-100/70 to-amber-50/40 hover:border-amber-500';
+      case 'cyan': return 'border-2 border-dashed border-cyan-400/80 bg-gradient-to-br from-cyan-100/70 to-sky-50/40 hover:border-cyan-500';
+      case 'indigo': return 'border-2 border-dashed border-indigo-400/80 bg-gradient-to-br from-indigo-100/70 to-blue-50/40 hover:border-indigo-500';
+      default: return 'border-2 border-dashed border-slate-400/70 bg-gradient-to-br from-slate-100 to-slate-200/50 hover:border-slate-500';
     }
   }
 }
@@ -281,7 +397,8 @@ export default function Home() {
   const [showStreakRewardsModal, setShowStreakRewardsModal] = useState(false);
   const [zoomedReward, setZoomedReward] = useState<any | null>(null);
   const [earnedStreakReward, setEarnedStreakReward] = useState<any | null>(null);
-  const isZoomedUnlocked = zoomedReward ? ((streakProgress.earned?.[zoomedReward.id] || 0) > 0) : false;
+  const [rewardsTestMode, setRewardsTestMode] = useState(false);
+  const isZoomedUnlocked = zoomedReward ? (rewardsTestMode || (streakProgress.earned?.[zoomedReward.id] || 0) > 0) : false;
   const [animationStep, setAnimationStep] = useState<'idle' | 'award' | 'fly'>('idle');
   const [flyCoords, setFlyCoords] = useState({ x: 0, y: 0 });
   const [animateNavButton, setAnimateNavButton] = useState(false);
@@ -599,6 +716,8 @@ export default function Home() {
     ...(gradesEnabled ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
     { href: "/reports", label: "Отчёты", icon: BarChart3 },
   ];
+
+  const isDevOrParent = isLoggedIn || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
@@ -980,13 +1099,31 @@ export default function Home() {
                 </button>
               </div>
 
+              {isDevOrParent && (
+                <div className="mx-5 mb-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-purple-700">🛠️ Тест-драйв наград</span>
+                    <span className="text-[10px] text-purple-400 font-medium">(все открыты для проверки)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rewardsTestMode}
+                      onChange={(e) => setRewardsTestMode(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto pr-1 font-sans">
                 {streakRewards.length === 0 ? (
                   <p className="text-slate-400 text-center py-12 text-sm font-semibold">Пока нет наград за серию. Попроси родителей добавить их в настройках!</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 p-3.5">
                     {streakRewards.map((reward) => {
-                      const count = streakProgress.earned?.[reward.id] || 0;
+                      const count = rewardsTestMode ? 1 : (streakProgress.earned?.[reward.id] || 0);
                       const isUnlocked = count > 0;
                       return (
                         <div
@@ -994,11 +1131,11 @@ export default function Home() {
                           onClick={() => {
                             setZoomedReward(reward);
                             if (isUnlocked) {
-                              playSuccessSound();
+                              playTriumphSound();
                               confetti({
-                                particleCount: 60,
-                                spread: 50,
-                                origin: { y: 0.65 }
+                                particleCount: 100,
+                                spread: 60,
+                                origin: { y: 0.6 }
                               });
                             } else {
                               playMagicSound();
@@ -1016,7 +1153,7 @@ export default function Home() {
                           )}
 
                           {!isUnlocked && (
-                            <div className="absolute top-2 right-2 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-[12px] font-bold text-[9px] border border-purple-200 z-10">
+                            <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-[12px] font-bold text-[9px] z-10 ${getBadgeStyleClasses(reward.color || 'blue')}`}>
                               {reward.daysStreak} дн.
                             </div>
                           )}
@@ -1042,7 +1179,7 @@ export default function Home() {
 
                           {/* Row 3: Image (5x5 ratio) */}
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-purple-100/70'
+                            isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-slate-100/70'
                           }`}>
                             {isUnlocked && (
                               <>
@@ -1070,9 +1207,9 @@ export default function Home() {
                               )
                             ) : (
                               <>
-                                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(244,63,94,0.08)_0%,rgba(168,85,247,0.08)_50%,transparent_100%)] animate-pulse" />
-                                <div className="absolute w-28 h-28 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.15)_45deg,transparent_90deg,rgba(251,191,36,0.15)_135deg,transparent_180deg,rgba(168,85,247,0.15)_225deg,transparent_270deg,rgba(251,191,36,0.15)_315deg,transparent_360deg)] animate-[spin_16s_linear_infinite] opacity-80" />
-                                <span className="text-amber-500 font-extrabold text-5xl select-none drop-shadow-[0_2px_8px_rgba(245,158,11,0.4)] animate-pulse">?</span>
+                                <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(reward.color)} 0%, transparent 100%)` }} />
+                                <div className="absolute w-28 h-28 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(reward.color)} 45deg, transparent 90deg, ${getLockedConicColors(reward.color)} 135deg, transparent 180deg, ${getLockedConicColors(reward.color)} 225deg, transparent 270deg, ${getLockedConicColors(reward.color)} 315deg, transparent 360deg)` }} />
+                                <span className={`font-extrabold text-5xl select-none animate-pulse ${getLockedQuestionMarkColor(reward.color)}`}>?</span>
                               </>
                             )}
                           </div>
@@ -1116,9 +1253,21 @@ export default function Home() {
                 <X size={18} />
               </button>
 
-              <div className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 ${
-                getCardStyleClasses(zoomedReward.color || 'blue', isZoomedUnlocked)
-              }`}>
+              <div 
+                onClick={() => {
+                  if (isZoomedUnlocked) {
+                    playTriumphSound();
+                    confetti({
+                      particleCount: 80,
+                      spread: 60,
+                      origin: { y: 0.5 }
+                    });
+                  }
+                }}
+                className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 cursor-pointer hover:scale-[1.01] transition-transform ${
+                  getCardStyleClasses(zoomedReward.color || 'blue', isZoomedUnlocked)
+                }`}
+              >
                 {/* Row 1 */}
                 <div className="h-[14%] flex items-center gap-2 min-w-0">
                   <span className={`text-2xl shrink-0 ${!isZoomedUnlocked ? 'blur-[4px] select-none opacity-40' : ''}`}>
@@ -1140,7 +1289,7 @@ export default function Home() {
 
                 {/* Row 3 */}
                 <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-purple-100/80'
+                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-slate-100/70'
                 }`}>
                   {isZoomedUnlocked && (
                     <>
@@ -1168,9 +1317,9 @@ export default function Home() {
                     )
                   ) : (
                     <>
-                      <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(244,63,94,0.1)_0%,rgba(168,85,247,0.1)_50%,transparent_100%)] animate-pulse" />
-                      <div className="absolute w-36 h-36 rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(168,85,247,0.15)_45deg,transparent_90deg,rgba(251,191,36,0.15)_135deg,transparent_180deg,rgba(168,85,247,0.15)_225deg,transparent_270deg,rgba(251,191,36,0.15)_315deg,transparent_360deg)] animate-[spin_16s_linear_infinite] opacity-80" />
-                      <span className="text-amber-500 font-extrabold text-7xl select-none drop-shadow-[0_3px_12px_rgba(245,158,11,0.5)] animate-pulse">?</span>
+                      <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(zoomedReward.color)} 0%, transparent 100%)` }} />
+                      <div className="absolute w-36 h-36 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(zoomedReward.color)} 45deg, transparent 90deg, ${getLockedConicColors(zoomedReward.color)} 135deg, transparent 180deg, ${getLockedConicColors(zoomedReward.color)} 225deg, transparent 270deg, ${getLockedConicColors(zoomedReward.color)} 315deg, transparent 360deg)` }} />
+                      <span className={`font-extrabold text-7xl select-none animate-pulse ${getLockedQuestionMarkColor(zoomedReward.color)}`}>?</span>
                     </>
                   )}
                 </div>
@@ -1182,18 +1331,18 @@ export default function Home() {
                     <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
                     <p className="text-xs text-amber-600 font-bold mt-1">Награда: +{zoomedReward.bonusStars} звёзд ⭐</p>
                     <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
-                      Получено раз: {streakProgress.earned[zoomedReward.id]}
+                      Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-extrabold text-purple-600">
+                    <p className={`text-sm font-extrabold ${getTextColorClass(zoomedReward.color || 'blue')}`}>
                       Этот секретный трофей откроется через {zoomedReward.daysStreak} дней подряд!
                     </p>
                     <p className="text-xs text-amber-600 font-bold mt-1">
                       Награда: +{zoomedReward.bonusStars} звёзд ⭐
                     </p>
-                    <p className="text-xs text-purple-600 font-extrabold mt-3 bg-purple-50 border border-purple-100 px-4 py-1.5 rounded-full inline-block animate-pulse">
+                    <p className={`text-xs font-extrabold mt-3 px-4 py-1.5 rounded-full inline-block animate-pulse ${getBadgeStyleClasses(zoomedReward.color || 'blue')}`}>
                       Продолжай серию! 🔥
                     </p>
                   </>
