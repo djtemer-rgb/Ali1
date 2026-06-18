@@ -849,7 +849,7 @@ export default function Home() {
                 {streakRewards.length === 0 ? (
                   <p className="text-slate-400 text-center py-12 text-sm font-semibold">Пока нет наград за серию. Попроси родителей добавить их в настройках!</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 pb-2">
+                  <div className="grid grid-cols-2 gap-4 p-3.5">
                     {streakRewards.map((reward) => {
                       const count = streakProgress.earned?.[reward.id] || 0;
                       const isUnlocked = count > 0;
@@ -869,10 +869,10 @@ export default function Home() {
                               playMagicSound();
                             }
                           }}
-                          className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] ${
+                          className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5 active:scale-[0.99] shadow-[0_4px_10px_rgba(0,0,0,0.04)] ${
                             isUnlocked
-                              ? 'border-slate-200 ring-2 ring-purple-100 bg-white shadow-sm hover:shadow-lg'
-                              : 'border-purple-200/80 bg-gradient-to-br from-purple-50/80 via-slate-50/40 to-indigo-50/50 shadow-[0_4px_14px_rgba(168,85,247,0.08)] hover:shadow-[0_6px_20px_rgba(168,85,247,0.18)] hover:border-purple-300/80'
+                              ? 'border-slate-200 bg-white hover:shadow-[0_8px_20px_rgba(168,85,247,0.12)]'
+                              : 'border-purple-200/80 bg-gradient-to-br from-purple-50/80 via-slate-50/40 to-indigo-50/50 hover:shadow-[0_8px_20px_rgba(168,85,247,0.22)] hover:border-purple-300/80'
                           }`}
                         >
                           {/* Sticker / Badge */}

@@ -75,7 +75,8 @@ export async function POST(request: Request) {
     const fallbackModel = aiPrefs.aiModelFallback || settings?.aiModelFallback || process.env.HERO_AI_MODEL_FALLBACK || configuredModel;
     const baseSystemPrompt = (aiPrefs.systemPrompt || settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || 'Ты — герой-наставник для ребёнка. Отвечай коротко, тепло и по делу.').trim();
     const deepPrompt = (aiPrefs.deepPrompt || settings?.deepPrompt || process.env.HERO_AI_DEEP_PROMPT || 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.').trim();
-    const systemPrompt = aiPrefs.richMode ? `${baseSystemPrompt} ${deepPrompt}`.trim() : baseSystemPrompt;
+    const rewardSystemInstruction = 'Ты также можешь мотивировать ребёнка продолжать серию дней (streak) для получения наград. Награды делятся по редкости: Базовые (первые 5), Редкие (следующие 5), Эпические (следующие 5) и Легендарные (остальные). Упоминай их уровни редкости при разговоре. Отвечай коротко, вдохновляюще и дружелюбно, текст не должен быть перегружен.';
+    const systemPrompt = aiPrefs.richMode ? `${baseSystemPrompt} ${deepPrompt} ${rewardSystemInstruction}`.trim() : `${baseSystemPrompt} ${rewardSystemInstruction}`.trim();
     if (!aiPrefs.enabled) {
       usage += 1;
       await setJson(usageKey, usage);
@@ -236,6 +237,25 @@ async function buildRuntimeContext(params: {
     remainingTasks.length > 0 ? `осталось: ${remainingTasks.slice(0, 4).map((task: any) => task.title).join(', ')}` : null,
   ].filter(Boolean).join(' | ');
 
+  // Load streak rewards & progress context
+  const streakProgress = await getJson(`aq:streak-progress:${childId}`) || { currentStreak: 0, lastCompletedDate: '' };
+  const earnedStreakCounts = await getJson(`aq:streak-rewards:earned:${childId}`) || {};
+  const streakRewards = await getJson('aq:streak-rewards') || [];
+
+  const sortedStreakRewards = Array.isArray(streakRewards)
+    ? [...streakRewards].filter((r: any) => r.active !== false).sort((a: any, b: any) => a.daysStreak - b.daysStreak)
+    : [];
+
+  const streakRewardsContextList = sortedStreakRewards.map((reward: any, idx: number) => {
+    let rarity = 'Базовая';
+    if (idx >= 5 && idx < 10) rarity = 'Редкая';
+    else if (idx >= 10 && idx < 15) rarity = 'Эпическая';
+    else if (idx >= 15) rarity = 'Легендарная';
+
+    const count = Number(earnedStreakCounts[reward.id]) || 0;
+    return `- ${reward.title}: требуется ${reward.daysStreak} дн. серии, редкость: ${rarity}, получено раз: ${count}`;
+  });
+
   return [
     'Сформируй короткое поддерживающее послание для ребёнка.',
     `Дата: ${todayLabel}.`,
@@ -244,9 +264,11 @@ async function buildRuntimeContext(params: {
     `Задач сегодня: ${completedTasks.length} выполнено из ${taskList.length}.`,
     `Осталось посланий сегодня: ${Math.max(0, dailyLimit - usage)} из ${dailyLimit}.`,
     `Звёзды сейчас: ${starsBalance}.`,
+    `Текущая непрерывная серия дней ребёнка: ${streakProgress.currentStreak} дн подряд.`,
+    streakRewardsContextList.length > 0 ? `Доступные награды за серию побед:\n${streakRewardsContextList.join('\n')}` : null,
     taskSummary ? `Задачи: ${taskSummary}.` : null,
     gradeList.length > 0 ? `Оценки сегодня: ${gradeList.join(', ')}.` : 'Оценок сегодня нет.',
-    availableRewards.length > 0 ? `Награды: ${availableRewards.join(', ')}.` : 'Активных наград нет.',
+    availableRewards.length > 0 ? `Награды в магазине: ${availableRewards.join(', ')}.` : 'Активных наград в магазине нет.',
   ].filter(Boolean).join('\n');
 }
 
