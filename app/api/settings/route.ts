@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
   subjects: defaultSubjects(),
   gradeHistoryLimit: 20,
   starExpirationDays: 90,
+  freezeRestoreDays: 5,
   telegramEnabled: false,
   aiEnabled: false,
   aiDailyLimitPerChild: 3,
@@ -42,6 +43,7 @@ export async function GET() {
     } else {
       const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
       if (settings.gradeHistoryLimit === undefined) settings.gradeHistoryLimit = DEFAULT_SETTINGS.gradeHistoryLimit;
+      if (settings.freezeRestoreDays === undefined) settings.freezeRestoreDays = DEFAULT_SETTINGS.freezeRestoreDays;
       settings.childSettings = storedSettings.childSettings || {};
       settings.childSettings.ali = getChildSettings(storedSettings, 'ali');
       settings.childSettings.said = getChildSettings(storedSettings, 'said');
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
       gradeToStars: childSettings.ali.gradeToStars,
       subjects: childSettings.ali.subjects,
       gradeHistoryLimit: Number.isFinite(Number(body.gradeHistoryLimit)) ? Math.min(50, Math.max(20, Number(body.gradeHistoryLimit))) : DEFAULT_SETTINGS.gradeHistoryLimit,
+      freezeRestoreDays: Number.isFinite(Number(body.freezeRestoreDays)) ? Math.max(1, Number(body.freezeRestoreDays)) : (current.freezeRestoreDays ?? DEFAULT_SETTINGS.freezeRestoreDays),
       updatedAt: new Date().toISOString()
     };
     await setJson(SETTINGS_KEY, settings);

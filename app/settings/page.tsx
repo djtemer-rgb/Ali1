@@ -122,7 +122,9 @@ export default function SettingsPage() {
   const [srImage, setSrImage] = useState<string | null>(null);
   const [srDaysStreak, setSrDaysStreak] = useState(3);
   const [srBonusStars, setSrBonusStars] = useState('15');
+  const [srColor, setSrColor] = useState('blue');
   const [showSrEmojiModal, setShowSrEmojiModal] = useState(false);
+  const [freezeRestoreDays, setFreezeRestoreDays] = useState('5');
 
   // PIN
   const [pin1, setPin1] = useState(''); const [pin2, setPin2] = useState(''); const [recovery, setRecovery] = useState('');
@@ -233,6 +235,7 @@ export default function SettingsPage() {
       if (setData.currencyEnabled !== undefined) setCurrencyEnabled(setData.currencyEnabled);
       if (setData.resetEnabled !== undefined) setResetEnabled(setData.resetEnabled);
       if (setData.resetDays) setResetDays(String(setData.resetDays));
+      if (setData.freezeRestoreDays !== undefined) setFreezeRestoreDays(String(setData.freezeRestoreDays));
       if (setData.gradeHistoryLimit !== undefined) setGradeHistoryLimit(String(setData.gradeHistoryLimit));
       if (Array.isArray(subjData)) setSubjects(normalizeSubjects(subjData));
       setChildCategories(childSettings.taskCategories);
@@ -542,12 +545,12 @@ export default function SettingsPage() {
     showSaved('Лимит истории сохранён');
   };
 
-  // Star economy
   const saveEconomy = async () => {
     const settings = await (await fetch('/api/settings')).json();
     settings.currencyEnabled = currencyEnabled;
     settings.resetEnabled = resetEnabled;
     settings.resetDays = parseInt(resetDays) || 90;
+    settings.freezeRestoreDays = parseInt(freezeRestoreDays) || 5;
     
     settings.childSettings = settings.childSettings || {};
     const bonusValue = Number(bonusAllTasksToday) >= 0 ? Number(bonusAllTasksToday) : 0;
@@ -999,6 +1002,7 @@ export default function SettingsPage() {
         image: srImage || null,
         daysStreak: srDaysStreak,
         bonusStars: parseFloat(srBonusStars),
+        color: srColor,
         active: true
       })
     });
@@ -1015,6 +1019,7 @@ export default function SettingsPage() {
     setSrImage(r.image || null);
     setSrDaysStreak(r.daysStreak);
     setSrBonusStars(String(r.bonusStars));
+    setSrColor(r.color || 'blue');
   };
 
   const saveEditStreakReward = async () => {
@@ -1029,6 +1034,7 @@ export default function SettingsPage() {
         emoji: srEmoji,
         image: srImage || null,
         daysStreak: srDaysStreak,
+        color: srColor,
         bonusStars: parseFloat(srBonusStars)
       })
     });
@@ -1050,6 +1056,7 @@ export default function SettingsPage() {
     setSrImage(null);
     setSrDaysStreak(3);
     setSrBonusStars('15');
+    setSrColor('blue');
     setSrEditId(null);
   };
 
@@ -1807,6 +1814,25 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            <div className="flex flex-col gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">Восстановление заморозки серии (сердечек)</p>
+                  <p className="text-xs text-slate-400">Через сколько дней восстанавливается одно сердечко заморозки</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={freezeRestoreDays}
+                    onChange={e => setFreezeRestoreDays(e.target.value)}
+                    className="w-16 border border-slate-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-amber-500 transition-all font-bold text-sm text-center bg-white"
+                  />
+                  <span className="text-xs font-bold text-slate-500">дн.</span>
+                </div>
+              </div>
+            </div>
             <button onClick={saveEconomy} className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить экономику</button>
           </div>
         </AccordionSection>
@@ -2049,21 +2075,53 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Серия дней (N)</label>
                   <select value={srDaysStreak} onChange={e => setSrDaysStreak(Number(e.target.value))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:border-purple-500 bg-white font-medium text-sm">
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-purple-500 bg-white font-medium text-sm">
                     <option value={3}>3 дня</option>
-                    <option value={7}>7 дней</option>
-                    <option value={14}>14 дней</option>
-                    <option value={30}>30 дней</option>
+                    <option value={6}>6 дней</option>
+                    <option value={9}>9 дней</option>
+                    <option value={12}>12 дней</option>
+                    <option value={15}>15 дней</option>
+                    <option value={19}>19 дней</option>
+                    <option value={23}>23 дня</option>
+                    <option value={27}>27 дней</option>
+                    <option value={31}>31 день</option>
+                    <option value={35}>35 дней</option>
+                    <option value={40}>40 дней</option>
+                    <option value={45}>45 дней</option>
+                    <option value={50}>50 дней</option>
+                    <option value={55}>55 дней</option>
+                    <option value={60}>60 дней</option>
+                    <option value={66}>66 дней</option>
+                    <option value={72}>72 дня</option>
+                    <option value={78}>78 дней</option>
+                    <option value={84}>84 дня</option>
+                    <option value={90}>90 дней</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Оттенок серии</label>
+                  <select value={srColor} onChange={e => setSrColor(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-purple-500 bg-white font-medium text-sm">
+                    <option value="blue">Голубой</option>
+                    <option value="orange">Оранжевый</option>
+                    <option value="red">Красный</option>
+                    <option value="purple">Фиолетовый</option>
+                    <option value="green">Зелёный</option>
+                    <option value="teal">Бирюзовый</option>
+                    <option value="pink">Розовый</option>
+                    <option value="yellow">Жёлтый</option>
+                    <option value="cyan">Голубой неон</option>
+                    <option value="indigo">Индиго</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">Бонусные звёзды</label>
                   <input type="number" placeholder="Например: 15" value={srBonusStars} onChange={e => setSrBonusStars(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 font-medium text-sm" />
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-purple-500 font-medium text-sm" />
                 </div>
               </div>
 
@@ -2091,8 +2149,34 @@ export default function SettingsPage() {
                       <span className="text-lg shrink-0">{r.emoji}</span>
                     )}
                     <div className="min-w-0">
-                      <span className={`font-bold text-sm block truncate ${r.active ? 'text-slate-800' : 'text-slate-500'}`}>{r.title}</span>
-                      <p className="text-[10px] text-slate-400 truncate">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`font-bold text-sm block truncate ${r.active ? 'text-slate-800' : 'text-slate-500'}`}>{r.title}</span>
+                        {r.color && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                            r.color === 'blue' ? 'bg-blue-100 text-blue-600' :
+                            r.color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                            r.color === 'red' ? 'bg-red-100 text-red-600' :
+                            r.color === 'purple' ? 'bg-purple-100 text-purple-600' :
+                            r.color === 'green' ? 'bg-green-100 text-green-600' :
+                            r.color === 'teal' ? 'bg-teal-100 text-teal-600' :
+                            r.color === 'pink' ? 'bg-pink-100 text-pink-600' :
+                            r.color === 'yellow' ? 'bg-yellow-100 text-yellow-600' :
+                            r.color === 'cyan' ? 'bg-cyan-100 text-cyan-600' :
+                            'bg-indigo-100 text-indigo-600'
+                          }`}>
+                            {r.color === 'blue' ? 'Голубой' :
+                             r.color === 'orange' ? 'Огненный' :
+                             r.color === 'red' ? 'Красный' :
+                             r.color === 'purple' ? 'Фиолетовый' :
+                             r.color === 'green' ? 'Зелёный' :
+                             r.color === 'teal' ? 'Бирюзовый' :
+                             r.color === 'pink' ? 'Розовый' :
+                             r.color === 'yellow' ? 'Жёлтый' :
+                             r.color === 'cyan' ? 'Неон' : 'Индиго'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 truncate whitespace-pre-line">
                         {r.description || 'Без описания'} • Серия: {r.daysStreak} дн. • +{r.bonusStars} ★
                       </p>
                     </div>

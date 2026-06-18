@@ -143,10 +143,11 @@ export type StreakReward = {
   title: string;
   description?: string;
   emoji: string;
-  image?: string | null; // Base64 Data URL
+  image?: string | null; // Base64 Data URL or URL path
   daysStreak: number; // N days (3, 7, 14, 30)
   bonusStars: number; // Additional stars awarded
   active: boolean;
+  color?: string; // e.g. blue, orange, red, purple
   createdAt: string;
   updatedAt: string;
 };
@@ -155,4 +156,6 @@ export type StreakReward = {
 export type StreakProgress = {
   currentStreak: number;
   lastCompletedDate: string; // YYYY-MM-DD
+  freezeHearts: number; // 0, 1, or 2 (default 2)
+  lastHeartRestoreDate: string; // YYYY-MM-DD
 };

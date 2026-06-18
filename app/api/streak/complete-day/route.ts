@@ -34,7 +34,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, newStreak: currentStreak, earnedReward: null });
     }
 
+    // Load settings for restore interval
+    const settings = await getJson('aq:settings') || {};
+    const freezeRestoreDays = Number(settings.freezeRestoreDays) || 5;
+
+    let freezeHearts = progress.freezeHearts !== undefined ? Number(progress.freezeHearts) : 2;
+    let lastHeartRestoreDate = progress.lastHeartRestoreDate || lastCompletedDate || date;
+
+    // Run heart recovery up to current completion 'date'
+    if (freezeHearts >= 2) {
+      lastHeartRestoreDate = date;
+    } else {
+      const parseUTCDate = (dateStr: string) => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d));
+      };
+
+      const tToday = parseUTCDate(date).getTime();
+      const tLast = parseUTCDate(lastHeartRestoreDate).getTime();
+      const diffMs = tToday - tLast;
+
+      if (diffMs > 0) {
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays >= freezeRestoreDays) {
+          const intervals = Math.floor(diffDays / freezeRestoreDays);
+          freezeHearts = Math.min(2, freezeHearts + intervals);
+
+          const lastRestoreDateObj = parseUTCDate(lastHeartRestoreDate);
+          lastRestoreDateObj.setUTCDate(lastRestoreDateObj.getUTCDate() + (intervals * freezeRestoreDays));
+          lastHeartRestoreDate = lastRestoreDateObj.toISOString().split('T')[0];
+          
+          if (freezeHearts >= 2) {
+            lastHeartRestoreDate = date;
+          }
+        }
+      }
+    }
+
     let newStreak = 1;
+    let heartConsumed = 0;
 
     if (lastCompletedDate) {
       const parseUTCDate = (dateStr: string) => {
@@ -50,16 +88,66 @@ export async function POST(request: Request) {
       if (diffDays === 1) {
         newStreak = currentStreak + 1;
       } else if (diffDays > 1) {
-        newStreak = 1;
+        const missedDays = diffDays - 1;
+        if (freezeHearts >= missedDays) {
+          // Consume hearts to save streak
+          freezeHearts -= missedDays;
+          heartConsumed = missedDays;
+          newStreak = currentStreak + 1;
+          
+          if (freezeHearts === 2 - missedDays) {
+            lastHeartRestoreDate = date;
+          }
+        } else {
+          // Insufficient hearts: streak resets, hearts are fully refilled
+          newStreak = 1;
+          freezeHearts = 2;
+          lastHeartRestoreDate = date;
+        }
       } else {
         // diffDays <= 0 means same day or past day completed out of order
         newStreak = currentStreak;
       }
+    } else {
+      // First completion starting streak
+      newStreak = 1;
     }
 
     // Save progress
-    const nextProgress = { currentStreak: newStreak, lastCompletedDate: date };
+    const nextProgress = {
+      currentStreak: newStreak,
+      lastCompletedDate: date,
+      freezeHearts,
+      lastHeartRestoreDate
+    };
     await setJson(progressKey, nextProgress);
+
+    // Create system notification for heart consumption if occurred
+    if (heartConsumed > 0) {
+      try {
+        const childName = childId === 'ali' ? 'Али' : 'Саид';
+        const eventsKey = 'aq:events:parent';
+        const events = await getJson(eventsKey) || [];
+        const eventId = `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const newEvent = {
+          id: eventId,
+          childId,
+          type: 'system',
+          title: 'Использована заморозка серии',
+          body: `${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${freezeHearts} из 2. ❤️`,
+          read: false,
+          createdAt: new Date().toISOString()
+        };
+        events.push(newEvent);
+        await setJson(eventsKey, events);
+
+        // Telegram alert
+        const tgMessage = `❤️ <b>Использована заморозка серии!</b>\n\n${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${freezeHearts} из 2.`;
+        await sendTelegramIfEnabled(settings, childId, 'system', tgMessage);
+      } catch (err) {
+        console.error('Failed to send freeze hearts notifications:', err);
+      }
+    }
 
     // Load configured streak rewards
     const streakRewards = await getJson('aq:streak-rewards') || [];

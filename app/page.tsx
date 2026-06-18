@@ -221,6 +221,40 @@ const playSuccessSound = () => {
     console.error('Audio play error:', e);
   }
 };
+function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
+  const c = color.toLowerCase();
+  
+  if (isUnlocked) {
+    switch (c) {
+      case 'blue': return 'border-blue-200 bg-white hover:shadow-[0_8px_24px_rgba(59,130,246,0.16)] hover:border-blue-300';
+      case 'orange': return 'border-orange-200 bg-white hover:shadow-[0_8px_24px_rgba(249,115,22,0.16)] hover:border-orange-300';
+      case 'red': return 'border-red-200 bg-white hover:shadow-[0_8px_24px_rgba(239,68,68,0.16)] hover:border-red-300';
+      case 'purple': return 'border-purple-200 bg-white hover:shadow-[0_8px_24px_rgba(168,85,247,0.16)] hover:border-purple-300';
+      case 'green': return 'border-emerald-200 bg-white hover:shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:border-emerald-300';
+      case 'teal': return 'border-teal-200 bg-white hover:shadow-[0_8px_24px_rgba(20,184,166,0.16)] hover:border-teal-300';
+      case 'pink': return 'border-pink-200 bg-white hover:shadow-[0_8px_24px_rgba(236,72,153,0.16)] hover:border-pink-300';
+      case 'yellow': return 'border-amber-200 bg-white hover:shadow-[0_8px_24px_rgba(245,158,11,0.16)] hover:border-amber-300';
+      case 'cyan': return 'border-cyan-200 bg-white hover:shadow-[0_8px_24px_rgba(6,182,212,0.16)] hover:border-cyan-300';
+      case 'indigo': return 'border-indigo-200 bg-white hover:shadow-[0_8px_24px_rgba(99,102,241,0.16)] hover:border-indigo-300';
+      default: return 'border-slate-200 bg-white hover:shadow-[0_8px_24px_rgba(71,85,105,0.12)] hover:border-slate-300';
+    }
+  } else {
+    // Locked card styles: gradient of color series but faded and desaturated
+    switch (c) {
+      case 'blue': return 'border-blue-100 bg-gradient-to-br from-blue-50/50 to-slate-50/70 hover:border-blue-200';
+      case 'orange': return 'border-orange-100 bg-gradient-to-br from-orange-50/50 to-slate-50/70 hover:border-orange-200';
+      case 'red': return 'border-red-100 bg-gradient-to-br from-red-50/50 to-slate-50/70 hover:border-red-200';
+      case 'purple': return 'border-purple-100 bg-gradient-to-br from-purple-50/50 to-slate-50/70 hover:border-purple-200';
+      case 'green': return 'border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-slate-50/70 hover:border-emerald-200';
+      case 'teal': return 'border-teal-100 bg-gradient-to-br from-teal-50/50 to-slate-50/70 hover:border-teal-200';
+      case 'pink': return 'border-pink-100 bg-gradient-to-br from-pink-50/50 to-slate-50/70 hover:border-pink-200';
+      case 'yellow': return 'border-amber-100 bg-gradient-to-br from-amber-50/50 to-slate-50/70 hover:border-amber-200';
+      case 'cyan': return 'border-cyan-100 bg-gradient-to-br from-cyan-50/50 to-slate-50/70 hover:border-cyan-200';
+      case 'indigo': return 'border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-slate-50/70 hover:border-indigo-200';
+      default: return 'border-purple-100 bg-gradient-to-br from-purple-50/50 to-slate-50/70 hover:border-purple-200';
+    }
+  }
+}
 
 export default function Home() {
   const { currentChild, switchChild } = useChild();
@@ -252,6 +286,7 @@ export default function Home() {
   const [flyCoords, setFlyCoords] = useState({ x: 0, y: 0 });
   const [animateNavButton, setAnimateNavButton] = useState(false);
   const animatingCardRef = useRef<HTMLDivElement>(null);
+  const [freezeRestoreDays, setFreezeRestoreDays] = useState(5);
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
@@ -269,13 +304,16 @@ export default function Home() {
           fetch(`/api/tasks/templates`),
           fetch(`/api/rewards/status?childId=${currentChild.id}`),
           fetch('/api/streak-rewards'),
-          fetch(`/api/streak/progress?childId=${currentChild.id}`)
+          fetch(`/api/streak/progress?childId=${currentChild.id}&date=${today}`)
         ]);
         const [tasksData, starsData, rewardsData, tplData, rewardStatusData, streakRewData, streakProgData] = await Promise.all([
           tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json(), rewardStatusRes.json(), streakRewRes.json(), streakProgRes.json()
         ]);
         const settingsRes = await fetch('/api/settings');
         const settingsData = await settingsRes.json();
+        if (settingsData?.freezeRestoreDays !== undefined) {
+          setFreezeRestoreDays(settingsData.freezeRestoreDays);
+        }
         const allTemplates = Array.isArray(tplData) ? tplData : [];
         const templateIds = new Set(allTemplates.map((template: any) => template.id));
         setTasks(Array.isArray(tasksData)
@@ -547,6 +585,27 @@ export default function Home() {
               </AnimatePresence>
             </div>
           </div>
+          {/* Hearts */}
+          <div className="flex items-center gap-1 ml-2 self-center shrink-0" title={`Заморозки серии: ${streakProgress.freezeHearts !== undefined ? streakProgress.freezeHearts : 2} из 2 (восстановление раз в ${freezeRestoreDays} дн.)`}>
+            {[1, 2].map((heartIndex) => {
+              const activeHearts = streakProgress.freezeHearts !== undefined ? streakProgress.freezeHearts : 2;
+              const isRed = heartIndex <= activeHearts;
+              return (
+                <span key={heartIndex} className="transition-transform duration-300 hover:scale-110">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill={isRed ? "#EF4444" : "#E2E8F0"}
+                    stroke={isRed ? "#EF4444" : "#CBD5E1"}
+                    strokeWidth="1.5"
+                    className={`w-5 h-5 ${isRed ? "animate-pulse" : ""}`}
+                  >
+                    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                  </svg>
+                </span>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -602,6 +661,17 @@ export default function Home() {
               >
                 <item.icon size={16} className={animateNavButton ? 'text-yellow-500' : 'text-slate-400'} />
                 {item.label}
+                {streakProgress.currentStreak > 0 && (
+                  <motion.span 
+                    key={streakProgress.currentStreak}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 350, damping: 15 }}
+                    className="ml-1 text-[11px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-extrabold flex items-center gap-0.5"
+                  >
+                    {streakProgress.currentStreak} 🔥
+                  </motion.span>
+                )}
               </button>
             );
           }
@@ -836,8 +906,16 @@ export default function Home() {
                   <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
                     <Award size={22} className="text-purple-500" /> Награды за серию
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Твоя серия: <span className="font-extrabold text-slate-700">{streakProgress.currentStreak || 0} дней подряд</span> 🔥
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 flex-wrap">
+                    Твоя серия: <span className="font-extrabold text-slate-700">{streakProgress.currentStreak || 0} дней подряд</span>
+                    <motion.span 
+                      key={streakProgress.currentStreak}
+                      animate={{ scale: [1, 1.25, 1] }} 
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="inline-block"
+                    >
+                      🔥
+                    </motion.span>
                   </p>
                 </div>
                 <button onClick={() => setShowStreakRewardsModal(false)} className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer">
@@ -870,9 +948,7 @@ export default function Home() {
                             }
                           }}
                           className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5 active:scale-[0.99] shadow-[0_4px_10px_rgba(0,0,0,0.04)] ${
-                            isUnlocked
-                              ? 'border-slate-200 bg-white hover:shadow-[0_8px_20px_rgba(168,85,247,0.12)]'
-                              : 'border-purple-200/80 bg-gradient-to-br from-purple-50/80 via-slate-50/40 to-indigo-50/50 hover:shadow-[0_8px_20px_rgba(168,85,247,0.22)] hover:border-purple-300/80'
+                            getCardStyleClasses(reward.color || 'blue', isUnlocked)
                           }`}
                         >
                           {/* Sticker / Badge */}
@@ -911,6 +987,24 @@ export default function Home() {
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
                             isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-purple-100/70'
                           }`}>
+                            {isUnlocked && (
+                              <>
+                                <div 
+                                  className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[10px] mix-blend-screen scale-[1.05] animate-pulse"
+                                  style={{
+                                    background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
+                                    animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                                  }}
+                                />
+                                <div 
+                                  className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[4px]"
+                                  style={{
+                                    background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
+                                    animation: 'spin 14s linear infinite'
+                                  }}
+                                />
+                              </>
+                            )}
                             {isUnlocked ? (
                               reward.image ? (
                                 <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2" />
@@ -957,7 +1051,7 @@ export default function Home() {
               </button>
 
               <div className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 ${
-                isZoomedUnlocked ? 'border-slate-200 bg-white' : 'border-purple-200/85 bg-gradient-to-br from-purple-50/90 via-slate-50/40 to-indigo-50/50 shadow-[0_4px_14px_rgba(168,85,247,0.08)]'
+                getCardStyleClasses(zoomedReward.color || 'blue', isZoomedUnlocked)
               }`}>
                 {/* Row 1 */}
                 <div className="h-[14%] flex items-center gap-2 min-w-0">
@@ -980,8 +1074,26 @@ export default function Home() {
 
                 {/* Row 3 */}
                 <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
-                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100' : 'bg-white shadow-inner border-purple-100/80'
+                  isZoomedUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-purple-100/80'
                 }`}>
+                  {isZoomedUnlocked && (
+                    <>
+                      <div 
+                        className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[12px] mix-blend-screen scale-[1.05] animate-pulse"
+                        style={{
+                          background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
+                          animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                        }}
+                      />
+                      <div 
+                        className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[5px]"
+                        style={{
+                          background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
+                          animation: 'spin 14s linear infinite'
+                        }}
+                      />
+                    </>
+                  )}
                   {isZoomedUnlocked ? (
                     zoomedReward.image ? (
                       <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4" />
@@ -1082,7 +1194,9 @@ export default function Home() {
                   duration: animationStep === 'fly' ? 0.75 : 0.5,
                   ease: animationStep === 'fly' ? "easeInOut" : "easeOut"
                 }}
-                className="w-64 flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-2xl aspect-[5/7] p-5 justify-between relative z-20 origin-center"
+                className={`w-64 flex flex-col border rounded-3xl overflow-hidden shadow-2xl aspect-[5/7] p-5 justify-between relative z-20 origin-center ${
+                  getCardStyleClasses(earnedStreakReward.color || 'blue', true)
+                }`}
               >
                 <div className="h-[14%] flex items-center gap-1.5 min-w-0">
                   <span className="text-2xl shrink-0">{earnedStreakReward.emoji}</span>
@@ -1093,7 +1207,21 @@ export default function Home() {
                   <p className="text-xs text-slate-400 leading-tight line-clamp-2">{earnedStreakReward.description}</p>
                 </div>
 
-                <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100">
+                <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100/50">
+                  <div 
+                    className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[10px] mix-blend-screen scale-[1.05] animate-pulse"
+                    style={{
+                      background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
+                      animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                    }}
+                  />
+                  <div 
+                    className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[4px]"
+                    style={{
+                      background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
+                      animation: 'spin 14s linear infinite'
+                    }}
+                  />
                   {earnedStreakReward.image ? (
                     <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-3" />
                   ) : (
