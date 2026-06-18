@@ -252,88 +252,131 @@ const playTriumphSound = () => {
   }
 };
 
+const playRewardOpenSound = () => {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+    
+    // Pentatonic ascending arpeggio for a magical opening feeling
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; // C4, E4, G4, C5, E5, G5, C6, E6, G6
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.045);
+      
+      gain.gain.setValueAtTime(0.08, now + idx * 0.045);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.045 + 0.75);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.045);
+      osc.stop(now + idx * 0.045 + 0.85);
+    });
+
+    // Warm sub-bass glide for opening impact
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(130.81, now); // C3
+    subOsc.frequency.exponentialRampToValueAtTime(329.63, now + 0.35); // E4
+    subGain.gain.setValueAtTime(0.08, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 0.4);
+  } catch (e) {
+    console.error('Audio play error:', e);
+  }
+};
+
 function getTextColorClass(color: string = 'blue') {
   const c = color.toLowerCase();
   switch (c) {
-    case 'blue': return 'text-blue-600';
-    case 'orange': return 'text-orange-600';
-    case 'red': return 'text-red-600';
-    case 'purple': return 'text-purple-600';
-    case 'green': return 'text-emerald-600';
-    case 'teal': return 'text-teal-600';
-    case 'pink': return 'text-pink-600';
-    case 'yellow': return 'text-amber-600';
-    case 'cyan': return 'text-cyan-600';
-    case 'indigo': return 'text-indigo-600';
-    default: return 'text-slate-600';
+    case 'blue': return 'text-blue-700 font-extrabold';
+    case 'orange': return 'text-orange-700 font-extrabold';
+    case 'red': return 'text-red-700 font-extrabold';
+    case 'purple': return 'text-purple-700 font-extrabold';
+    case 'green': return 'text-emerald-700 font-extrabold';
+    case 'teal': return 'text-teal-700 font-extrabold';
+    case 'pink': return 'text-pink-700 font-extrabold';
+    case 'yellow': return 'text-amber-800 font-extrabold';
+    case 'cyan': return 'text-cyan-700 font-extrabold';
+    case 'indigo': return 'text-indigo-700 font-extrabold';
+    default: return 'text-slate-700 font-extrabold';
   }
 }
 
 function getBadgeStyleClasses(color: string = 'blue') {
   const c = color.toLowerCase();
   switch (c) {
-    case 'blue': return 'bg-blue-100/90 text-blue-700 border border-blue-200';
-    case 'orange': return 'bg-orange-100/90 text-orange-700 border border-orange-200';
-    case 'red': return 'bg-red-100/90 text-red-700 border border-red-200';
-    case 'purple': return 'bg-purple-100/90 text-purple-700 border border-purple-200';
-    case 'green': return 'bg-emerald-100/90 text-emerald-700 border border-emerald-200';
-    case 'teal': return 'bg-teal-100/90 text-teal-700 border border-teal-200';
-    case 'pink': return 'bg-pink-100/90 text-pink-700 border border-pink-200';
-    case 'yellow': return 'bg-amber-100/90 text-amber-800 border border-amber-200';
-    case 'cyan': return 'bg-cyan-100/90 text-cyan-700 border border-cyan-200';
-    case 'indigo': return 'bg-indigo-100/90 text-indigo-700 border border-indigo-200';
-    default: return 'bg-slate-100/90 text-slate-700 border border-slate-200';
+    case 'blue': return 'bg-blue-100 text-blue-800 border border-blue-200 shadow-sm';
+    case 'orange': return 'bg-orange-100 text-orange-800 border border-orange-200 shadow-sm';
+    case 'red': return 'bg-red-100 text-red-800 border border-red-200 shadow-sm';
+    case 'purple': return 'bg-purple-100 text-purple-800 border border-purple-200 shadow-sm';
+    case 'green': return 'bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-sm';
+    case 'teal': return 'bg-teal-100 text-teal-800 border border-teal-200 shadow-sm';
+    case 'pink': return 'bg-pink-100 text-pink-800 border border-pink-200 shadow-sm';
+    case 'yellow': return 'bg-amber-100 text-amber-900 border border-amber-200 shadow-sm';
+    case 'cyan': return 'bg-cyan-100 text-cyan-800 border border-cyan-200 shadow-sm';
+    case 'indigo': return 'bg-indigo-100 text-indigo-800 border border-indigo-200 shadow-sm';
+    default: return 'bg-slate-100 text-slate-800 border border-slate-200 shadow-sm';
   }
 }
 
 function getLockedQuestionMarkColor(color: string = 'blue') {
   const c = color.toLowerCase();
   switch (c) {
-    case 'blue': return 'text-blue-500 drop-shadow-[0_2px_8px_rgba(59,130,246,0.5)]';
-    case 'orange': return 'text-orange-500 drop-shadow-[0_2px_8px_rgba(249,115,22,0.5)]';
-    case 'red': return 'text-red-500 drop-shadow-[0_2px_8px_rgba(239,68,68,0.5)]';
-    case 'purple': return 'text-purple-500 drop-shadow-[0_2px_8px_rgba(168,85,247,0.5)]';
-    case 'green': return 'text-emerald-500 drop-shadow-[0_2px_8px_rgba(16,185,129,0.5)]';
-    case 'teal': return 'text-teal-500 drop-shadow-[0_2px_8px_rgba(20,184,166,0.5)]';
-    case 'pink': return 'text-pink-500 drop-shadow-[0_2px_8px_rgba(236,72,153,0.5)]';
-    case 'yellow': return 'text-amber-500 drop-shadow-[0_2px_8px_rgba(245,158,11,0.5)]';
-    case 'cyan': return 'text-cyan-500 drop-shadow-[0_2px_8px_rgba(6,182,212,0.5)]';
-    case 'indigo': return 'text-indigo-500 drop-shadow-[0_2px_8px_rgba(99,102,241,0.5)]';
-    default: return 'text-slate-400 drop-shadow-[0_2px_8px_rgba(148,163,184,0.4)]';
+    case 'blue': return 'text-blue-500/85 drop-shadow-[0_2px_8px_rgba(59,130,246,0.6)]';
+    case 'orange': return 'text-orange-500/85 drop-shadow-[0_2px_8px_rgba(249,115,22,0.6)]';
+    case 'red': return 'text-red-500/85 drop-shadow-[0_2px_8px_rgba(239,68,68,0.6)]';
+    case 'purple': return 'text-purple-500/85 drop-shadow-[0_2px_8px_rgba(168,85,247,0.6)]';
+    case 'green': return 'text-emerald-500/85 drop-shadow-[0_2px_8px_rgba(16,185,129,0.6)]';
+    case 'teal': return 'text-teal-500/85 drop-shadow-[0_2px_8px_rgba(20,184,166,0.6)]';
+    case 'pink': return 'text-pink-500/85 drop-shadow-[0_2px_8px_rgba(236,72,153,0.6)]';
+    case 'yellow': return 'text-amber-500/85 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)]';
+    case 'cyan': return 'text-cyan-500/85 drop-shadow-[0_2px_8px_rgba(6,182,212,0.6)]';
+    case 'indigo': return 'text-indigo-500/85 drop-shadow-[0_2px_8px_rgba(99,102,241,0.6)]';
+    default: return 'text-slate-400/85 drop-shadow-[0_2px_8px_rgba(148,163,184,0.5)]';
   }
 }
 
 function getLockedRadialGradient(color: string = 'blue') {
   const c = color.toLowerCase();
   switch (c) {
-    case 'blue': return 'rgba(59,130,246,0.18)';
-    case 'orange': return 'rgba(249,115,22,0.18)';
-    case 'red': return 'rgba(239,68,68,0.18)';
-    case 'purple': return 'rgba(168,85,247,0.18)';
-    case 'green': return 'rgba(16,185,129,0.18)';
-    case 'teal': return 'rgba(20,184,166,0.18)';
-    case 'pink': return 'rgba(236,72,153,0.18)';
-    case 'yellow': return 'rgba(245,158,11,0.18)';
-    case 'cyan': return 'rgba(6,182,212,0.18)';
-    case 'indigo': return 'rgba(99,102,241,0.18)';
-    default: return 'rgba(148,163,184,0.1)';
+    case 'blue': return 'rgba(59,130,246,0.3)';
+    case 'orange': return 'rgba(249,115,22,0.3)';
+    case 'red': return 'rgba(239,68,68,0.3)';
+    case 'purple': return 'rgba(168,85,247,0.3)';
+    case 'green': return 'rgba(16,185,129,0.3)';
+    case 'teal': return 'rgba(20,184,166,0.3)';
+    case 'pink': return 'rgba(236,72,153,0.3)';
+    case 'yellow': return 'rgba(245,158,11,0.3)';
+    case 'cyan': return 'rgba(6,182,212,0.3)';
+    case 'indigo': return 'rgba(99,102,241,0.3)';
+    default: return 'rgba(148,163,184,0.15)';
   }
 }
 
 function getLockedConicColors(color: string = 'blue') {
   const c = color.toLowerCase();
   switch (c) {
-    case 'blue': return 'rgba(59,130,246,0.25)';
-    case 'orange': return 'rgba(249,115,22,0.25)';
-    case 'red': return 'rgba(239,68,68,0.25)';
-    case 'purple': return 'rgba(168,85,247,0.25)';
-    case 'green': return 'rgba(16,185,129,0.25)';
-    case 'teal': return 'rgba(20,184,166,0.25)';
-    case 'pink': return 'rgba(236,72,153,0.25)';
-    case 'yellow': return 'rgba(245,158,11,0.25)';
-    case 'cyan': return 'rgba(6,182,212,0.25)';
-    case 'indigo': return 'rgba(99,102,241,0.25)';
-    default: return 'rgba(148,163,184,0.18)';
+    case 'blue': return 'rgba(59,130,246,0.4)';
+    case 'orange': return 'rgba(249,115,22,0.4)';
+    case 'red': return 'rgba(239,68,68,0.4)';
+    case 'purple': return 'rgba(168,85,247,0.4)';
+    case 'green': return 'rgba(16,185,129,0.4)';
+    case 'teal': return 'rgba(20,184,166,0.4)';
+    case 'pink': return 'rgba(236,72,153,0.4)';
+    case 'yellow': return 'rgba(245,158,11,0.4)';
+    case 'cyan': return 'rgba(6,182,212,0.4)';
+    case 'indigo': return 'rgba(99,102,241,0.4)';
+    default: return 'rgba(148,163,184,0.25)';
   }
 }
 
@@ -342,32 +385,32 @@ function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
   
   if (isUnlocked) {
     switch (c) {
-      case 'blue': return 'border-2 border-blue-400 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 hover:shadow-[0_8px_24px_rgba(59,130,246,0.25)] hover:border-blue-500';
-      case 'orange': return 'border-2 border-orange-400 bg-gradient-to-br from-orange-50/90 to-amber-50/70 hover:shadow-[0_8px_24px_rgba(249,115,22,0.25)] hover:border-orange-500';
-      case 'red': return 'border-2 border-red-400 bg-gradient-to-br from-red-50/90 to-rose-50/70 hover:shadow-[0_8px_24px_rgba(239,68,68,0.25)] hover:border-red-500';
-      case 'purple': return 'border-2 border-purple-400 bg-gradient-to-br from-purple-50/90 to-fuchsia-50/70 hover:shadow-[0_8px_24px_rgba(168,85,247,0.25)] hover:border-purple-500';
-      case 'green': return 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50/90 to-teal-50/70 hover:shadow-[0_8px_24px_rgba(16,185,129,0.25)] hover:border-emerald-500';
-      case 'teal': return 'border-2 border-teal-400 bg-gradient-to-br from-teal-50/90 to-cyan-50/70 hover:shadow-[0_8px_24px_rgba(20,184,166,0.25)] hover:border-teal-500';
-      case 'pink': return 'border-2 border-pink-400 bg-gradient-to-br from-pink-50/90 to-rose-50/70 hover:shadow-[0_8px_24px_rgba(236,72,153,0.25)] hover:border-pink-500';
-      case 'yellow': return 'border-2 border-amber-400 bg-gradient-to-br from-yellow-50/90 to-amber-50/70 hover:shadow-[0_8px_24px_rgba(245,158,11,0.25)] hover:border-amber-500';
-      case 'cyan': return 'border-2 border-cyan-400 bg-gradient-to-br from-cyan-50/90 to-sky-50/70 hover:shadow-[0_8px_24px_rgba(6,182,212,0.25)] hover:border-cyan-500';
-      case 'indigo': return 'border-2 border-indigo-400 bg-gradient-to-br from-indigo-50/90 to-blue-50/70 hover:shadow-[0_8px_24px_rgba(99,102,241,0.25)] hover:border-indigo-500';
-      default: return 'border-2 border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 hover:shadow-[0_8px_24px_rgba(71,85,105,0.15)] hover:border-slate-400';
+      case 'blue': return 'border-2 border-blue-500 bg-gradient-to-br from-[#E0F2FE] via-[#BAE6FD] to-[#38BDF8]/40 hover:shadow-[0_8px_24px_rgba(56,189,248,0.35)] hover:border-blue-600';
+      case 'orange': return 'border-2 border-orange-500 bg-gradient-to-br from-[#FFE7D3] via-[#FFD3B4] to-[#FFA768]/40 hover:shadow-[0_8px_24px_rgba(249,115,22,0.35)] hover:border-orange-600';
+      case 'red': return 'border-2 border-red-500 bg-gradient-to-br from-[#FFE4E6] via-[#FECDD3] to-[#FDA4AF]/40 hover:shadow-[0_8px_24px_rgba(239,68,68,0.35)] hover:border-red-600';
+      case 'purple': return 'border-2 border-purple-500 bg-gradient-to-br from-[#F3E8FF] via-[#E9D5FF] to-[#D8B4FE]/40 hover:shadow-[0_8px_24px_rgba(168,85,247,0.35)] hover:border-purple-600';
+      case 'green': return 'border-2 border-emerald-500 bg-gradient-to-br from-[#D1FAE5] via-[#A7F3D0] to-[#6EE7B7]/40 hover:shadow-[0_8px_24px_rgba(16,185,129,0.35)] hover:border-emerald-600';
+      case 'teal': return 'border-2 border-teal-500 bg-gradient-to-br from-[#CCFBF1] via-[#99F6E4] to-[#5EEAD4]/40 hover:shadow-[0_8px_24px_rgba(20,184,166,0.35)] hover:border-teal-600';
+      case 'pink': return 'border-2 border-pink-500 bg-gradient-to-br from-[#FCE7F3] via-[#FBCFE8] to-[#F9A8D4]/40 hover:shadow-[0_8px_24px_rgba(236,72,153,0.35)] hover:border-pink-600';
+      case 'yellow': return 'border-2 border-amber-500 bg-gradient-to-br from-[#FEF3C7] via-[#FDE68A] to-[#FCD34D]/40 hover:shadow-[0_8px_24px_rgba(245,158,11,0.35)] hover:border-amber-600';
+      case 'cyan': return 'border-2 border-cyan-500 bg-gradient-to-br from-[#E0F7FA] via-[#B2EBF2] to-[#80DEEA]/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.35)] hover:border-cyan-600';
+      case 'indigo': return 'border-2 border-indigo-500 bg-gradient-to-br from-[#E0E7FF] via-[#C7D2FE] to-[#93C5FD]/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.35)] hover:border-indigo-600';
+      default: return 'border-2 border-slate-350 bg-gradient-to-br from-[#F1F5F9] to-[#E2E8F0] hover:shadow-[0_8px_24px_rgba(71,85,105,0.2)] hover:border-slate-450';
     }
   } else {
     // Locked card styles: gradient of color series but faded, desaturated and border-dashed
     switch (c) {
-      case 'blue': return 'border-2 border-dashed border-blue-400/80 bg-gradient-to-br from-blue-100/70 to-indigo-50/40 hover:border-blue-500';
-      case 'orange': return 'border-2 border-dashed border-orange-400/80 bg-gradient-to-br from-orange-100/70 to-amber-50/40 hover:border-orange-500';
-      case 'red': return 'border-2 border-dashed border-red-400/80 bg-gradient-to-br from-red-100/70 to-rose-50/40 hover:border-red-500';
-      case 'purple': return 'border-2 border-dashed border-purple-400/80 bg-gradient-to-br from-purple-100/70 to-fuchsia-50/40 hover:border-purple-500';
-      case 'green': return 'border-2 border-dashed border-emerald-400/80 bg-gradient-to-br from-emerald-100/70 to-teal-50/40 hover:border-emerald-500';
-      case 'teal': return 'border-2 border-dashed border-teal-400/80 bg-gradient-to-br from-teal-100/70 to-cyan-50/40 hover:border-teal-500';
-      case 'pink': return 'border-2 border-dashed border-pink-400/80 bg-gradient-to-br from-pink-100/70 to-rose-50/40 hover:border-pink-500';
-      case 'yellow': return 'border-2 border-dashed border-amber-400/80 bg-gradient-to-br from-yellow-100/70 to-amber-50/40 hover:border-amber-500';
-      case 'cyan': return 'border-2 border-dashed border-cyan-400/80 bg-gradient-to-br from-cyan-100/70 to-sky-50/40 hover:border-cyan-500';
-      case 'indigo': return 'border-2 border-dashed border-indigo-400/80 bg-gradient-to-br from-indigo-100/70 to-blue-50/40 hover:border-indigo-500';
-      default: return 'border-2 border-dashed border-slate-400/70 bg-gradient-to-br from-slate-100 to-slate-200/50 hover:border-slate-500';
+      case 'blue': return 'border-2 border-dashed border-blue-400 bg-gradient-to-br from-[#F0F9FF] to-[#DBEAFE] hover:border-blue-500';
+      case 'orange': return 'border-2 border-dashed border-orange-400 bg-gradient-to-br from-[#FFF7ED] to-[#FFEDD5] hover:border-orange-500';
+      case 'red': return 'border-2 border-dashed border-red-400 bg-gradient-to-br from-[#FFF5F5] to-[#FFE4E6] hover:border-red-500';
+      case 'purple': return 'border-2 border-dashed border-purple-400 bg-gradient-to-br from-[#FAF5FF] to-[#F3E8FF] hover:border-purple-500';
+      case 'green': return 'border-2 border-dashed border-emerald-400 bg-gradient-to-br from-[#ECFDF5] to-[#D1FAE5] hover:border-emerald-500';
+      case 'teal': return 'border-2 border-dashed border-teal-400 bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1] hover:border-teal-500';
+      case 'pink': return 'border-2 border-dashed border-pink-400 bg-gradient-to-br from-[#DFE7F6] to-[#FCE7F3] hover:border-pink-500';
+      case 'yellow': return 'border-2 border-dashed border-amber-400 bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7] hover:border-amber-500';
+      case 'cyan': return 'border-2 border-dashed border-cyan-400 bg-gradient-to-br from-[#E0F7FA] to-[#E0F7FA]/60 hover:border-cyan-500';
+      case 'indigo': return 'border-2 border-dashed border-indigo-400 bg-gradient-to-br from-[#EEF2FF] to-[#E0E7FF] hover:border-indigo-500';
+      default: return 'border-2 border-dashed border-slate-400 bg-gradient-to-br from-[#F8FAFC] to-[#F1F5F9] hover:border-slate-500';
     }
   }
 }
@@ -1098,12 +1141,12 @@ export default function Home() {
                   <X size={18} />
                 </button>
               </div>
-
+ 
               {isDevOrParent && (
-                <div className="mx-5 mb-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-purple-700">🛠️ Тест-драйв наград</span>
-                    <span className="text-[10px] text-purple-400 font-medium">(все открыты для проверки)</span>
+                <div className="mx-5 mb-2 px-3 py-2.5 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between shrink-0 shadow-sm font-sans">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-purple-700">🛠️ Режим тестирования наград</span>
+                    <span className="text-[9px] text-purple-500 font-semibold">безопасный слой (не влияет на данные детей)</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -1116,7 +1159,7 @@ export default function Home() {
                   </label>
                 </div>
               )}
-
+ 
               <div className="flex-1 overflow-y-auto pr-1 font-sans">
                 {streakRewards.length === 0 ? (
                   <p className="text-slate-400 text-center py-12 text-sm font-semibold">Пока нет наград за серию. Попроси родителей добавить их в настройках!</p>
@@ -1131,11 +1174,11 @@ export default function Home() {
                           onClick={() => {
                             setZoomedReward(reward);
                             if (isUnlocked) {
-                              playTriumphSound();
+                              playRewardOpenSound();
                               confetti({
-                                particleCount: 100,
-                                spread: 60,
-                                origin: { y: 0.6 }
+                                particleCount: 120,
+                                spread: 75,
+                                origin: { y: 0.5 }
                               });
                             } else {
                               playMagicSound();
@@ -1151,13 +1194,13 @@ export default function Home() {
                               {count}
                             </div>
                           )}
-
+ 
                           {!isUnlocked && (
                             <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-[12px] font-bold text-[9px] z-10 ${getBadgeStyleClasses(reward.color || 'blue')}`}>
                               {reward.daysStreak} дн.
                             </div>
                           )}
-
+ 
                           {/* Row 1: Title & Icon (5x1 ratio) */}
                           <div className="h-[14%] flex items-center gap-1.5 min-w-0">
                             <span className={`text-lg shrink-0 ${!isUnlocked ? 'blur-[4px] select-none opacity-40' : ''}`}>
@@ -1169,14 +1212,16 @@ export default function Home() {
                               {reward.title}
                             </h4>
                           </div>
-
+ 
                           {/* Row 2: Description (5x1 ratio) */}
-                          <div className="h-[14%] flex items-center justify-center text-center w-full">
-                            <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 whitespace-pre-line w-full">
-                              {reward.description || 'Без описания'}
+                          <div className="h-[14%] flex items-center justify-center text-center w-full px-1">
+                            <p className={`text-[9px] md:text-[10px] leading-tight line-clamp-2 text-center w-full ${
+                              isUnlocked ? 'text-slate-500 font-semibold' : getTextColorClass(reward.color || 'blue')
+                            }`}>
+                              {isUnlocked ? (reward.description || 'Без описания') : `Этот секретный трофей откроется через ${reward.daysStreak} дней подряд!`}
                             </p>
                           </div>
-
+ 
                           {/* Row 3: Image (5x5 ratio) */}
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
                             isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-slate-100/70'
@@ -1256,10 +1301,10 @@ export default function Home() {
               <div 
                 onClick={() => {
                   if (isZoomedUnlocked) {
-                    playTriumphSound();
+                    playRewardOpenSound();
                     confetti({
-                      particleCount: 80,
-                      spread: 60,
+                      particleCount: 100,
+                      spread: 70,
                       origin: { y: 0.5 }
                     });
                   }
