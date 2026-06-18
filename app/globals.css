@@ -137,4 +137,14 @@
   .animate-reward-pulse-cool {
     animation: rewardPulseCool 6.4s ease-in-out infinite;
   }
+  @keyframes customPulse {
+    0%, 100% {
+      transform: scale(0.92);
+      opacity: 0.45;
+    }
+    50% {
+      transform: scale(1.22);
+      opacity: 0.95;
+    }
+  }
 }

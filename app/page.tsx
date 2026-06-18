@@ -415,6 +415,40 @@ function getCardStyleClasses(color: string = 'blue', isUnlocked: boolean) {
   }
 }
 
+function getConicGradient1(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'conic-gradient(from 0deg, #3b82f6 0%, #ffffff 25%, #60a5fa 50%, #ffffff 75%, #3b82f6 100%)';
+    case 'orange': return 'conic-gradient(from 0deg, #f97316 0%, #ffffff 25%, #fbbf24 50%, #ffffff 75%, #f97316 100%)';
+    case 'red': return 'conic-gradient(from 0deg, #ef4444 0%, #ffffff 25%, #f43f5e 50%, #ffffff 75%, #ef4444 100%)';
+    case 'purple': return 'conic-gradient(from 0deg, #a855f7 0%, #ffffff 25%, #ec4899 50%, #ffffff 75%, #a855f7 100%)';
+    case 'green': return 'conic-gradient(from 0deg, #10b981 0%, #ffffff 25%, #34d399 50%, #ffffff 75%, #10b981 100%)';
+    case 'teal': return 'conic-gradient(from 0deg, #14b8a6 0%, #ffffff 25%, #2dd4bf 50%, #ffffff 75%, #14b8a6 100%)';
+    case 'pink': return 'conic-gradient(from 0deg, #ec4899 0%, #ffffff 25%, #f472b6 50%, #ffffff 75%, #ec4899 100%)';
+    case 'yellow': return 'conic-gradient(from 0deg, #f59e0b 0%, #ffffff 25%, #fcd34d 50%, #ffffff 75%, #f59e0b 100%)';
+    case 'cyan': return 'conic-gradient(from 0deg, #06b6d4 0%, #ffffff 25%, #22d3ee 50%, #ffffff 75%, #06b6d4 100%)';
+    case 'indigo': return 'conic-gradient(from 0deg, #6366f1 0%, #ffffff 25%, #818cf8 50%, #ffffff 75%, #6366f1 100%)';
+    default: return 'conic-gradient(from 0deg, #64748b 0%, #ffffff 25%, #94a3b8 50%, #ffffff 75%, #64748b 100%)';
+  }
+}
+
+function getConicGradient2(color: string = 'blue') {
+  const c = color.toLowerCase();
+  switch (c) {
+    case 'blue': return 'conic-gradient(from 0deg, #93c5fd 0%, #ffffff 15%, #3b82f6 30%, #ffffff 50%, #60a5fa 70%, #ffffff 85%, #93c5fd 100%)';
+    case 'orange': return 'conic-gradient(from 0deg, #fed7aa 0%, #ffffff 15%, #f97316 30%, #ffffff 50%, #fbbf24 70%, #ffffff 85%, #fed7aa 100%)';
+    case 'red': return 'conic-gradient(from 0deg, #fecdd3 0%, #ffffff 15%, #ef4444 30%, #ffffff 50%, #f43f5e 70%, #ffffff 85%, #fecdd3 100%)';
+    case 'purple': return 'conic-gradient(from 0deg, #e9d5ff 0%, #ffffff 15%, #a855f7 30%, #ffffff 50%, #ec4899 70%, #ffffff 85%, #e9d5ff 100%)';
+    case 'green': return 'conic-gradient(from 0deg, #a7f3d0 0%, #ffffff 15%, #10b981 30%, #ffffff 50%, #34d399 70%, #ffffff 85%, #a7f3d0 100%)';
+    case 'teal': return 'conic-gradient(from 0deg, #99f6e4 0%, #ffffff 15%, #14b8a6 30%, #ffffff 50%, #2dd4bf 70%, #ffffff 85%, #99f6e4 100%)';
+    case 'pink': return 'conic-gradient(from 0deg, #fbcfe8 0%, #ffffff 15%, #ec4899 30%, #ffffff 50%, #f472b6 70%, #ffffff 85%, #fbcfe8 100%)';
+    case 'yellow': return 'conic-gradient(from 0deg, #fde68a 0%, #ffffff 15%, #f59e0b 30%, #ffffff 50%, #fcd34d 70%, #ffffff 85%, #fde68a 100%)';
+    case 'cyan': return 'conic-gradient(from 0deg, #b2ebf2 0%, #ffffff 15%, #06b6d4 30%, #ffffff 50%, #22d3ee 70%, #ffffff 85%, #b2ebf2 100%)';
+    case 'indigo': return 'conic-gradient(from 0deg, #c7d2fe 0%, #ffffff 15%, #6366f1 30%, #ffffff 50%, #818cf8 70%, #ffffff 85%, #c7d2fe 100%)';
+    default: return 'conic-gradient(from 0deg, #cbd5e1 0%, #ffffff 15%, #64748b 30%, #ffffff 50%, #94a3b8 70%, #ffffff 85%, #cbd5e1 100%)';
+  }
+}
+
 export default function Home() {
   const { currentChild, switchChild } = useChild();
   const [stars, setStars] = useState(0);
@@ -450,6 +484,15 @@ export default function Home() {
 
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
+
+    if (typeof window !== 'undefined') {
+      const isDemo = window.location.search.includes('demo=1') || localStorage.getItem('aq:rewards-test-mode') === 'true';
+      if (isDemo) {
+        localStorage.setItem('aq:rewards-test-mode', 'true');
+        setRewardsTestMode(true);
+        setShowStreakRewardsModal(true);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -764,6 +807,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
+      {/* FLOATING DEMO MODE BANNER */}
+      {rewardsTestMode && (
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 text-center text-xs font-bold flex items-center justify-center gap-3 shadow-md relative z-50">
+          <span>🎭 Режим демонстрации наград активен (данные детей в безопасности)</span>
+          <button
+            onClick={() => {
+              setRewardsTestMode(false);
+              setShowStreakRewardsModal(false);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('aq:rewards-test-mode');
+                // Remove query param without refresh
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            }}
+            className="bg-white text-purple-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors text-[10px] font-black cursor-pointer shadow-sm"
+          >
+            Выйти из режима демо
+          </button>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="bg-white px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-slate-100">
         <div className="flex items-center gap-3">
@@ -1215,10 +1279,10 @@ export default function Home() {
  
                           {/* Row 2: Description (5x1 ratio) */}
                           <div className="h-[14%] flex items-center justify-center text-center w-full px-1">
-                            <p className={`text-[9px] md:text-[10px] leading-tight line-clamp-2 text-center w-full ${
+                            <p className={`text-[10px] leading-tight line-clamp-2 text-center w-full ${
                               isUnlocked ? 'text-slate-500 font-semibold' : getTextColorClass(reward.color || 'blue')
                             }`}>
-                              {isUnlocked ? (reward.description || 'Без описания') : `Этот секретный трофей откроется через ${reward.daysStreak} дней подряд!`}
+                              {reward.description || 'Без описания'}
                             </p>
                           </div>
  
@@ -1229,17 +1293,17 @@ export default function Home() {
                             {isUnlocked && (
                               <>
                                 <div 
-                                  className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[10px] mix-blend-screen scale-[1.05] animate-pulse"
+                                  className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                                   style={{
-                                    background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
-                                    animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                                    background: getConicGradient1(reward.color),
+                                    animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
                                   }}
                                 />
                                 <div 
-                                  className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[4px]"
+                                  className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                                   style={{
-                                    background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
-                                    animation: 'spin 14s linear infinite'
+                                    background: getConicGradient2(reward.color),
+                                    animation: 'spin 3.2s linear infinite'
                                   }}
                                 />
                               </>
@@ -1265,14 +1329,16 @@ export default function Home() {
                 )}
               </div>
               
-              <div className="p-4 bg-white border-t border-slate-100 flex justify-center shrink-0">
-                <button
-                  onClick={triggerTestAnimation}
-                  className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>🎭</span> Проверить анимацию награды (Тест)
-                </button>
-              </div>
+              {(isDevOrParent || rewardsTestMode) && (
+                <div className="p-4 bg-white border-t border-slate-100 flex justify-center shrink-0">
+                  <button
+                    onClick={triggerTestAnimation}
+                    className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🎭</span> Проверить анимацию награды (Тест)
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
@@ -1339,17 +1405,17 @@ export default function Home() {
                   {isZoomedUnlocked && (
                     <>
                       <div 
-                        className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[12px] mix-blend-screen scale-[1.05] animate-pulse"
+                        className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                         style={{
-                          background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
-                          animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                          background: getConicGradient1(zoomedReward.color),
+                          animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
                         }}
                       />
                       <div 
-                        className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[5px]"
+                        className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                         style={{
-                          background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
-                          animation: 'spin 14s linear infinite'
+                          background: getConicGradient2(zoomedReward.color),
+                          animation: 'spin 3.2s linear infinite'
                         }}
                       />
                     </>
@@ -1469,17 +1535,17 @@ export default function Home() {
 
                 <div className="h-[72%] w-full aspect-square bg-slate-50 rounded-2xl overflow-hidden relative flex items-center justify-center border border-slate-100/50">
                   <div 
-                    className="absolute inset-1 rounded-full opacity-[0.22] filter blur-[10px] mix-blend-screen scale-[1.05] animate-pulse"
+                    className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                     style={{
-                      background: 'conic-gradient(from 0deg, #22C55E 0%, #FFFFFF 25%, #4ADE80 50%, #FFFFFF 75%, #22C55E 100%)',
-                      animation: 'spin 22s linear infinite, pulse 3.5s ease-in-out infinite'
+                      background: getConicGradient1(earnedStreakReward.color),
+                      animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
                     }}
                   />
                   <div 
-                    className="absolute inset-3 rounded-full opacity-[0.35] filter blur-[4px]"
+                    className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                     style={{
-                      background: 'conic-gradient(from 0deg, #86EFAC 0%, #FFFFFF 15%, #22C55E 30%, #FFFFFF 50%, #4ADE80 70%, #FFFFFF 85%, #86EFAC 100%)',
-                      animation: 'spin 14s linear infinite'
+                      background: getConicGradient2(earnedStreakReward.color),
+                      animation: 'spin 3.2s linear infinite'
                     }}
                   />
                   {earnedStreakReward.image ? (

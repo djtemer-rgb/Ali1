@@ -125,6 +125,19 @@ export default function SettingsPage() {
   const [srColor, setSrColor] = useState('blue');
   const [showSrEmojiModal, setShowSrEmojiModal] = useState(false);
   const [freezeRestoreDays, setFreezeRestoreDays] = useState('5');
+  const [localDemoMode, setLocalDemoMode] = useState(false);
+
+  const handleToggleDemoMode = (checked: boolean) => {
+    setLocalDemoMode(checked);
+    if (typeof window !== 'undefined') {
+      if (checked) {
+        localStorage.setItem('aq:rewards-test-mode', 'true');
+      } else {
+        localStorage.removeItem('aq:rewards-test-mode');
+      }
+    }
+  };
+
 
   // PIN
   const [pin1, setPin1] = useState(''); const [pin2, setPin2] = useState(''); const [recovery, setRecovery] = useState('');
@@ -200,6 +213,9 @@ export default function SettingsPage() {
       }
     };
     checkAuth();
+    if (typeof window !== 'undefined') {
+      setLocalDemoMode(localStorage.getItem('aq:rewards-test-mode') === 'true');
+    }
   }, []);
   useEffect(() => { loadAll(); }, [settingsChildId]);
   useEffect(() => {
@@ -1095,8 +1111,8 @@ export default function SettingsPage() {
 
   const testAnimationOnDashboard = () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('aq:trigger-test-animation', 'true');
-      window.location.href = '/';
+      localStorage.setItem('aq:rewards-test-mode', 'true');
+      window.location.href = '/?demo=1';
     }
   };
 
@@ -2216,14 +2232,23 @@ export default function SettingsPage() {
               {streakRewards.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет наград за серию побед</p>}
               
               {streakRewards.length > 0 && (
-                <div className="pt-4 border-t border-slate-100 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={testAnimationOnDashboard}
-                    className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <span>🎭</span> Протестировать анимацию на Дашборде
-                  </button>
+                <div className="pt-4 border-t border-slate-100 space-y-3 font-sans">
+                  <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-100 rounded-2xl p-3.5 shadow-sm">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black text-purple-800">🎭 Демонстрационный режим наград</span>
+                      <span className="text-[10px] text-purple-500 font-semibold mt-0.5">Временно разблокирует все карточки на главной для демонстрации</span>
+                    </div>
+                    <Switch checked={localDemoMode} onCheckedChange={handleToggleDemoMode} />
+                  </div>
+                  {localDemoMode && (
+                    <button
+                      type="button"
+                      onClick={testAnimationOnDashboard}
+                      className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer animate-pulse"
+                    >
+                      <span>🚀</span> Перейти к тестированию на главной
+                    </button>
+                  )}
                 </div>
               )}
             </div>
