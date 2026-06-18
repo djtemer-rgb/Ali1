@@ -1442,6 +1442,29 @@ export default function SettingsPage() {
           </div>
         </AccordionSection>
 
+        {/* ДЕМО-РЕЖИМ (ВСЕГДА ВИДИМ ДЛЯ РОДИТЕЛЯ) */}
+        <AccordionSection id="demo-mode" title="Тестирование и Демо-режим" accentColor="border-t-4 border-t-purple-600"
+          icon={<Award size={18} className="text-purple-600" />}>
+          <div className="space-y-3 font-sans">
+            <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-100 rounded-2xl p-3.5 shadow-sm">
+              <div className="flex flex-col">
+                <span className="text-xs font-black text-purple-800">🎭 Демонстрационный режим наград</span>
+                <span className="text-[10px] text-purple-600 font-semibold mt-0.5">Временно разблокирует все карточки на главной для демонстрации</span>
+              </div>
+              <Switch checked={localDemoMode} onCheckedChange={handleToggleDemoMode} />
+            </div>
+            {localDemoMode && (
+              <button
+                type="button"
+                onClick={testAnimationOnDashboard}
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer animate-pulse"
+              >
+                <span>🚀</span> Перейти к тестированию на главной
+              </button>
+            )}
+          </div>
+        </AccordionSection>
+
         {/* 2. TASKS (SCHEDULE) */}
         <AccordionSection id="tasks" title="Задачи (расписание)" accentColor="border-t-4 border-t-green-500"
           icon={<Calendar size={18} className="text-green-500" />}>
@@ -2231,26 +2254,6 @@ export default function SettingsPage() {
               ))}
               {streakRewards.length === 0 && <p className="text-slate-400 text-center py-4 text-sm">Нет наград за серию побед</p>}
               
-              {streakRewards.length > 0 && (
-                <div className="pt-4 border-t border-slate-100 space-y-3 font-sans">
-                  <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-100 rounded-2xl p-3.5 shadow-sm">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black text-purple-800">🎭 Демонстрационный режим наград</span>
-                      <span className="text-[10px] text-purple-500 font-semibold mt-0.5">Временно разблокирует все карточки на главной для демонстрации</span>
-                    </div>
-                    <Switch checked={localDemoMode} onCheckedChange={handleToggleDemoMode} />
-                  </div>
-                  {localDemoMode && (
-                    <button
-                      type="button"
-                      onClick={testAnimationOnDashboard}
-                      className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-black text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer animate-pulse"
-                    >
-                      <span>🚀</span> Перейти к тестированию на главной
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </AccordionSection>
         )}
