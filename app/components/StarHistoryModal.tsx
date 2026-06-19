@@ -35,11 +35,16 @@ export default function StarHistoryModal({ childId, open, onClose }: { childId: 
 
   const getIcon = (item: LedgerItem) => {
     if (item.source === 'streak-reward' && item.sourceId) {
-      const match = item.sourceId.match(/^streak-reward-(\d+)$/);
-      if (match) {
+      const reward = streakRewards.find(r => r.id === item.sourceId);
+      const imgPath = reward?.image || (() => {
+        const match = item.sourceId.match(/^streak-reward-(\d+)$/);
+        return match ? `/images/rewards/${match[1]}.png` : null;
+      })();
+
+      if (imgPath) {
         return (
           <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 p-0.5">
-            <img src={`/images/rewards/${match[1]}.png`} alt="Награда" className="w-6 h-6 object-contain" />
+            <img src={imgPath} alt="Награда" className="w-6 h-6 object-contain" />
           </div>
         );
       }
@@ -62,7 +67,6 @@ export default function StarHistoryModal({ childId, open, onClose }: { childId: 
   const getRewardInfo = (item: LedgerItem) => {
     if (item.source === 'streak-reward' && item.sourceId) {
       const reward = streakRewards.find(r => r.id === item.sourceId);
-      // Clean up title if it contains the separator "—" or display as is
       const cleanTitle = reward?.title 
         ? reward.title.replace('дракончик — ', '').replace('чик — ', ' — ').replace('Пандочка — ', '').replace('Капибара — ', '').replace('Енотик — ', '').replace('Пингвинёнок — ', '').replace('Лисёнок — ', '').replace('Тигрёнок — ', '').replace('Орлёнок — ', '').replace('Буйволёнок — ', '').replace('Хамелеончик — ', '').replace('Волчонок — ', '')
         : null;
@@ -113,10 +117,10 @@ export default function StarHistoryModal({ childId, open, onClose }: { childId: 
                         {rewardInfo ? (
                           <>
                             <p className="text-xs font-bold text-slate-800 break-words leading-tight">
-                              Награда: {rewardInfo.title}
+                              Награда {rewardInfo.title}
                             </p>
                             <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
-                              за {rewardInfo.daysStreak} дней подряд • {formatDate(item.createdAt)}
+                              получил за серию {rewardInfo.daysStreak} дней подряд • {formatDate(item.createdAt)}
                             </p>
                           </>
                         ) : (

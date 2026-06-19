@@ -420,7 +420,8 @@ export default function SettingsPage() {
   };
 
   const revertTask = async (event: ParentEvent) => {
-    if (event.type !== 'manual-stars' && !event.details?.taskId) return;
+    const isStreakReward = event.type === 'day-completed' && event.rewardId && event.rewardId.startsWith('streak-reward-');
+    if (event.type !== 'manual-stars' && !event.details?.taskId && !isStreakReward) return;
     setRevertError('');
     setRevertTarget(event);
   };
@@ -447,6 +448,39 @@ export default function SettingsPage() {
         }
 
         showSaved('Корректировка отменена');
+        loadEvents();
+        loadAll();
+        setRevertTarget(null);
+      } else if (revertTarget.type === 'day-completed' && revertTarget.rewardId && revertTarget.rewardId.startsWith('streak-reward-')) {
+        const revertRes = await fetch('/api/streak/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: revertTarget.childId, eventId: revertTarget.id, rewardId: revertTarget.rewardId })
+        });
+        const revertData = await revertRes.json();
+        if (!revertRes.ok) {
+          setRevertError(revertData?.error || 'Не удалось отменить награду');
+          return;
+        }
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            childId: revertTarget.childId,
+            type: 'system',
+            title: 'Награда отменена',
+            body: `${getChildName(revertTarget.childId)} отменил награду за серию побед: ${revertTarget.details?.rewardTitle || 'Награда'}${typeof revertData?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(revertData.removedStars), false)} ⭐)` : ''}`,
+            details: {
+              childName: getChildName(revertTarget.childId),
+              rewardId: revertTarget.rewardId,
+              stars: typeof revertData?.removedStars === 'number' ? -Math.abs(revertData.removedStars) : undefined,
+              reverted: true
+            }
+          })
+        });
+
+        showSaved('Награда отменена');
         loadEvents();
         loadAll();
         setRevertTarget(null);
@@ -2587,142 +2621,188 @@ export default function SettingsPage() {
                   <div className="text-center py-8 text-slate-400">Загрузка...</div>
                 ) : events.length === 0 ? (
                   <div className="text-center py-8 text-slate-400">Нет событий</div>
-                ) : events.map(event => (
-                  <div key={event.id} className={`rounded-2xl border p-4 ${event.read ? 'border-slate-100 bg-white' : 'border-blue-200 bg-blue-50/30'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${event.childId === 'ali' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
-                            {event.childId === 'ali' ? 'Али' : 'Саид'}
-                          </span>
-                          <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
-                            {getInboxEventTypeLabel(event.type)}
-                          </span>
-                          {!event.read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
-                        </div>
-                        <h3 className="font-bold text-slate-800 leading-tight">{normalizeInboxText(event.title)}</h3>
-                        <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{normalizeInboxText(event.body)}</p>
-                        {event.rewardId && event.details && (
-                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-                              <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                                {event.details.rewardTitle || 'Награда'}
+                ) : events.map(event => {
+                  const isStreakEvent = event.type === 'day-completed' && event.rewardId && event.rewardId.startsWith('streak-reward-');
+                  const streakNum = isStreakEvent ? event.rewardId.replace('streak-reward-', '') : null;
+                  const matchedStreakReward = isStreakEvent ? streakRewards.find(r => r.id === event.rewardId) : null;
+                  const imgPath = matchedStreakReward?.image || (streakNum ? `/images/rewards/${streakNum}.png` : null);
+
+                  const displayTitle = isStreakEvent
+                    ? `Награда ${matchedStreakReward?.title || event.details?.rewardTitle || 'за серию побед'}`
+                    : normalizeInboxText(event.title);
+
+                  const displayBody = isStreakEvent
+                    ? `получил за серию ${matchedStreakReward?.daysStreak || event.details?.daysStreak || '3'} дней подряд`
+                    : normalizeInboxText(event.body);
+
+                  return (
+                    <div key={event.id} className={`rounded-2xl border p-4 ${event.read ? 'border-slate-100 bg-white' : 'border-blue-200 bg-blue-50/30'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                          {isStreakEvent && imgPath && (
+                            <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 p-0.5 mt-1">
+                              <img src={imgPath} alt={displayTitle} className="w-9 h-9 object-contain" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${event.childId === 'ali' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                                {event.childId === 'ali' ? 'Али' : 'Саид'}
                               </span>
-                              <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                                {getRewardStatusLabel(event.details.status)}
+                              <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
+                                {getInboxEventTypeLabel(event.type)}
                               </span>
-                              {typeof event.details.costStars === 'number' && currencyEnabled && (
-                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                                  {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
+                              {isStreakEvent && event.details?.costStars && (
+                                <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700 flex items-center gap-1 border border-amber-200">
+                                  +{event.details.costStars} ⭐
                                 </span>
                               )}
+                              {!event.read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
                             </div>
-                            {event.type === 'reward-selected' && event.details?.status === 'selected' && (
-                              <div className="mt-3 flex items-center gap-2">
-                                <button
-                                  onClick={() => confirmRewardEvent(event)}
-                                  className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
-                                  title="Подтвердить"
-                                >
-                                  <CheckCheck size={16} />
-                                </button>
-                                <button
-                                  onClick={() => cancelRewardEvent(event)}
-                                  className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
-                                  title="Отменить"
-                                >
-                                  <Ban size={16} />
-                                </button>
+                            <h3 className="font-bold text-slate-800 leading-tight">{displayTitle}</h3>
+                            <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{displayBody}</p>
+                            {event.rewardId && event.details && (
+                              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                                  {event.details.reverted && (
+                                    <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                      Отменено
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                    {event.details.rewardTitle || 'Награда'}
+                                  </span>
+                                  <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                    {getRewardStatusLabel(event.details.status)}
+                                  </span>
+                                  {typeof event.details.costStars === 'number' && currencyEnabled && (
+                                    <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                      {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
+                                    </span>
+                                  )}
+                                </div>
+                                {event.type === 'reward-selected' && event.details?.status === 'selected' && (
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <button
+                                      onClick={() => confirmRewardEvent(event)}
+                                      className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
+                                      title="Подтвердить"
+                                    >
+                                      <CheckCheck size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => cancelRewardEvent(event)}
+                                      className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                                      title="Отменить"
+                                    >
+                                      <Ban size={16} />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
-                        )}
-                        {event.type === 'task-completed' && event.details && (
-                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-                              {event.details.difficultyLabel && (
-                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                                  Сложность: {event.details.difficultyLabel}
-                                </span>
-                              )}
-                              {typeof event.details.stars === 'number' && (
-                                <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
-                                  <Star size={11} className="fill-amber-400" />
-                                  +{event.details.stars} ⭐
-                                </span>
-                              )}
-                              {event.details.category && (
-                                <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                                  Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
-                                </span>
-                              )}
-                            </div>
-                            {event.details.subtaskSummary && (
-                              <p className="mt-2 text-[11px] leading-relaxed">
-                                Подзадачи: {event.details.subtaskSummary}
-                              </p>
+                            {event.type === 'task-completed' && event.details && (
+                              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                                  {event.details.reverted && (
+                                    <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                      Отменено
+                                    </span>
+                                  )}
+                                  {event.details.difficultyLabel && (
+                                    <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                      Сложность: {event.details.difficultyLabel}
+                                    </span>
+                                  )}
+                                  {typeof event.details.stars === 'number' && (
+                                    <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                      <Star size={11} className="fill-amber-400" />
+                                      +{event.details.stars} ⭐
+                                    </span>
+                                  )}
+                                  {event.details.category && (
+                                    <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                      Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
+                                    </span>
+                                  )}
+                                </div>
+                                {event.details.subtaskSummary && (
+                                  <p className="mt-2 text-[11px] leading-relaxed">
+                                    Подзадачи: {event.details.subtaskSummary}
+                                  </p>
+                                )}
+                              </div>
                             )}
-                          </div>
-                        )}
-                        {event.type === 'manual-stars' && event.details && (
-                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-                              {event.details.reverted ? (
-                                <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
-                                  Отменено
-                                </span>
-                              ) : (
-                                <span className={`px-2 py-1 rounded-full border ${event.details.stars >= 0 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                  {event.details.stars >= 0 ? 'Начисление' : 'Списание'}
-                                </span>
-                              )}
-                              <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
-                                <Star size={11} className="fill-amber-400" />
-                                {formatStarAmount(event.details.stars, false)} ⭐
-                              </span>
-                            </div>
-                            {event.details.reason && (
-                              <p className="mt-2 text-[11px] leading-relaxed break-words">
-                                Комментарий: {event.details.reason}
-                              </p>
+                            {event.type === 'manual-stars' && event.details && (
+                              <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                                  {event.details.reverted ? (
+                                    <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                      Отменено
+                                    </span>
+                                  ) : (
+                                    <span className={`px-2 py-1 rounded-full border ${event.details.stars >= 0 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                      {event.details.stars >= 0 ? 'Начисление' : 'Списание'}
+                                    </span>
+                                  )}
+                                  <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1">
+                                    <Star size={11} className="fill-amber-400" />
+                                    {formatStarAmount(event.details.stars, false)} ⭐
+                                  </span>
+                                </div>
+                                {event.details.reason && (
+                                  <p className="mt-2 text-[11px] leading-relaxed break-words">
+                                    Комментарий: {event.details.reason}
+                                  </p>
+                                )}
+                              </div>
                             )}
+                            <p className="text-xs text-slate-400 mt-2">{new Date(event.createdAt).toLocaleString('ru-RU')}</p>
                           </div>
-                        )}
-                        <p className="text-xs text-slate-400 mt-2">{new Date(event.createdAt).toLocaleString('ru-RU')}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <div className="flex items-center gap-2">
-                          {!event.read && (
-                            <button onClick={() => markEventRead(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-blue-500 hover:bg-blue-50 flex items-center justify-center" title="Прочитано">
-                              <CheckCheck size={16} />
+                        </div>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <div className="flex items-center gap-2">
+                            {!event.read && (
+                              <button onClick={() => markEventRead(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-blue-500 hover:bg-blue-50 flex items-center justify-center" title="Прочитано">
+                                <CheckCheck size={16} />
+                              </button>
+                            )}
+                            <button onClick={() => deleteEvent(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center" title="Удалить">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                          {event.type === 'task-completed' && event.details && !event.details.reverted && (
+                            <button
+                              onClick={() => revertTask(event)}
+                              className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                              title="Отменить выполнение задачи"
+                            >
+                              <Ban size={16} />
                             </button>
                           )}
-                          <button onClick={() => deleteEvent(event.id)} className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center" title="Удалить">
-                            <Trash2 size={16} />
-                          </button>
+                          {event.type === 'manual-stars' && event.details && !event.details.reverted && (
+                            <button
+                              onClick={() => revertTask(event)}
+                              className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                              title="Отменить корректировку звёзд"
+                            >
+                              <Ban size={16} />
+                            </button>
+                          )}
+                          {isStreakEvent && event.details && !event.details.reverted && (
+                            <button
+                              onClick={() => revertTask(event)}
+                              className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                              title="Отменить награду за серию"
+                            >
+                              <Ban size={16} />
+                            </button>
+                          )}
                         </div>
-                        {event.type === 'task-completed' && event.details && (
-                          <button
-                            onClick={() => revertTask(event)}
-                            className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
-                            title="Отменить выполнение задачи"
-                          >
-                            <Ban size={16} />
-                          </button>
-                        )}
-                        {event.type === 'manual-stars' && event.details && !event.details.reverted && (
-                          <button
-                            onClick={() => revertTask(event)}
-                            className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
-                            title="Отменить корректировку звёзд"
-                          >
-                            <Ban size={16} />
-                          </button>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           </div>

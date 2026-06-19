@@ -147,12 +147,34 @@ function sortScheduleTemplates(list: TaskTemplate[]) {
   });
 }
 
+let globalAudioCtx: any = null;
+const getAudioCtx = () => {
+  if (typeof window === "undefined") return null;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!globalAudioCtx) {
+    globalAudioCtx = new AudioContextClass();
+  }
+  if (globalAudioCtx.state === 'suspended') {
+    globalAudioCtx.resume().catch(() => {});
+  }
+  return globalAudioCtx;
+};
+
+let lastSoundPlayTime = 0;
+const canPlaySound = () => {
+  if (typeof window === "undefined") return false;
+  const now = Date.now();
+  if (now - lastSoundPlayTime < 350) return false;
+  lastSoundPlayTime = now;
+  return true;
+};
+
 const playMagicSound = () => {
-  if (typeof window === "undefined") return;
+  if (!canPlaySound()) return;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
@@ -177,11 +199,10 @@ const playMagicSound = () => {
 };
 
 const playSuccessSound = () => {
-  if (typeof window === "undefined") return;
+  if (!canPlaySound()) return;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     
     // Joyful Success Chime
@@ -223,11 +244,10 @@ const playSuccessSound = () => {
 };
 
 const playTriumphSound = () => {
-  if (typeof window === "undefined") return;
+  // Let triumph sound bypass the short 350ms click throttle to ensure it always plays on task/streak achievements
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     
     // Magical harp arpeggio (C major 7 / 9)
@@ -253,11 +273,10 @@ const playTriumphSound = () => {
 };
 
 const playRewardOpenSound = () => {
-  if (typeof window === "undefined") return;
+  if (!canPlaySound()) return;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
     
     // Pentatonic ascending arpeggio for a magical opening feeling
@@ -652,6 +671,7 @@ export default function Home() {
           if (streakData.earnedReward) {
             setEarnedStreakReward(streakData.earnedReward);
             setAnimationStep('award');
+            playTriumphSound();
             if (Number(streakData.earnedReward.bonusStars) > 0) {
               setStars(prev => prev + Number(streakData.earnedReward.bonusStars));
             }
@@ -672,7 +692,7 @@ export default function Home() {
 
             setTimeout(() => {
               setAnimationStep('fly');
-            }, 2200);
+            }, 3200);
 
             setTimeout(async () => {
               setEarnedStreakReward(null);
@@ -684,7 +704,7 @@ export default function Home() {
               const progressData = await progressRes.json();
               setStreakProgress(progressData);
               confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
-            }, 3000);
+            }, 4000);
           }
         }
       } catch (err) {
@@ -752,6 +772,7 @@ export default function Home() {
     
     setEarnedStreakReward(sampleReward);
     setAnimationStep('award');
+    playTriumphSound();
     
     confetti({ particleCount: 180, spread: 100, origin: { y: 0.4 }, colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA'] });
 
@@ -770,7 +791,7 @@ export default function Home() {
 
     setTimeout(() => {
       setAnimationStep('fly');
-    }, 2200);
+    }, 3200);
 
     setTimeout(() => {
       setEarnedStreakReward(null);
@@ -778,7 +799,7 @@ export default function Home() {
       setAnimateNavButton(true);
       setTimeout(() => setAnimateNavButton(false), 800);
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
-    }, 3000);
+    }, 4000);
   };
 
   const buyReward = async (reward: Reward) => {
@@ -1303,14 +1324,14 @@ export default function Home() {
                                   className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                                   style={{
                                     background: getConicGradient1(reward.color),
-                                    animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                                    animation: 'spin 9.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                                   }}
                                 />
                                 <div 
                                   className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                                   style={{
                                     background: getConicGradient2(reward.color),
-                                    animation: 'spin 4.5s linear infinite'
+                                    animation: 'spin 6.5s linear infinite'
                                   }}
                                 />
                               </>
@@ -1423,14 +1444,14 @@ export default function Home() {
                         className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                         style={{
                           background: getConicGradient1(zoomedReward.color),
-                          animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                          animation: 'spin 9.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                         }}
                       />
                       <div 
                         className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                         style={{
                           background: getConicGradient2(zoomedReward.color),
-                          animation: 'spin 4.5s linear infinite'
+                          animation: 'spin 6.5s linear infinite'
                         }}
                       />
                     </>
@@ -1560,14 +1581,14 @@ export default function Home() {
                     className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                     style={{
                       background: getConicGradient1(earnedStreakReward.color),
-                      animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                      animation: 'spin 9.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                     }}
                   />
                   <div 
                     className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                     style={{
                       background: getConicGradient2(earnedStreakReward.color),
-                      animation: 'spin 4.5s linear infinite'
+                      animation: 'spin 6.5s linear infinite'
                     }}
                   />
                   {earnedStreakReward.image ? (

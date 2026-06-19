@@ -32,6 +32,9 @@ interface ParentEvent {
     costStars?: number;
     status?: 'available' | 'selected' | 'fulfilled';
     daysStreak?: number;
+    reverted?: boolean;
+    reason?: string;
+    ledgerId?: string;
   };
 }
 
@@ -45,6 +48,7 @@ interface RewardItem {
 export default function ParentInbox() {
   const [events, setEvents] = useState<ParentEvent[]>([]);
   const [rewards, setRewards] = useState<RewardItem[]>([]);
+  const [streakRewards, setStreakRewards] = useState<any[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [childFilter, setChildFilter] = useState<'all' | 'ali' | 'said'>('all');
   const [currencyEnabled, setCurrencyEnabled] = useState(true);
@@ -62,18 +66,21 @@ export default function ParentInbox() {
       if (childFilter !== 'all') url += `childId=${childFilter}&`;
       if (filter === 'unread') url += 'read=false&';
 
-      const [eventsRes, aliRewardsRes, saidRewardsRes, settingsRes] = await Promise.all([
+      const [eventsRes, aliRewardsRes, saidRewardsRes, settingsRes, streakRewardsRes] = await Promise.all([
         fetch(url),
         fetch('/api/rewards?childId=ali&includeInactive=1'),
         fetch('/api/rewards?childId=said&includeInactive=1'),
-        fetch('/api/settings')
+        fetch('/api/settings'),
+        fetch('/api/streak-rewards')
       ]);
       const data = await eventsRes.json();
       const aliRewards = await aliRewardsRes.json();
       const saidRewards = await saidRewardsRes.json();
       const settingsData = await settingsRes.json();
+      const streakRewardsData = await streakRewardsRes.json();
       setEvents(Array.isArray(data) ? data : []);
       setRewards([...(Array.isArray(aliRewards) ? aliRewards : []), ...(Array.isArray(saidRewards) ? saidRewards : [])]);
+      setStreakRewards(Array.isArray(streakRewardsData) ? streakRewardsData : []);
       if (settingsData?.currencyEnabled !== undefined) {
         setCurrencyEnabled(settingsData.currencyEnabled !== false);
       }
@@ -179,6 +186,47 @@ export default function ParentInbox() {
     loadEvents();
   };
 
+  const revertStreakReward = async (event: ParentEvent) => {
+    if (!event.rewardId) return;
+    const confirm = window.confirm('Вы действительно хотите отменить награду за серию побед и списать бонусные звезды?');
+    if (!confirm) return;
+
+    try {
+      const res = await fetch('/api/streak/revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId: event.childId, eventId: event.id, rewardId: event.rewardId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Не удалось отменить награду');
+        return;
+      }
+
+      await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childId: event.childId,
+          type: 'system',
+          title: 'Награда отменена',
+          body: `${getChildName(event.childId)} отменил награду за серию побед: ${event.details?.rewardTitle || 'Награда'}${typeof data?.removedStars === 'number' ? ` (${formatStarAmount(-Math.abs(data.removedStars), false)} ⭐)` : ''}`,
+          details: {
+            childName: getChildName(event.childId),
+            rewardId: event.rewardId,
+            stars: typeof data?.removedStars === 'number' ? -Math.abs(data.removedStars) : undefined,
+            reverted: true
+          }
+        })
+      });
+
+      loadEvents();
+    } catch (err) {
+      console.error('Failed to revert streak reward:', err);
+      alert('Ошибка при отмене награды');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-20">
       <header className="bg-white px-6 py-5 flex items-center justify-between border-b border-slate-100">
@@ -256,13 +304,15 @@ export default function ParentInbox() {
             {events.map(event => {
               const isStreakEvent = event.type === 'day-completed' && event.rewardId && event.rewardId.startsWith('streak-reward-');
               const streakNum = isStreakEvent ? event.rewardId.replace('streak-reward-', '') : null;
+              const matchedStreakReward = isStreakEvent ? streakRewards.find(r => r.id === event.rewardId) : null;
+              const imgPath = matchedStreakReward?.image || (streakNum ? `/images/rewards/${streakNum}.png` : null);
 
               const displayTitle = isStreakEvent
-                ? `Награда: ${event.details?.rewardTitle || event.body.match(/"([^"]+)"/)?.[1] || 'Серия побед'}`
+                ? `Награда ${matchedStreakReward?.title || event.details?.rewardTitle || 'за серию побед'}`
                 : normalizeInboxText(event.title);
 
               const displayBody = isStreakEvent
-                ? `за ${event.details?.daysStreak || event.body.match(/серию из (\d+) дней/)?.[1] || 'несколько'} дней подряд`
+                ? `получил за серию ${matchedStreakReward?.daysStreak || event.details?.daysStreak || '3'} дней подряд`
                 : normalizeInboxText(event.body);
 
               return (
@@ -274,9 +324,9 @@ export default function ParentInbox() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1 min-w-0">
-                      {isStreakEvent && streakNum && (
+                      {isStreakEvent && imgPath && (
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 p-1">
-                          <img src={`/images/rewards/${streakNum}.png`} alt={displayTitle} className="w-10 h-10 object-contain" />
+                          <img src={imgPath} alt={displayTitle} className="w-10 h-10 object-contain" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -317,6 +367,41 @@ export default function ParentInbox() {
                                 </span>
                               )}
                             </div>
+                          </div>
+                        )}
+                        {isStreakEvent && event.details && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              {event.details.reverted && (
+                                <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                  Отменено
+                                </span>
+                              )}
+                              <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                Награда за серию
+                              </span>
+                              {typeof event.details.costStars === 'number' && (
+                                <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                                  +{event.details.costStars} ⭐
+                                </span>
+                              )}
+                            </div>
+                            {event.details.reverted ? (
+                              <p className="mt-2 text-[11px] leading-relaxed text-red-500 font-semibold">
+                                Награда была отменена родителем, звезды списаны.
+                              </p>
+                            ) : (
+                              <div className="mt-3 flex items-center gap-2">
+                                <button
+                                  onClick={() => revertStreakReward(event)}
+                                  className="h-8 px-3 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center gap-1 text-[11px] font-bold"
+                                  title="Отменить награду за серию"
+                                >
+                                  <Ban size={12} />
+                                  Отменить награду
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                         {event.type === 'task-completed' && event.details && (
