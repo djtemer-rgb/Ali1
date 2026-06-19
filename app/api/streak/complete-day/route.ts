@@ -196,6 +196,13 @@ export async function POST(request: Request) {
         type: 'day-completed',
         title: 'Получена награда за серию побед!',
         body: `${childName} получил награду "${matchedReward.title}" за серию из ${matchedReward.daysStreak} дней подряд! 🎉 (+${matchedReward.bonusStars} ⭐)`,
+        rewardId: matchedReward.id,
+        details: {
+          rewardTitle: matchedReward.title,
+          costStars: Number(matchedReward.bonusStars),
+          daysStreak: Number(matchedReward.daysStreak),
+          status: 'fulfilled'
+        },
         read: false,
         createdAt: new Date().toISOString()
       };

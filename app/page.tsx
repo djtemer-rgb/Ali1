@@ -797,9 +797,9 @@ export default function Home() {
 
   const navItems = [
     { href: "/", label: "Главная", icon: HomeIcon },
+    ...(gradesEnabled ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
     { href: "#rewards", label: "Награды", icon: Award },
     { href: "#hero", label: "Послание героя", icon: Sparkles },
-    ...(gradesEnabled ? [{ href: "/grades", label: "Оценки", icon: BookOpen }] : []),
     { href: "/reports", label: "Отчёты", icon: BarChart3 },
   ];
 
@@ -1176,13 +1176,21 @@ export default function Home() {
       {/* STREAK REWARDS MODAL */}
       <AnimatePresence>
         {showStreakRewardsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowStreakRewardsModal(false)}>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-sm" 
+            onClick={() => setShowStreakRewardsModal(false)}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
               onClick={e => e.stopPropagation()}
-              className="bg-slate-50 rounded-[32px] p-5 w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+              className="bg-slate-50 rounded-[32px] p-5 w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden will-change-transform"
             >
               <div className="flex items-center justify-between mb-4 shrink-0 font-sans">
                 <div>
@@ -1228,7 +1236,7 @@ export default function Home() {
                 {streakRewards.length === 0 ? (
                   <p className="text-slate-400 text-center py-12 text-sm font-semibold">Пока нет наград за серию. Попроси родителей добавить их в настройках!</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 p-3.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 p-1.5 md:p-3">
                     {streakRewards.map((reward) => {
                       const count = rewardsTestMode ? 1 : (streakProgress.earned?.[reward.id] || 0);
                       const isUnlocked = count > 0;
@@ -1248,44 +1256,43 @@ export default function Home() {
                               playMagicSound();
                             }
                           }}
-                          className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5 active:scale-[0.99] shadow-[0_4px_10px_rgba(0,0,0,0.04)] ${
+                          className={`relative flex flex-col border rounded-3xl overflow-hidden aspect-[5/7] p-2 md:p-3 justify-between cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5 active:scale-[0.99] shadow-[0_4px_10px_rgba(0,0,0,0.04)] will-change-transform ${
                             getCardStyleClasses(reward.color || 'blue', isUnlocked)
                           }`}
                         >
                           {/* Sticker / Badge */}
                           {isUnlocked && (
-                            <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white animate-pulse z-10">
+                            <div className="absolute top-1.5 right-1.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shadow-md border-2 border-white animate-pulse z-10">
                               {count}
                             </div>
                           )}
- 
+
                           {!isUnlocked && (
-                            <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-[12px] font-bold text-[9px] z-10 ${getBadgeStyleClasses(reward.color || 'blue')}`}>
+                            <div className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-[10px] font-bold text-[8px] z-10 ${getBadgeStyleClasses(reward.color || 'blue')}`}>
                               {reward.daysStreak} дн.
                             </div>
                           )}
- 
-                          {/* Row 1: Title & Icon (5x1 ratio) */}
+
                           <div className="h-[14%] flex items-center gap-1.5 min-w-0">
-                            <span className={`text-lg shrink-0 ${!isUnlocked ? 'blur-[4px] select-none opacity-40' : ''}`}>
+                            <span className={`text-base shrink-0 ${!isUnlocked ? 'blur-[4px] select-none opacity-40' : ''}`}>
                               {reward.emoji}
                             </span>
-                            <h4 className={`font-extrabold text-xs md:text-sm leading-tight truncate ${
+                            <h4 className={`font-extrabold text-[11px] md:text-xs leading-tight truncate ${
                               isUnlocked ? 'text-slate-800' : 'text-slate-800/40 blur-[3.5px] select-none'
                             }`}>
                               {reward.title}
                             </h4>
                           </div>
- 
+  
                           {/* Row 2: Description (5x1 ratio) */}
                           <div className="h-[14%] flex items-center justify-center text-center w-full px-1">
-                            <p className={`text-[10px] leading-tight line-clamp-2 text-center w-full ${
+                            <p className={`text-[9px] md:text-[10px] leading-tight line-clamp-2 text-center w-full ${
                               isUnlocked ? 'text-slate-500 font-semibold' : getTextColorClass(reward.color || 'blue')
                             }`}>
                               {reward.description || 'Без описания'}
                             </p>
                           </div>
- 
+  
                           {/* Row 3: Image (5x5 ratio) */}
                           <div className={`h-[72%] w-full aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center border ${
                             isUnlocked ? 'bg-slate-50 border-slate-100/50' : 'bg-white shadow-inner border-slate-100/70'
@@ -1296,21 +1303,21 @@ export default function Home() {
                                   className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                                   style={{
                                     background: getConicGradient1(reward.color),
-                                    animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                                    animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                                   }}
                                 />
                                 <div 
                                   className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                                   style={{
                                     background: getConicGradient2(reward.color),
-                                    animation: 'spin 3.2s linear infinite'
+                                    animation: 'spin 4.5s linear infinite'
                                   }}
                                 />
                               </>
                             )}
                             {isUnlocked ? (
                               reward.image ? (
-                                <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-2 relative z-10" />
+                                <img src={reward.image} alt={reward.title} className="w-full h-full object-contain p-1 relative z-10" />
                               ) : (
                                 <div className="text-slate-300 font-extrabold text-3xl">🎁</div>
                               )
@@ -1340,20 +1347,28 @@ export default function Home() {
                 </div>
               )}
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* ZOOMED REWARD VIEW */}
       <AnimatePresence>
         {zoomedReward && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md font-sans" onClick={() => setZoomedReward(null)}>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md font-sans" 
+            onClick={() => setZoomedReward(null)}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
               onClick={e => e.stopPropagation()}
-              className={`relative bg-white rounded-[36px] p-6 shadow-2xl max-w-sm w-full border flex flex-col items-center transition-colors duration-300 ${
+              className={`relative bg-white rounded-[36px] p-4 md:p-5 shadow-2xl max-w-md w-full border flex flex-col items-center transition-colors duration-300 will-change-transform ${
                 isZoomedUnlocked ? 'border-slate-100' : 'border-purple-200/80 shadow-[0_8px_32px_rgba(168,85,247,0.12)]'
               }`}
             >
@@ -1375,7 +1390,7 @@ export default function Home() {
                     });
                   }
                 }}
-                className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-5 justify-between relative mt-4 cursor-pointer hover:scale-[1.01] transition-transform ${
+                className={`w-full flex flex-col border rounded-3xl overflow-hidden shadow-xl aspect-[5/7] p-3 md:p-4 justify-between relative mt-4 cursor-pointer hover:scale-[1.01] transition-transform will-change-transform ${
                   getCardStyleClasses(zoomedReward.color || 'blue', isZoomedUnlocked)
                 }`}
               >
@@ -1408,21 +1423,21 @@ export default function Home() {
                         className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                         style={{
                           background: getConicGradient1(zoomedReward.color),
-                          animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                          animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                         }}
                       />
                       <div 
                         className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                         style={{
                           background: getConicGradient2(zoomedReward.color),
-                          animation: 'spin 3.2s linear infinite'
+                          animation: 'spin 4.5s linear infinite'
                         }}
                       />
                     </>
                   )}
                   {isZoomedUnlocked ? (
                     zoomedReward.image ? (
-                      <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-4 relative z-10" />
+                      <img src={zoomedReward.image} alt={zoomedReward.title} className="w-full h-full object-contain p-1 md:p-2 relative z-10" />
                     ) : (
                       <div className="text-slate-300 font-extrabold text-5xl">🎁</div>
                     )
@@ -1460,17 +1475,23 @@ export default function Home() {
                 )}
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* AWARDING OVERLAY ANIMATION */}
       <AnimatePresence>
         {earnedStreakReward && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md pointer-events-auto font-sans">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 pointer-events-auto font-sans"
+          >
             {animationStep === 'award' && (
-              <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(253,224,71,0.25)_0%,transparent_60%)] pointer-events-none flex items-center justify-center">
-                <div className="w-[600px] h-[600px] rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(253,224,71,0.35)_30deg,transparent_60deg,rgba(253,224,71,0.35)_90deg,transparent_120deg,rgba(253,224,71,0.35)_150deg,transparent_180deg,rgba(253,224,71,0.35)_210deg,transparent_240deg,rgba(253,224,71,0.35)_270deg,transparent_300deg,rgba(253,224,71,0.35)_330deg,transparent_360deg)] animate-[spin_8s_linear_infinite] opacity-60" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(253,224,71,0.2)_0%,transparent_65%)] pointer-events-none flex items-center justify-center">
+                <div className="w-[600px] h-[600px] rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(253,224,71,0.3)_30deg,transparent_60deg,rgba(253,224,71,0.3)_90deg,transparent_120deg,rgba(253,224,71,0.3)_150deg,transparent_180deg,rgba(253,224,71,0.3)_210deg,transparent_240deg,rgba(253,224,71,0.3)_270deg,transparent_300deg,rgba(253,224,71,0.3)_330deg,transparent_360deg)] animate-[spin_10s_linear_infinite] opacity-60 will-change-transform" />
               </div>
             )}
 
@@ -1478,9 +1499,9 @@ export default function Home() {
               <AnimatePresence>
                 {animationStep === 'award' && (
                   <motion.div
-                    initial={{ opacity: 0, y: -45 }}
+                    initial={{ opacity: 0, y: -40 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -25 }}
+                    exit={{ opacity: 0, y: -20 }}
                     className="mb-6 z-10 text-center"
                   >
                     <h2 className="text-2xl md:text-3xl font-black text-yellow-400 tracking-wide drop-shadow-[0_4px_12px_rgba(234,179,8,0.4)] animate-bounce">
@@ -1499,28 +1520,29 @@ export default function Home() {
               <motion.div
                 id="animating-streak-card"
                 ref={animatingCardRef}
-                initial={{ scale: 0.3, rotate: -45, opacity: 0 }}
+                initial={{ scale: 0.25, rotate: -35, opacity: 0 }}
                 animate={
                   animationStep === 'fly'
                     ? {
                         x: flyCoords.x,
                         y: flyCoords.y,
-                        scale: 0.05,
+                        scale: 0.06,
                         opacity: 0,
-                        rotate: 720,
+                        rotate: 360,
                       }
                     : {
                         scale: 1,
                         rotate: 0,
                         opacity: 1,
-                        transition: { type: "spring", stiffness: 150, damping: 14 }
                       }
                 }
                 transition={{
-                  duration: animationStep === 'fly' ? 0.75 : 0.5,
-                  ease: animationStep === 'fly' ? "easeInOut" : "easeOut"
+                  type: "spring",
+                  stiffness: animationStep === 'fly' ? 100 : 160,
+                  damping: animationStep === 'fly' ? 18 : 15,
+                  mass: 1
                 }}
-                className={`w-64 flex flex-col border rounded-3xl overflow-hidden shadow-2xl aspect-[5/7] p-5 justify-between relative z-20 origin-center ${
+                className={`w-64 flex flex-col border rounded-3xl overflow-hidden shadow-2xl aspect-[5/7] p-4 justify-between relative z-20 origin-center will-change-transform ${
                   getCardStyleClasses(earnedStreakReward.color || 'blue', true)
                 }`}
               >
@@ -1538,25 +1560,25 @@ export default function Home() {
                     className="absolute inset-1 rounded-full opacity-[0.58] filter blur-[8px] mix-blend-screen"
                     style={{
                       background: getConicGradient1(earnedStreakReward.color),
-                      animation: 'spin 5s linear infinite, customPulse 1.3s ease-in-out infinite'
+                      animation: 'spin 6.5s linear infinite, customPulse 1.3s ease-in-out infinite'
                     }}
                   />
                   <div 
                     className="absolute inset-3 rounded-full opacity-[0.72] filter blur-[3.5px]"
                     style={{
                       background: getConicGradient2(earnedStreakReward.color),
-                      animation: 'spin 3.2s linear infinite'
+                      animation: 'spin 4.5s linear infinite'
                     }}
                   />
                   {earnedStreakReward.image ? (
-                    <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-3 relative z-10" />
+                    <img src={earnedStreakReward.image} alt={earnedStreakReward.title} className="w-full h-full object-contain p-1.5 relative z-10" />
                   ) : (
                     <div className="text-slate-300 font-extrabold text-4xl">🎁</div>
                   )}
                 </div>
               </motion.div>
             </div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

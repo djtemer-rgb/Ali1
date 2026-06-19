@@ -66,6 +66,7 @@ interface ParentEvent {
     ledgerId?: string;
     reverted?: boolean;
     reason?: string;
+    daysStreak?: number;
   };
 }
 interface ChildSettingsForm {

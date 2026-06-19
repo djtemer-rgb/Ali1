@@ -31,6 +31,7 @@ interface ParentEvent {
     rewardTitle?: string;
     costStars?: number;
     status?: 'available' | 'selected' | 'fulfilled';
+    daysStreak?: number;
   };
 }
 
@@ -252,134 +253,159 @@ export default function ParentInbox() {
           <div className="text-center py-8 text-slate-400">Нет событий</div>
         ) : (
           <div className="space-y-3">
-            {events.map(event => (
-              <div
-                key={event.id}
-                className={`bg-white rounded-2xl p-4 md:p-5 shadow-sm border ${
-                  event.read ? 'border-slate-100' : 'border-blue-200 bg-blue-50/30'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                        event.childId === 'ali' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-                      }`}>
-                        {getChildName(event.childId)}
-                      </span>
-                      <span className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
-                        {getInboxEventTypeLabel(event.type)}
-                      </span>
-                      {!event.read && (
-                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+            {events.map(event => {
+              const isStreakEvent = event.type === 'day-completed' && event.rewardId && event.rewardId.startsWith('streak-reward-');
+              const streakNum = isStreakEvent ? event.rewardId.replace('streak-reward-', '') : null;
+
+              const displayTitle = isStreakEvent
+                ? `Награда: ${event.details?.rewardTitle || event.body.match(/"([^"]+)"/)?.[1] || 'Серия побед'}`
+                : normalizeInboxText(event.title);
+
+              const displayBody = isStreakEvent
+                ? `за ${event.details?.daysStreak || event.body.match(/серию из (\d+) дней/)?.[1] || 'несколько'} дней подряд`
+                : normalizeInboxText(event.body);
+
+              return (
+                <div
+                  key={event.id}
+                  className={`bg-white rounded-2xl p-4 md:p-5 shadow-sm border ${
+                    event.read ? 'border-slate-100' : 'border-blue-200 bg-blue-50/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                      {isStreakEvent && streakNum && (
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 p-1">
+                          <img src={`/images/rewards/${streakNum}.png`} alt={displayTitle} className="w-10 h-10 object-contain" />
+                        </div>
                       )}
-                    </div>
-                    <h3 className="font-bold text-slate-800">{normalizeInboxText(event.title)}</h3>
-                    <p className="text-sm text-slate-600 mt-1">{normalizeInboxText(event.body)}</p>
-                    {event.rewardId && (event.type === 'reward-selected' || event.type === 'reward-fulfilled' || event.type === 'system') && (
-                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-                          <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                            {normalizeInboxText(rewardById(event.rewardId)?.title || event.details?.rewardTitle || 'Награда')}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                            event.childId === 'ali' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                          }`}>
+                            {getChildName(event.childId)}
                           </span>
-                          {event.details?.status && (
-                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                              {getRewardStatusLabel(event.details.status)}
+                          <span className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
+                            {getInboxEventTypeLabel(event.type)}
+                          </span>
+                          {isStreakEvent && event.details?.costStars && (
+                            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700 flex items-center gap-1 border border-amber-200">
+                              +{event.details.costStars} ⭐
                             </span>
                           )}
-                          {typeof event.details?.costStars === 'number' && currencyEnabled && (
-                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                              {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {event.type === 'task-completed' && event.details && (
-                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-                          {event.details.difficultyLabel && (
-                            <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                              Сложность: {event.details.difficultyLabel}
-                            </span>
-                          )}
-                          {typeof event.details.stars === 'number' && (
-                            <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
-                              +{event.details.stars} ⭐
-                            </span>
-                          )}
-                          {event.details.category && (
-                            <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
-                              Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
-                            </span>
+                          {!event.read && (
+                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                           )}
                         </div>
-                        {event.details.subtaskSummary && (
-                          <p className="mt-2 text-[11px] leading-relaxed">
-                            Подзадачи: {event.details.subtaskSummary}
-                          </p>
+                        <h3 className="font-bold text-slate-800">{displayTitle}</h3>
+                        <p className="text-sm text-slate-600 mt-1">{displayBody}</p>
+                        {event.rewardId && (event.type === 'reward-selected' || event.type === 'reward-fulfilled' || event.type === 'system') && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                {normalizeInboxText(rewardById(event.rewardId)?.title || event.details?.rewardTitle || 'Награда')}
+                              </span>
+                              {event.details?.status && (
+                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  {getRewardStatusLabel(event.details.status)}
+                                </span>
+                              )}
+                              {typeof event.details?.costStars === 'number' && currencyEnabled && (
+                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  {formatRewardReserveLabel(event.details.costStars, currencyEnabled)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         )}
-                          {Array.isArray(event.details.subtasks) && event.details.subtasks.length > 0 && (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer select-none text-[11px] font-bold text-slate-500">
-                              Показать подзадачи
-                            </summary>
-                            <ul className="mt-2 space-y-1 pl-4 list-disc">
-                              {event.details.subtasks.map((subtask, index) => (
-                                <li key={subtask.id || `${event.id}-subtask-${index}`} className={subtask.done ? 'text-slate-500 line-through' : 'text-slate-700'}>
-                                  {subtask.title || 'Без названия'}
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
+                        {event.type === 'task-completed' && event.details && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                              {event.details.difficultyLabel && (
+                                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                  Сложность: {event.details.difficultyLabel}
+                                </span>
+                              )}
+                              {typeof event.details.stars === 'number' && (
+                                <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                                  +{event.details.stars} ⭐
+                                </span>
+                              )}
+                              {event.details.category && (
+                                <span className="px-2 py-1 rounded-full bg-white text-slate-500 border border-slate-200">
+                                  Категория: {getCategoryLabel(event.details.category, event.details.customCategory || '')}
+                                </span>
+                              )}
+                            </div>
+                            {event.details.subtaskSummary && (
+                              <p className="mt-2 text-[11px] leading-relaxed">
+                                Подзадачи: {event.details.subtaskSummary}
+                              </p>
+                            )}
+                              {Array.isArray(event.details.subtasks) && event.details.subtasks.length > 0 && (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer select-none text-[11px] font-bold text-slate-500">
+                                  Показать подзадачи
+                                </summary>
+                                <ul className="mt-2 space-y-1 pl-4 list-disc">
+                                  {event.details.subtasks.map((subtask, index) => (
+                                    <li key={subtask.id || `${event.id}-subtask-${index}`} className={subtask.done ? 'text-slate-500 line-through' : 'text-slate-700'}>
+                                      {subtask.title || 'Без названия'}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
+                          </div>
                         )}
+                        {event.type === 'reward-selected' && event.rewardId && event.details?.status === 'selected' && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <button
+                              onClick={() => confirmReward(event)}
+                              className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
+                              title="Подтвердить"
+                            >
+                              <CircleCheckBig size={16} />
+                            </button>
+                            <button
+                              onClick={() => cancelReward(event)}
+                              className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
+                              title="Отменить"
+                            >
+                              <Ban size={16} />
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-xs text-slate-400 mt-2">
+                          {new Date(event.createdAt).toLocaleString('ru-RU')}
+                        </p>
                       </div>
-                    )}
-                    {event.type === 'reward-selected' && event.rewardId && event.details?.status === 'selected' && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          onClick={() => confirmReward(event)}
-                          className="w-8 h-8 rounded-xl border border-slate-200 text-green-600 hover:bg-green-50 flex items-center justify-center"
-                          title="Подтвердить"
-                        >
-                          <CircleCheckBig size={16} />
-                        </button>
-                        <button
-                          onClick={() => cancelReward(event)}
-                          className="w-8 h-8 rounded-xl border border-slate-200 text-red-500 hover:bg-red-50 flex items-center justify-center"
-                          title="Отменить"
-                        >
-                          <Ban size={16} />
-                        </button>
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-400 mt-2">
-                      {new Date(event.createdAt).toLocaleString('ru-RU')}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 ml-4 shrink-0">
-                    <div className="flex items-center gap-2">
-                      {!event.read && (
-                        <button
-                          onClick={() => markAsRead(event.id)}
-                          className="text-blue-500 hover:text-blue-600 transition-colors"
-                          title="Отметить прочитанным"
-                        >
-                          <Check size={18} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteEvent(event.id)}
-                        className="text-slate-400 hover:text-red-500 transition-colors"
-                        title="Удалить"
-                      >
-                        <Trash2 size={18} />
-                      </button>
                     </div>
+                    <div className="flex flex-col items-end gap-2 ml-4 shrink-0">
+                      <div className="flex items-center gap-2">
+                        {!event.read && (
+                          <button
+                            onClick={() => markAsRead(event.id)}
+                            className="text-blue-500 hover:text-blue-600 transition-colors"
+                            title="Отметить прочитанным"
+                          >
+                            <Check size={18} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteEvent(event.id)}
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                          title="Удалить"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </div>
                   </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </main>
