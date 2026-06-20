@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     const fallbackModel = aiPrefs.aiModelFallback || settings?.aiModelFallback || process.env.HERO_AI_MODEL_FALLBACK || configuredModel;
     const baseSystemPrompt = (aiPrefs.systemPrompt || settings?.systemPrompt || process.env.HERO_AI_SYSTEM_PROMPT || 'Ты — герой-наставник для ребёнка. Отвечай коротко, тепло и по делу.').trim();
     const deepPrompt = (aiPrefs.deepPrompt || settings?.deepPrompt || process.env.HERO_AI_DEEP_PROMPT || 'Если глубокий режим включён, добавь один дополнительный смысловой слой: внутреннюю силу, дисциплину, честность, границы или умение учиться на ошибках. Не раздувай ответ.').trim();
-    const rewardSystemInstruction = 'Ты также можешь мотивировать ребёнка продолжать серию дней (streak) для получения наград. Награды делятся по редкости: Базовые (первые 5), Редкие (следующие 5), Эпические (следующие 5) и Легендарные (остальные). Упоминай их уровни редкости при разговоре. Отвечай коротко, вдохновляюще и дружелюбно, текст не должен быть перегружен.';
+    const rewardSystemInstruction = 'Ты также можешь мотивировать ребёнка продолжать серию дней (streak) для получения наград. Важно: НЕ называй конкретные названия будущих наград (это секрет/спойлер для ребёнка, в списке они со статусом available/selected, но не спойлери те, которые ещё не открыты!). Ты можешь упоминать только их уровни редкости: Базовые, Редкие, Эпические и Легендарные. Поддерживай интерес и говори о переходе на новый уровень редкости (например, "ещё немного усилий, и ты откроешь награду класса Редкие!"). Отвечай коротко, вдохновляюще и дружелюбно, текст не должен быть перегружен.';
     const systemPrompt = aiPrefs.richMode ? `${baseSystemPrompt} ${deepPrompt} ${rewardSystemInstruction}`.trim() : `${baseSystemPrompt} ${rewardSystemInstruction}`.trim();
     if (!aiPrefs.enabled) {
       usage += 1;
@@ -253,7 +253,9 @@ async function buildRuntimeContext(params: {
     else if (idx >= 15) rarity = 'Легендарная';
 
     const count = Number(earnedStreakCounts[reward.id]) || 0;
-    return `- ${reward.title}: требуется ${reward.daysStreak} дн. серии, редкость: ${rarity}, получено раз: ${count}`;
+    // Если награда ещё ни разу не получена, скрываем её точное название от ИИ, чтобы исключить спойлер
+    const titlePlaceholder = count > 0 ? reward.title : `[СЕКРЕТНАЯ НАГРАДА #${idx + 1}]`;
+    return `- ${titlePlaceholder}: требуется ${reward.daysStreak} дн. серии, редкость: ${rarity}, получено раз: ${count}`;
   });
 
   return [
@@ -264,7 +266,7 @@ async function buildRuntimeContext(params: {
     `Задач сегодня: ${completedTasks.length} выполнено из ${taskList.length}.`,
     `Осталось посланий сегодня: ${Math.max(0, dailyLimit - usage)} из ${dailyLimit}.`,
     `Звёзды сейчас: ${starsBalance}.`,
-    `Текущая непрерывная серия дней ребёнка: ${streakProgress.currentStreak} дн подряд.`,
+    `Текущая непрерывная серия дней, когда ребёнок выполнил абсолютно ВСЕ задачи до конца: ${streakProgress.currentStreak} дн. подряд.`,
     streakRewardsContextList.length > 0 ? `Доступные награды за серию побед:\n${streakRewardsContextList.join('\n')}` : null,
     taskSummary ? `Задачи: ${taskSummary}.` : null,
     gradeList.length > 0 ? `Оценки сегодня: ${gradeList.join(', ')}.` : 'Оценок сегодня нет.',

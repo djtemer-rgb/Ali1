@@ -10,6 +10,7 @@ import TaskCard from "./components/TaskCard";
 import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
+import RunnerGame from "./components/RunnerGame";
 import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
@@ -501,6 +502,14 @@ export default function Home() {
   const animatingCardRef = useRef<HTMLDivElement>(null);
   const [freezeRestoreDays, setFreezeRestoreDays] = useState(5);
 
+  // Bonus Game Runner States
+  const [bonusGames, setBonusGames] = useState<Record<string, { completed: boolean; completedAt?: string }>>({});
+  const [activeRunnerGame, setActiveRunnerGame] = useState<{
+    rewardId: string;
+    characterId: string;
+    characterName: string;
+  } | null>(null);
+
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
 
@@ -514,22 +523,33 @@ export default function Home() {
     }
   }, []);
 
+  const loadBonusGamesState = async () => {
+    try {
+      const res = await fetch(`/api/bonus-games?childId=${currentChild.id}`);
+      const data = await res.json();
+      setBonusGames(data || {});
+    } catch (e) {
+      console.error("Failed to load bonus games:", e);
+    }
+  };
+
   useEffect(() => {
     const doLoad = async () => {
       const today = new Date().toISOString().split('T')[0];
       setLoadingTasks(true); setLoadingRewards(true);
       try {
-        const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes, streakRewRes, streakProgRes] = await Promise.all([
+        const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes, streakRewRes, streakProgRes, bonusRes] = await Promise.all([
           fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`),
           fetch(`/api/star-ledger?childId=${currentChild.id}`),
           fetch(`/api/rewards?childId=${currentChild.id}`),
           fetch(`/api/tasks/templates`),
           fetch(`/api/rewards/status?childId=${currentChild.id}`),
           fetch('/api/streak-rewards'),
-          fetch(`/api/streak/progress?childId=${currentChild.id}&date=${today}`)
+          fetch(`/api/streak/progress?childId=${currentChild.id}&date=${today}`),
+          fetch(`/api/bonus-games?childId=${currentChild.id}`)
         ]);
-        const [tasksData, starsData, rewardsData, tplData, rewardStatusData, streakRewData, streakProgData] = await Promise.all([
-          tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json(), rewardStatusRes.json(), streakRewRes.json(), streakProgRes.json()
+        const [tasksData, starsData, rewardsData, tplData, rewardStatusData, streakRewData, streakProgData, bonusData] = await Promise.all([
+          tasksRes.json(), starsRes.json(), rewardsRes.json(), tplRes.json(), rewardStatusRes.json(), streakRewRes.json(), streakProgRes.json(), bonusRes.json()
         ]);
         const settingsRes = await fetch('/api/settings');
         const settingsData = await settingsRes.json();
@@ -557,6 +577,7 @@ export default function Home() {
         setRewards([...childRewards].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)));
         setStreakRewards(Array.isArray(streakRewData) ? streakRewData : []);
         setStreakProgress(streakProgData || { currentStreak: 0, lastCompletedDate: '', earned: {} });
+        setBonusGames(bonusData || {});
         const childSettings = getChildSettings(settingsData, currentChild.id);
         setGradesEnabled(childSettings.gradesEnabled ?? currentChild.id === 'ali');
         setCurrencyEnabled(settingsData?.currencyEnabled !== false);
@@ -1472,7 +1493,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-5 text-center w-full font-sans">
+              <div className="mt-5 text-center w-full font-sans flex flex-col items-center">
                 {isZoomedUnlocked ? (
                   <>
                     <p className="text-sm font-extrabold text-slate-700">Необходимо дней подряд: {zoomedReward.daysStreak}</p>
@@ -1480,6 +1501,31 @@ export default function Home() {
                     <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
                       Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
+                    {/* Render Runner game launch button for supported cards (or all cards if in test mode) */}
+                    {(rewardsTestMode || ['streak-reward-1', 'streak-reward-5', 'streak-reward-7', 'streak-reward-15'].includes(zoomedReward.id)) && (
+                      <div className="mt-4 w-full px-4">
+                        {bonusGames[zoomedReward.id]?.completed && !rewardsTestMode ? (
+                          <button disabled className="w-full bg-slate-200 text-slate-400 font-black text-xs py-3 rounded-xl cursor-not-allowed">
+                            Игра пройдена 🏆
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setZoomedReward(null);
+                              setShowStreakRewardsModal(false);
+                              setActiveRunnerGame({
+                                rewardId: zoomedReward.id,
+                                characterId: zoomedReward.id,
+                                characterName: zoomedReward.title
+                              });
+                            }}
+                            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-slate-950 font-black text-xs py-3 rounded-xl shadow-md transform hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+                          >
+                            Бонусная игра 🎮
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1602,6 +1648,23 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* RUNNER BONUS GAME FULLSCREEN PORTAL */}
+      {activeRunnerGame && (
+        <RunnerGame
+          childId={currentChild.id}
+          rewardId={activeRunnerGame.rewardId}
+          characterId={activeRunnerGame.characterId}
+          characterName={activeRunnerGame.characterName}
+          testMode={rewardsTestMode}
+          onClose={(completed) => {
+            setActiveRunnerGame(null);
+            if (completed) {
+              loadBonusGamesState();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

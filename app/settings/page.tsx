@@ -1914,7 +1914,31 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-            <button onClick={saveEconomy} className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить экономику</button>
+            <div className="flex gap-2">
+              <button onClick={saveEconomy} className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-amber-600 transition-colors"><Save size={14} className="inline mr-1" />Сохранить экономику</button>
+            </div>
+            
+            <div className="border-t border-slate-200/60 pt-4 mt-2">
+              <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Игровые активности</p>
+              <button 
+                onClick={async () => {
+                  if (!confirm('Сбросить прохождение всех игр у детей?')) return;
+                  try {
+                    const res = await fetch('/api/bonus-games?childId=all', { method: 'DELETE' });
+                    if (res.ok) {
+                      showSaved('Прохождение игр сброшено для всех детей');
+                    } else {
+                      showSaved('Ошибка сброса');
+                    }
+                  } catch {
+                    showSaved('Ошибка сброса');
+                  }
+                }}
+                className="w-full bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-slate-200 transition-colors text-left flex items-center gap-2"
+              >
+                🎮 Сбросить прохождение игр
+              </button>
+            </div>
           </div>
         </AccordionSection>
 
