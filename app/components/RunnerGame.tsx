@@ -170,6 +170,123 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     return () => clearTimeout(timer);
   }, []);
 
+  // Get theme values based on season / characterId
+  const getSeasonalTheme = () => {
+    switch (characterId) {
+      case "streak-reward-1": // Winter (Panda)
+        return {
+          skyGradient: ["#94a3b8", "#cbd5e1"], // frosty snow sky
+          subGroundColor: "#94a3b8", // ice/snow grey-blue
+          groundTrimColor: "#f8fafc", // bright white snow crust
+          particleType: "snow",
+          particleColors: ["#ffffff", "#e2e8f0"],
+          drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
+            // Draw ice mounds and patterns below groundY
+            ctx.fillStyle = "#f8fafc";
+            ctx.beginPath();
+            ctx.arc(120, groundY + 22, 18, 0, Math.PI, true);
+            ctx.arc(380, groundY + 28, 24, 0, Math.PI, true);
+            ctx.arc(620, groundY + 20, 16, 0, Math.PI, true);
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(255,255,255,0.7)";
+            ctx.lineWidth = 1.5;
+            for (let x = 60; x < canvas.width; x += 160) {
+              ctx.beginPath();
+              ctx.moveTo(x, groundY + 20);
+              ctx.lineTo(x + 10, groundY + 35);
+              ctx.lineTo(x + 5, groundY + 45);
+              ctx.stroke();
+            }
+          }
+        };
+      case "streak-reward-5": // Spring (Husky)
+        return {
+          skyGradient: ["#bae6fd", "#f0fdf4"], // soft light green/blue spring
+          subGroundColor: "#78350f", // warm rich brown soil
+          groundTrimColor: "#4ade80", // vibrant light green grass crust
+          particleType: "petal",
+          particleColors: ["#fbcfe8", "#f472b6", "#f43f5e"], // cherry blossom petals
+          drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
+            // Tiny sprouts 🌱 and grass blades
+            ctx.strokeStyle = "#22c55e";
+            ctx.lineWidth = 2.5;
+            for (let x = 40; x < canvas.width; x += 90) {
+              ctx.beginPath();
+              ctx.moveTo(x, groundY + 15);
+              ctx.lineTo(x - 5, groundY + 5);
+              ctx.moveTo(x, groundY + 15);
+              ctx.lineTo(x + 5, groundY + 3);
+              ctx.stroke();
+            }
+            // Tiny white flowers in dirt
+            ctx.fillStyle = "#ffffff";
+            for (let x = 80; x < canvas.width; x += 140) {
+              ctx.beginPath();
+              ctx.arc(x, groundY + 25, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        };
+      case "streak-reward-7": // Summer (Fox)
+        return {
+          skyGradient: ["#38bdf8", "#bae6fd"], // bright clear summer sky
+          subGroundColor: "#854d0e", // golden summer dirt path
+          groundTrimColor: "#22c55e", // thick lush green grass
+          particleType: "spark",
+          particleColors: ["#fef08a", "#fde047", "#ffffff"],
+          drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
+            // Summer flowers and blades of grass
+            ctx.fillStyle = "#ef4444"; // red poppy
+            for (let x = 70; x < canvas.width; x += 150) {
+              ctx.beginPath();
+              ctx.arc(x, groundY + 18, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.fillStyle = "#ffffff"; // daisies
+            for (let x = 130; x < canvas.width; x += 110) {
+              ctx.beginPath();
+              ctx.arc(x, groundY + 22, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        };
+      case "streak-reward-15": // Autumn (Chameleon)
+        return {
+          skyGradient: ["#fed7aa", "#ffedd5"], // golden orange autumn sunset
+          subGroundColor: "#7c2d12", // clay autumn earth
+          groundTrimColor: "#ea580c", // fallen orange/gold leaf canopy
+          particleType: "leaf",
+          particleColors: ["#ea580c", "#d97706", "#f59e0b", "#ca8a04"],
+          drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
+            // Little blue rain puddles on the trail
+            ctx.fillStyle = "rgba(56, 189, 248, 0.45)";
+            for (let x = 140; x < canvas.width; x += 220) {
+              ctx.beginPath();
+              ctx.ellipse(x, groundY + 20, 22, 5, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // Fallen leaves on the ground
+            ctx.fillStyle = "#f59e0b";
+            for (let x = 50; x < canvas.width; x += 80) {
+              ctx.beginPath();
+              ctx.ellipse(x, groundY + 12, 6, 3, 0.4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        };
+      default: // Fallback
+        return {
+          skyGradient: ["#f0f9ff", "#e0f2fe"],
+          subGroundColor: "#e2e8f0",
+          groundTrimColor: "#22c55e",
+          particleType: "none",
+          particleColors: ["#ffffff"],
+          drawExtraDecorations: () => {}
+        };
+    }
+  };
+
   // Main game loop engine ref
   const gameRef = useRef<{
     player: {
@@ -185,6 +302,16 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     };
     obstacles: Obstacle[];
     stars: Star[];
+    particles: {
+      x: number;
+      y: number;
+      vy: number;
+      vx: number;
+      size: number;
+      color: string;
+      rot: number;
+      rotSpeed: number;
+    }[];
     bgOffset: number;
     distance: number;
     spawnTimer: number;
@@ -204,6 +331,7 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     },
     obstacles: [],
     stars: [],
+    particles: [],
     bgOffset: 0,
     distance: 0,
     spawnTimer: 100, // Safe delay before first obstacle
@@ -337,10 +465,28 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
 
     const g = gameRef.current;
     g.lastTime = performance.now();
+    g.distance = 0;
+
+    // Populate particles based on theme
+    const themeConf = getSeasonalTheme();
+    g.particles = Array.from({ length: 28 }, () => {
+      const color = themeConf.particleColors[Math.floor(Math.random() * themeConf.particleColors.length)];
+      return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * (canvas.height - 120),
+        vx: -(0.8 + Math.random() * 1.5),
+        vy: themeConf.particleType === "snow" ? 0.6 + Math.random() * 0.9 : 0.3 + Math.random() * 0.7,
+        size: themeConf.particleType === "snow" ? 2 + Math.random() * 3 : 4 + Math.random() * 5,
+        color,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.05
+      };
+    });
 
     const loop = (time: number) => {
       const dt = Math.min(100, time - g.lastTime) / 16.666; // Normalize to 60fps delta
       g.lastTime = time;
+      g.distance += dt;
 
       // Update positions
       g.bgOffset = (g.bgOffset + 3 * dt) % canvas.width;
@@ -409,9 +555,37 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
         g.starSpawnTimer = 110 + Math.random() * 100;
       }
 
-      // Render light sky background
-      ctx.fillStyle = "#f0f9ff"; // Light blue sky (#f0f9ff)
+      // Render seasonal gradient sky
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height - 75);
+      skyGrad.addColorStop(0, themeConf.skyGradient[0]);
+      skyGrad.addColorStop(1, themeConf.skyGradient[1]);
+      ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw sun for Summer (Fox) or general warmth (Winter sun)
+      if (characterId === "streak-reward-7" || characterId === "streak-reward-1") {
+        // Calculate sun position from right to left based on game time elapsed
+        const timeElapsed = GAME_DURATION - timeLeft;
+        const progress = timeElapsed / GAME_DURATION;
+        const sunX = canvas.width + 50 - (progress * (canvas.width + 150));
+        const sunY = 50 + Math.sin(progress * Math.PI) * 20; // gentle arc path
+
+        // Draw sun glow
+        const sunGlow = ctx.createRadialGradient(sunX, sunY, 5, sunX, sunY, 28);
+        sunGlow.addColorStop(0, "rgba(254, 240, 138, 1)"); // yellow center
+        sunGlow.addColorStop(0.3, "rgba(253, 224, 71, 0.7)");
+        sunGlow.addColorStop(1, "rgba(253, 224, 71, 0)");
+        ctx.fillStyle = sunGlow;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 28, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw solid sun core
+        ctx.fillStyle = "#fef08a";
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Light soft clouds in the background (parallax scrolling effect)
       ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
@@ -426,11 +600,65 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
         ctx.fill();
       }
 
-      // Ground render (Green/nature theme for light interface)
-      ctx.fillStyle = "#e2e8f0"; // light grey sub-ground
+      // Update & Draw particles (snow, petals, autumn leaves)
+      if (themeConf.particleType !== "none") {
+        g.particles.forEach((p) => {
+          // Update physics
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.rot += p.rotSpeed * dt;
+
+          // Wrap around screen boundaries
+          if (p.x < -10) {
+            p.x = canvas.width + 10;
+            p.y = Math.random() * (canvas.height - 100);
+          }
+          if (p.y > canvas.height - 75) {
+            p.y = -10;
+            p.x = Math.random() * canvas.width;
+          }
+
+          // Draw particle
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+
+          if (themeConf.particleType === "snow") {
+            ctx.beginPath();
+            ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (themeConf.particleType === "petal") {
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.size * 1.3, p.size * 0.7, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (themeConf.particleType === "leaf") {
+            ctx.beginPath();
+            ctx.moveTo(-p.size, 0);
+            ctx.lineTo(0, -p.size * 0.6);
+            ctx.lineTo(p.size, 0);
+            ctx.lineTo(0, p.size * 0.6);
+            ctx.closePath();
+            ctx.fill();
+          } else if (themeConf.particleType === "spark") {
+            ctx.beginPath();
+            ctx.arc(0, 0, p.size * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        });
+      }
+
+      // Ground render (Themed seasons)
+      ctx.fillStyle = themeConf.subGroundColor; // sub-ground color fill
       ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-      ctx.fillStyle = "#22c55e"; // bright green top grass lane
-      ctx.fillRect(0, groundY, canvas.width, 8); // Grass trim
+      
+      // Draw top lane grass/snow trim
+      ctx.fillStyle = themeConf.groundTrimColor; 
+      ctx.fillRect(0, groundY, canvas.width, 8); // Trim
+
+      // Render extra seasonal ground decorations (grass blades, flowers, puddles, snow drifts)
+      themeConf.drawExtraDecorations(ctx, canvas, groundY);
 
       // Move & draw stars
       g.stars.forEach((star) => {
