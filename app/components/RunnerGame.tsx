@@ -33,6 +33,8 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
   const [showRotationHint, setShowRotationHint] = useState(true);
   const [shouldRotate, setShouldRotate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const spriteImgRef = useRef<HTMLImageElement | null>(null);
 
   // Detect orientation to apply CSS rotation in portrait
   useEffect(() => {
@@ -45,6 +47,20 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Pre-load the character sprite sheet
+  useEffect(() => {
+    setImageLoaded(false);
+    const img = new Image();
+    img.src = getAssetPath();
+    img.onload = () => {
+      setImageLoaded(true);
+    };
+    if (img.complete) {
+      setImageLoaded(true);
+    }
+    spriteImgRef.current = img;
+  }, [characterId]);
 
   // Gameplay configuration
   const GAME_DURATION = 35; // 35 seconds
@@ -314,8 +330,10 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     if (!ctx) return;
 
     let animId: number;
-    const spriteImg = new Image();
-    spriteImg.src = getAssetPath();
+    const spriteImg = spriteImgRef.current || new Image();
+    if (!spriteImg.src) {
+      spriteImg.src = getAssetPath();
+    }
 
     const g = gameRef.current;
     g.lastTime = performance.now();
@@ -362,7 +380,13 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
         const aspectRatio = box.w / box.h;
         
         // Define base sizes: Bamboo ~85px height, Stone ~60px height
-        const height = obstacleType === 0 ? 80 + Math.random() * 12 : 55 + Math.random() * 8;
+        let height = obstacleType === 0 ? 80 + Math.random() * 12 : 55 + Math.random() * 8;
+        
+        // Fox stump (obstacleType === 0) is too large due to broad aspect ratio, scale it down:
+        if (characterId === "streak-reward-7" && obstacleType === 0) {
+          height = height * 0.45;
+        }
+
         const width = height * aspectRatio;
 
         g.obstacles.push({
@@ -437,13 +461,19 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
       g.obstacles.forEach((obs) => {
         obs.x -= 4.2 * dt;
 
+        let yOffset = 0;
+        // If it is Fox's stump, lower it down by 8px so the roots are inside the ground
+        if (characterId === "streak-reward-7" && obs.type === 0) {
+          yOffset = 8;
+        }
+
         // Render obstacle from the bottom row of the sprite sheet using precise coords
         if (spriteImg.complete && spriteImg.naturalWidth > 0) {
           const box = spriteCoords.obstacles[obs.type];
           ctx.drawImage(
             spriteImg,
             box.x, box.y, box.w, box.h, // Precise source rect bounding box crop
-            obs.x, groundY - obs.height, obs.width, obs.height // Scaled destination rect
+            obs.x, groundY - obs.height + yOffset, obs.width, obs.height // Scaled destination rect
           );
         } else {
           // Fallback shape if image not loaded
@@ -466,11 +496,12 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
         const ph = g.player.height;
 
         if (g.player.invulnerable <= 0) {
+          const obsVisualY = groundY - obs.height + yOffset;
           // AABB Collision overlap calculation (inner hitboxes to keep it fair/fun)
           if (
             obs.x < px + pw - 20 &&
             obs.x + obs.width > px + 20 &&
-            groundY - obs.height < py + ph - 12 &&
+            obsVisualY < py + ph - 12 &&
             groundY > py + 12
           ) {
             // Hit!
@@ -680,12 +711,19 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
               Нажимай на экран, чтобы прыгать.<br/>
               Нажми ещё раз в воздухе — сделаешь <span className="font-extrabold text-yellow-300">двойной прыжок</span>!
             </p>
-            <button 
-              onClick={() => setGameState("playing")}
-              className="mt-6 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-sm md:text-base px-8 py-3 rounded-full shadow-lg transition-transform transform active:scale-95 cursor-pointer"
-            >
-              Начать забег
-            </button>
+            {!imageLoaded ? (
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <div className="w-7 h-7 rounded-full border-4 border-white/20 border-t-yellow-400 animate-spin" />
+                <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider">Загрузка героя...</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setGameState("playing")}
+                className="mt-6 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-sm md:text-base px-8 py-3 rounded-full shadow-lg transition-transform transform active:scale-95 cursor-pointer"
+              >
+                Начать забег
+              </button>
+            )}
           </div>
         )}
 
