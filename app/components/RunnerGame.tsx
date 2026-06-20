@@ -173,57 +173,78 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
   // Get theme values based on season / characterId
   const getSeasonalTheme = () => {
     switch (characterId) {
-      case "streak-reward-1": // Winter (Panda)
+      case "streak-reward-5": // Winter (Husky)
         return {
-          skyGradient: ["#94a3b8", "#cbd5e1"], // frosty snow sky
-          subGroundColor: "#94a3b8", // ice/snow grey-blue
-          groundTrimColor: "#f8fafc", // bright white snow crust
+          skyGradient: ["#cbd5e1", "#f1f5f9"], // frosty winter sky
+          subGroundColor: "#cbd5e1", // ice/snow grey-blue
+          groundTrimColor: "#ffffff", // pure white snow top
           particleType: "snow",
           particleColors: ["#ffffff", "#e2e8f0"],
           drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
-            // Draw ice mounds and patterns below groundY
-            ctx.fillStyle = "#f8fafc";
+            // Draw deep snow drifts at the bottom of the screen
+            ctx.fillStyle = "#ffffff";
             ctx.beginPath();
-            ctx.arc(120, groundY + 22, 18, 0, Math.PI, true);
-            ctx.arc(380, groundY + 28, 24, 0, Math.PI, true);
-            ctx.arc(620, groundY + 20, 16, 0, Math.PI, true);
+            ctx.arc(100, canvas.height, 45, 0, Math.PI, true);
+            ctx.arc(320, canvas.height, 55, 0, Math.PI, true);
+            ctx.arc(580, canvas.height, 40, 0, Math.PI, true);
+            ctx.arc(780, canvas.height, 50, 0, Math.PI, true);
             ctx.fill();
 
-            ctx.strokeStyle = "rgba(255,255,255,0.7)";
-            ctx.lineWidth = 1.5;
-            for (let x = 60; x < canvas.width; x += 160) {
+            // Draw some snow drifts just below the surface trim
+            ctx.fillStyle = "#f1f5f9";
+            ctx.beginPath();
+            ctx.arc(200, groundY + 25, 20, 0, Math.PI, true);
+            ctx.arc(450, groundY + 30, 24, 0, Math.PI, true);
+            ctx.arc(680, groundY + 22, 18, 0, Math.PI, true);
+            ctx.fill();
+
+            // Little sparkles or ice crystals in snow
+            ctx.fillStyle = "#e2e8f0";
+            for (let x = 40; x < canvas.width; x += 110) {
               ctx.beginPath();
-              ctx.moveTo(x, groundY + 20);
-              ctx.lineTo(x + 10, groundY + 35);
-              ctx.lineTo(x + 5, groundY + 45);
-              ctx.stroke();
+              ctx.arc(x, groundY + 35, 2, 0, Math.PI * 2);
+              ctx.fill();
             }
           }
         };
-      case "streak-reward-5": // Spring (Husky)
+      case "streak-reward-1": // Spring (Panda)
         return {
           skyGradient: ["#bae6fd", "#f0fdf4"], // soft light green/blue spring
-          subGroundColor: "#78350f", // warm rich brown soil
-          groundTrimColor: "#4ade80", // vibrant light green grass crust
+          subGroundColor: "#78350f", // warm soil brown
+          groundTrimColor: "#4ade80", // vibrant green top grass
           particleType: "petal",
-          particleColors: ["#fbcfe8", "#f472b6", "#f43f5e"], // cherry blossom petals
+          particleColors: ["#fbcfe8", "#f472b6", "#f43f5e"], // cherry blossoms
           drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
-            // Tiny sprouts 🌱 and grass blades
+            // Grass tufts growing from the bottom of the screen
+            ctx.strokeStyle = "rgba(74, 222, 128, 0.45)";
+            ctx.lineWidth = 2.5;
+            for (let x = 20; x < canvas.width; x += 35) {
+              const h = 14 + (x % 4) * 6;
+              ctx.beginPath();
+              ctx.moveTo(x, canvas.height);
+              ctx.lineTo(x - 2, canvas.height - h);
+              ctx.moveTo(x, canvas.height);
+              ctx.lineTo(x + 2, canvas.height - h + 2);
+              ctx.stroke();
+            }
+
+            // Sprouts below groundY
             ctx.strokeStyle = "#22c55e";
             ctx.lineWidth = 2.5;
             for (let x = 40; x < canvas.width; x += 90) {
               ctx.beginPath();
               ctx.moveTo(x, groundY + 15);
-              ctx.lineTo(x - 5, groundY + 5);
+              ctx.lineTo(x - 4, groundY + 6);
               ctx.moveTo(x, groundY + 15);
-              ctx.lineTo(x + 5, groundY + 3);
+              ctx.lineTo(x + 4, groundY + 4);
               ctx.stroke();
             }
-            // Tiny white flowers in dirt
+
+            // Tiny flowers on the ground
             ctx.fillStyle = "#ffffff";
             for (let x = 80; x < canvas.width; x += 140) {
               ctx.beginPath();
-              ctx.arc(x, groundY + 25, 3, 0, Math.PI * 2);
+              ctx.arc(x, groundY + 22, 3, 0, Math.PI * 2);
               ctx.fill();
             }
           }
@@ -231,46 +252,68 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
       case "streak-reward-7": // Summer (Fox)
         return {
           skyGradient: ["#38bdf8", "#bae6fd"], // bright clear summer sky
-          subGroundColor: "#854d0e", // golden summer dirt path
-          groundTrimColor: "#22c55e", // thick lush green grass
+          subGroundColor: "#451a03", // rich earth brown
+          groundTrimColor: "#22c55e", // thick lush green grass top
           particleType: "spark",
           particleColors: ["#fef08a", "#fde047", "#ffffff"],
           drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
-            // Summer flowers and blades of grass
-            ctx.fillStyle = "#ef4444"; // red poppy
+            // High summer grass blades growing from bottom
+            ctx.strokeStyle = "rgba(34, 197, 94, 0.4)";
+            ctx.lineWidth = 2.5;
+            for (let x = 15; x < canvas.width; x += 30) {
+              const h = 20 + (x % 5) * 8;
+              ctx.beginPath();
+              ctx.moveTo(x, canvas.height);
+              ctx.lineTo(x - 3, canvas.height - h);
+              ctx.moveTo(x, canvas.height);
+              ctx.lineTo(x + 3, canvas.height - h + 3);
+              ctx.stroke();
+            }
+
+            // Flowers below groundY
+            ctx.fillStyle = "#ef4444"; // red poppies
             for (let x = 70; x < canvas.width; x += 150) {
               ctx.beginPath();
               ctx.arc(x, groundY + 18, 3, 0, Math.PI * 2);
               ctx.fill();
             }
-            ctx.fillStyle = "#ffffff"; // daisies
-            for (let x = 130; x < canvas.width; x += 110) {
+            ctx.fillStyle = "#fef08a"; // yellow dandelions
+            for (let x = 120; x < canvas.width; x += 130) {
               ctx.beginPath();
-              ctx.arc(x, groundY + 22, 3, 0, Math.PI * 2);
+              ctx.arc(x, groundY + 24, 3, 0, Math.PI * 2);
               ctx.fill();
             }
           }
         };
       case "streak-reward-15": // Autumn (Chameleon)
         return {
-          skyGradient: ["#fed7aa", "#ffedd5"], // golden orange autumn sunset
-          subGroundColor: "#7c2d12", // clay autumn earth
-          groundTrimColor: "#ea580c", // fallen orange/gold leaf canopy
+          skyGradient: ["#fed7aa", "#ffedd5"], // orange sunset sky
+          subGroundColor: "#7c2d12", // dark clay earth
+          groundTrimColor: "#ea580c", // fallen orange leaf trim
           particleType: "leaf",
           particleColors: ["#ea580c", "#d97706", "#f59e0b", "#ca8a04"],
           drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
-            // Little blue rain puddles on the trail
+            // Piles of fallen leaves at the very bottom of the screen
+            ctx.fillStyle = "#d97706";
+            for (let x = 40; x < canvas.width; x += 80) {
+              ctx.beginPath();
+              ctx.ellipse(x, canvas.height - 5, 25, 10, 0.1, 0, Math.PI * 2);
+              ctx.fill();
+            }
+
+            // Little blue rain puddles below groundY
             ctx.fillStyle = "rgba(56, 189, 248, 0.45)";
             for (let x = 140; x < canvas.width; x += 220) {
               ctx.beginPath();
               ctx.ellipse(x, groundY + 20, 22, 5, 0, 0, Math.PI * 2);
               ctx.fill();
             }
-            // Fallen leaves on the ground
+
+            // Fallen leaves scattered in middle subground
             ctx.fillStyle = "#f59e0b";
-            for (let x = 50; x < canvas.width; x += 80) {
+            for (let x = 60; x < canvas.width; x += 90) {
               ctx.beginPath();
-              ctx.ellipse(x, groundY + 12, 6, 3, 0.4, 0, Math.PI * 2);
+              ctx.ellipse(x, groundY + 14, 6, 3, 0.4, 0, Math.PI * 2);
               ctx.fill();
             }
           }
@@ -469,7 +512,7 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
 
     // Populate particles based on theme
     const themeConf = getSeasonalTheme();
-    g.particles = Array.from({ length: 28 }, () => {
+    g.particles = Array.from({ length: 15 }, () => {
       const color = themeConf.particleColors[Math.floor(Math.random() * themeConf.particleColors.length)];
       return {
         x: Math.random() * canvas.width,
@@ -623,6 +666,13 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
           ctx.translate(p.x, p.y);
           ctx.rotate(p.rot);
           ctx.fillStyle = p.color;
+
+          // Fade out particles when they go below 180px down to groundY (325px)
+          let alpha = 0.75;
+          if (p.y > 180) {
+            alpha = Math.max(0, 0.75 * (1 - (p.y - 180) / (groundY - 180)));
+          }
+          ctx.globalAlpha = alpha;
 
           if (themeConf.particleType === "snow") {
             ctx.beginPath();
