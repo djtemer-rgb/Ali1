@@ -30,7 +30,7 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
   const [gameState, setGameState] = useState<"start" | "playing" | "paused" | "success" | "fail">("start");
   const [hearts, setHearts] = useState(3);
   const [tempStars, setTempStars] = useState(0);
-  const [isLandscape, setIsLandscape] = useState(true);
+  const [showRotationHint, setShowRotationHint] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   // Gameplay configuration
@@ -133,22 +133,12 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
 
   const theme = getThemeColors();
 
-  // Screen Orientation Detection
+  // Screen Orientation Detection - Transient hint screen
   useEffect(() => {
-    const checkOrientation = () => {
-      if (typeof window !== "undefined") {
-        const isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-        if (isTouch) {
-          setIsLandscape(window.innerWidth > window.innerHeight);
-        } else {
-          setIsLandscape(true); // Desktop is always fine
-        }
-      }
-    };
-
-    checkOrientation();
-    window.addEventListener("resize", checkOrientation);
-    return () => window.removeEventListener("resize", checkOrientation);
+    const timer = setTimeout(() => {
+      setShowRotationHint(false);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Main game loop engine ref
@@ -574,13 +564,19 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 font-sans select-none overflow-hidden touch-none">
       
       {/* 1. Landscape Orientation Check Overlay */}
-      {!isLandscape && (
+      {showRotationHint && (
         <div className="absolute inset-0 bg-slate-900 z-[110] flex flex-col items-center justify-center text-white px-6 text-center">
           <div className="text-6xl animate-bounce mb-6">📱🔄</div>
           <h2 className="text-xl font-black mb-2">Поверни телефон</h2>
-          <p className="text-slate-400 text-xs max-w-xs leading-normal">
+          <p className="text-slate-400 text-xs max-w-xs leading-normal mb-4">
             Для запуска бонусного забега переверни устройство в альбомный режим.
           </p>
+          <button 
+            onClick={() => setShowRotationHint(false)}
+            className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs px-5 py-2 rounded-full shadow-md transition-transform transform active:scale-95 cursor-pointer"
+          >
+            Понятно
+          </button>
         </div>
       )}
 
