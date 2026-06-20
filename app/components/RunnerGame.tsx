@@ -31,7 +31,20 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
   const [hearts, setHearts] = useState(3);
   const [tempStars, setTempStars] = useState(0);
   const [showRotationHint, setShowRotationHint] = useState(true);
+  const [shouldRotate, setShouldRotate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Detect orientation to apply CSS rotation in portrait
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setShouldRotate(window.innerHeight > window.innerWidth);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Gameplay configuration
   const GAME_DURATION = 35; // 35 seconds
@@ -563,25 +576,36 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 font-sans select-none overflow-hidden touch-none">
       
-      {/* 1. Landscape Orientation Check Overlay */}
-      {showRotationHint && (
-        <div className="absolute inset-0 bg-slate-900 z-[110] flex flex-col items-center justify-center text-white px-6 text-center">
-          <div className="text-6xl animate-bounce mb-6">📱🔄</div>
-          <h2 className="text-xl font-black mb-2">Поверни телефон</h2>
-          <p className="text-slate-400 text-xs max-w-xs leading-normal mb-4">
-            Для запуска бонусного забега переверни устройство в альбомный режим.
-          </p>
-          <button 
-            onClick={() => setShowRotationHint(false)}
-            className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs px-5 py-2 rounded-full shadow-md transition-transform transform active:scale-95 cursor-pointer"
-          >
-            Понятно
-          </button>
-        </div>
-      )}
-
-      {/* Main Game Shell Window */}
-      <div className="relative w-full h-full max-w-[840px] max-h-[480px] bg-slate-900 overflow-hidden flex flex-col md:rounded-3xl md:shadow-2xl border border-slate-800">
+      {/* Main Game Shell Window (rotated 90deg clockwise when screen is portrait) */}
+      <div 
+        style={shouldRotate ? {
+          width: "100vh",
+          height: "100vw",
+          maxWidth: "none",
+          maxHeight: "none",
+          transform: "rotate(90deg)",
+          transformOrigin: "center",
+          flexShrink: 0
+        } : {}}
+        className="relative w-full h-full max-w-[840px] max-h-[480px] bg-slate-900 overflow-hidden flex flex-col md:rounded-3xl md:shadow-2xl border border-slate-800"
+      >
+        
+        {/* 1. Landscape Orientation Check Overlay (inside rotated shell) */}
+        {showRotationHint && (
+          <div className="absolute inset-0 bg-slate-900 z-[110] flex flex-col items-center justify-center text-white px-6 text-center">
+            <div className="text-6xl animate-bounce mb-6">📱🔄</div>
+            <h2 className="text-xl font-black mb-2">Поверни телефон</h2>
+            <p className="text-slate-400 text-xs max-w-xs leading-normal mb-4">
+              Для запуска бонусного забега переверни устройство в альбомный режим.
+            </p>
+            <button 
+              onClick={() => setShowRotationHint(false)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs px-5 py-2 rounded-full shadow-md transition-transform transform active:scale-95 cursor-pointer"
+            >
+              Понятно
+            </button>
+          </div>
+        )}
         
         {/* Header HUD panel */}
         <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-black/50 to-transparent flex items-center justify-between px-4 z-20 pointer-events-none">
