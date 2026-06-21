@@ -266,6 +266,12 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
       frame: number;
       frameTimer: number;
     };
+    drag: {
+      active: boolean;
+      startX: number;
+      startY: number;
+      startPlayerX: number;
+    };
     items: FallingItem[];
     particles: Particle[];
     spawnTimer: number;
@@ -283,39 +289,76 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
       frame: 0,
       frameTimer: 0
     },
+    drag: {
+      active: false,
+      startX: 0,
+      startY: 0,
+      startPlayerX: 370
+    },
     items: [],
     particles: [],
     spawnTimer: 0,
     lastTime: 0
   });
 
+  // Handle pointer down (touch start or mouse down)
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (gameState !== "playing" || !canvasRef.current) return;
+    
+    let clientX = 0;
+    let clientY = 0;
+    if ("touches" in e) {
+      if (e.touches.length === 0) return;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const g = gameRef.current;
+    g.drag.active = true;
+    g.drag.startX = clientX;
+    g.drag.startY = clientY;
+    g.drag.startPlayerX = g.player.x;
+  };
+
+  // Handle pointer up (touch end or mouse up)
+  const handlePointerUp = () => {
+    gameRef.current.drag.active = false;
+  };
+
   // Handle movements
   const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (gameState !== "playing" || !canvasRef.current) return;
+    const g = gameRef.current;
+    if (gameState !== "playing" || !canvasRef.current || !g.drag.active) return;
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     
     // Support both mouse and touch clientX
     let clientX = 0;
+    let clientY = 0;
     if ("touches" in e) {
       if (e.touches.length === 0) return;
       clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
     } else {
       clientX = e.clientX;
+      clientY = e.clientY;
     }
     
-    // Scale X according to rotated canvas
-    let relX = 0;
+    let deltaX = 0;
     if (shouldRotate) {
-      // In rotated portrait mode, pointer Y relative to canvas bounding client bounds maps to canvas X
-      relX = ((clientX - rect.left) / rect.width) * canvas.width;
+      // In rotated portrait mode, vertical finger movement maps to horizontal canvas movement
+      const scale = canvas.width / rect.height;
+      deltaX = (clientY - g.drag.startY) * scale;
     } else {
-      relX = ((clientX - rect.left) / rect.width) * canvas.width;
+      // In normal landscape mode, horizontal finger movement maps to horizontal canvas movement
+      const scale = canvas.width / rect.width;
+      deltaX = (clientX - g.drag.startX) * scale;
     }
 
-    const g = gameRef.current;
-    // Set target X (center of character on pointer X)
-    g.player.targetX = relX - g.player.width / 2;
+    g.player.targetX = Math.max(0, Math.min(canvas.width - g.player.width, g.drag.startPlayerX + deltaX));
   };
 
   // Keyboard support for testing
@@ -844,8 +887,12 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
           height={400} 
           onMouseMove={handlePointerMove}
           onTouchMove={handlePointerMove}
-          onMouseDown={handlePointerMove}
-          onTouchStart={handlePointerMove}
+          onMouseDown={handlePointerDown}
+          onTouchStart={handlePointerDown}
+          onMouseUp={handlePointerUp}
+          onMouseLeave={handlePointerUp}
+          onTouchEnd={handlePointerUp}
+          onTouchCancel={handlePointerUp}
           className="w-full h-full bg-slate-900 cursor-pointer object-contain block"
         />
 
