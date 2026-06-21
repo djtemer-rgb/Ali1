@@ -155,4 +155,4 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Raw original images for rewards resizing
-/images/
+# /images/

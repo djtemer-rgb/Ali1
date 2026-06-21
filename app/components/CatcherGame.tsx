@@ -844,6 +844,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
           height={400} 
           onMouseMove={handlePointerMove}
           onTouchMove={handlePointerMove}
+          onMouseDown={handlePointerMove}
+          onTouchStart={handlePointerMove}
           className="w-full h-full bg-slate-900 cursor-pointer object-contain block"
         />
 

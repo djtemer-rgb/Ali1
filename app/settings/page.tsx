@@ -359,8 +359,42 @@ export default function SettingsPage() {
   };
 
   const deleteEvent = async (id: string) => {
+    const event = events.find(e => e.id === id);
+    if (event && event.type === 'reward-selected' && event.details?.status === 'selected') {
+      const childName = event.childId === 'ali' ? 'Али' : 'Саид';
+      const confirmed = window.confirm(
+        `Этот выбор награды ещё активен. При удалении события выбор будет отменён, а ${event.details.costStars || 0} звёзд вернутся на баланс ${childName}. Продолжить?`
+      );
+      if (!confirmed) return;
+
+      if (event.rewardId) {
+        const reward = rewardById(event.rewardId);
+        await fetch('/api/rewards/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: event.childId, rewardId: event.rewardId, status: 'available' })
+        });
+        if (reward) {
+          await fetch('/api/star-ledger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              childId: event.childId,
+              amount: reward.costStars,
+              source: 'adjustment',
+              sourceId: reward.id,
+              reason: `Отмена выбора награды: ${reward.title}`
+            })
+          });
+        }
+      }
+    }
+
     await fetch(`/api/events?id=${id}`, { method: 'DELETE' });
     loadEvents();
+    if (event && event.type === 'reward-selected' && event.details?.status === 'selected') {
+      await refreshRewards();
+    }
   };
 
   const getChildName = (id: 'ali' | 'said') => (id === 'ali' ? 'Али' : 'Саид');

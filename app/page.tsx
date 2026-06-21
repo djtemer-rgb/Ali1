@@ -484,6 +484,8 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [modalMessage, setModalMessage] = useState<string | null>(null);
   const [gradesEnabled, setGradesEnabled] = useState(true);
+  const [rewardStatuses, setRewardStatuses] = useState<Record<string, string>>({});
+  const [rewardToConfirm, setRewardToConfirm] = useState<Reward | null>(null);
   const [currencyEnabled, setCurrencyEnabled] = useState(true);
   const [reserveStars, setReserveStars] = useState(0);
   const [showAvatarZoom, setShowAvatarZoom] = useState(false);
@@ -580,6 +582,17 @@ export default function Home() {
             }, 0)
           : 0;
         setReserveStars(reserve);
+
+        const statusMap: Record<string, string> = {};
+        if (Array.isArray(rewardStatusData)) {
+          rewardStatusData.forEach((status: any) => {
+            if (status && status.rewardId) {
+              statusMap[status.rewardId] = status.status;
+            }
+          });
+        }
+        setRewardStatuses(statusMap);
+
         setRewards([...childRewards].sort((a: any, b: any) => getRewardOrder(a, currentChild.id) - getRewardOrder(b, currentChild.id)));
         setStreakRewards(Array.isArray(streakRewData) ? streakRewData : []);
         setStreakProgress(streakProgData || { currentStreak: 0, lastCompletedDate: '', earned: {} });
@@ -831,16 +844,28 @@ export default function Home() {
 
   const buyReward = async (reward: Reward) => {
     if (stars >= reward.costStars) {
-      setStars(prev => prev - reward.costStars);
-      confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
-      await Promise.all([
-        fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})` }) }),
-        fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }) }),
-        fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`, rewardId: reward.id, details: { childName: currentChild.name, rewardTitle: reward.title, costStars: reward.costStars, status: 'selected' } }) })
-      ]);
+      setRewardToConfirm(reward);
     } else {
       setModalMessage(`Не хватает звёзд! Нужно ещё ${formatStarAmount(reward.costStars - stars)}`);
     }
+  };
+
+  const confirmBuyReward = async () => {
+    if (!rewardToConfirm) return;
+    const reward = rewardToConfirm;
+    setRewardToConfirm(null);
+
+    setStars(prev => prev - reward.costStars);
+    setReserveStars(prev => prev + reward.costStars);
+    setRewardStatuses(prev => ({ ...prev, [reward.id]: 'selected' }));
+
+    confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
+
+    await Promise.all([
+      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})` }) }),
+      fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }) }),
+      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`, rewardId: reward.id, details: { childName: currentChild.name, rewardTitle: reward.title, costStars: reward.costStars, status: 'selected' } }) })
+    ]);
   };
 
   const navItems = [
@@ -1163,6 +1188,57 @@ export default function Home() {
 
       <StarHistoryModal childId={currentChild.id} open={showStarHistory} onClose={() => setShowStarHistory(false)} />
       <PinModal open={showPinModal} onClose={() => setShowPinModal(false)} />
+
+      {/* REWARD CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {rewardToConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setRewardToConfirm(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 flex flex-col items-center text-center relative overflow-hidden"
+            >
+              <div className="absolute -top-12 -right-12 w-28 h-28 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
+              <div className="absolute -bottom-12 -left-12 w-28 h-28 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+              
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-3xl mb-4 shadow-[0_8px_16px_rgba(251,191,36,0.15)] relative">
+                <span className="absolute -top-1 -right-1 text-sm animate-bounce">✨</span>
+                {rewardToConfirm.icon || '🎁'}
+              </div>
+              
+              <h3 className="text-lg font-extrabold text-slate-800 leading-snug">
+                Выбрать награду?
+              </h3>
+              
+              <p className="text-sm text-slate-500 mt-2 px-1">
+                Ты выбираешь <span className="font-bold text-slate-800">«{rewardToConfirm.title}»</span> за <span className="font-bold text-amber-500 inline-flex items-center gap-0.5">{rewardToConfirm.costStars} <Star size={13} className="fill-amber-400 text-amber-400 shrink-0 inline" /></span>.
+              </p>
+              
+              <p className="text-xs text-slate-400 mt-2">
+                Звёзды будут списаны с твоего баланса.
+              </p>
+              
+              <div className="w-full mt-6 flex flex-col gap-2">
+                <button
+                  onClick={confirmBuyReward}
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-extrabold text-sm py-3 rounded-2xl shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all"
+                >
+                  Да, выбрать!
+                </button>
+                <button
+                  onClick={() => setRewardToConfirm(null)}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-sm py-3 rounded-2xl transition-all"
+                >
+                  Отмена
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {modalMessage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setModalMessage(null)}>
