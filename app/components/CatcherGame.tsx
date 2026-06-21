@@ -123,8 +123,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
   const getThemeColors = () => {
     switch (characterId) {
       case "streak-reward-2": return { bg: "from-emerald-400 via-teal-500 to-indigo-600", accent: "text-emerald-300" };
-      case "streak-reward-14": return { bg: "from-slate-700 via-indigo-950 to-slate-900", accent: "text-amber-300" };
-      case "streak-reward-17": return { bg: "from-purple-900 via-fuchsia-950 to-slate-950", accent: "text-fuchsia-300" };
+      case "streak-reward-14": return { bg: "from-sky-300 via-blue-400 to-indigo-500", accent: "text-yellow-200" };
+      case "streak-reward-17": return { bg: "from-fuchsia-300 via-purple-400 to-indigo-500", accent: "text-pink-200" };
       default: return { bg: "from-teal-400 to-emerald-600", accent: "text-emerald-300" };
     }
   };
@@ -165,11 +165,11 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         };
       case "streak-reward-17": // Rhino (Purple crystal caves style)
         return {
-          skyGradient: ["#1e1b4b", "#4c1d95"], // dark purple cave glow
-          subGroundColor: "#374151", // dark basalt stone
-          groundTrimColor: "#c084fc", // purple crystal top
+          skyGradient: ["#c084fc", "#fae8ff"], // light glowing purple/lavender cave light
+          subGroundColor: "#9ca3af", // medium light grey basalt
+          groundTrimColor: "#e9d5ff", // purple crystal top
           particleType: "spark",
-          particleColors: ["#e9d5ff", "#c084fc", "#a855f7"],
+          particleColors: ["#c084fc", "#a855f7", "#ffffff"],
           drawExtraDecorations: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, groundY: number) => {
             // Glowing crystals at the bottom
             ctx.fillStyle = "#c084fc";
@@ -186,8 +186,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         };
       case "streak-reward-14": // Buffalo (Stormy lightning plains style)
         return {
-          skyGradient: ["#0f172a", "#1e293b"], // dark slate storm sky
-          subGroundColor: "#18181b", // charcoal dark basalt
+          skyGradient: ["#94a3b8", "#cbd5e1"], // light stormy slate-grey
+          subGroundColor: "#475569", // medium slate grey
           groundTrimColor: "#eab308", // bright yellow lightning trim
           particleType: "spark",
           particleColors: ["#fef08a", "#fde047", "#ffffff"],
@@ -558,11 +558,22 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
             if (item.type === "star") col = 0;
             if (item.type === "danger") col = 2;
 
+            ctx.save();
+            // Apply glow
+            ctx.shadowColor = item.type === "star" ? "rgba(253, 224, 71, 0.95)" : 
+                              item.type === "danger" ? "rgba(239, 68, 68, 0.95)" : 
+                              (characterId === "streak-reward-2" ? "rgba(74, 222, 128, 0.95)" : 
+                               characterId === "streak-reward-14" ? "rgba(56, 189, 248, 0.95)" : "rgba(232, 121, 249, 0.95)");
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+
             ctx.drawImage(
               spriteImg,
               col * 418, 627, 418, 627, // Source rect
               item.x, item.y, item.width, item.height // Destination rect
             );
+            ctx.restore();
           } else {
             // Fallback drawing if image not ready
             ctx.fillStyle = item.type === "star" ? "#eab308" : item.type === "danger" ? "#ef4444" : "#3b82f6";
@@ -648,6 +659,13 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
 
         if (spriteImg.complete && spriteImg.naturalWidth > 0) {
           ctx.save();
+          // Apply character glow
+          ctx.shadowColor = characterId === "streak-reward-2" ? "rgba(110, 231, 183, 0.95)" : 
+                            characterId === "streak-reward-14" ? "rgba(253, 224, 71, 0.95)" : "rgba(232, 121, 249, 0.95)";
+          ctx.shadowBlur = 18;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+
           if (g.player.facingLeft) {
             // Mirror image horizontally
             ctx.translate(px + g.player.width, py);
@@ -832,7 +850,11 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         {/* Start Game View Overlay */}
         {gameState === "start" && (
           <div className={`absolute inset-0 z-30 bg-gradient-to-br ${theme.bg} flex flex-col items-center justify-center text-white text-center p-6`}>
-            <div className="text-6xl mb-4 animate-bounce">🧺🦫</div>
+            <div className="text-6xl mb-4 animate-bounce">
+              {characterId === "streak-reward-2" ? "🧺🦫" : 
+               characterId === "streak-reward-14" ? "🧺🐃" : 
+               characterId === "streak-reward-17" ? "🧺🦏" : "🧺🦫"}
+            </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-wide drop-shadow-md">
               Ловец: {characterName}
             </h1>

@@ -1508,7 +1508,7 @@ export default function Home() {
                       Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
                     {/* Render Runner or Catcher game launch button for supported cards (or all cards if in test mode) */}
-                    {(rewardsTestMode || [
+                    {([
                       'streak-reward-1', 'streak-reward-2', 'streak-reward-5', 
                       'streak-reward-7', 'streak-reward-14', 'streak-reward-15', 'streak-reward-17'
                     ].includes(zoomedReward.id)) && (
