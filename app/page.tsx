@@ -11,6 +11,7 @@ import HeroMessage from "./components/HeroMessage";
 import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
 import RunnerGame from "./components/RunnerGame";
+import CatcherGame from "./components/CatcherGame";
 import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
@@ -505,6 +506,11 @@ export default function Home() {
   // Bonus Game Runner States
   const [bonusGames, setBonusGames] = useState<Record<string, { completed: boolean; completedAt?: string }>>({});
   const [activeRunnerGame, setActiveRunnerGame] = useState<{
+    rewardId: string;
+    characterId: string;
+    characterName: string;
+  } | null>(null);
+  const [activeCatcherGame, setActiveCatcherGame] = useState<{
     rewardId: string;
     characterId: string;
     characterName: string;
@@ -1501,8 +1507,11 @@ export default function Home() {
                     <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
                       Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
-                    {/* Render Runner game launch button for supported cards (or all cards if in test mode) */}
-                    {(rewardsTestMode || ['streak-reward-1', 'streak-reward-5', 'streak-reward-7', 'streak-reward-15'].includes(zoomedReward.id)) && (
+                    {/* Render Runner or Catcher game launch button for supported cards (or all cards if in test mode) */}
+                    {(rewardsTestMode || [
+                      'streak-reward-1', 'streak-reward-2', 'streak-reward-5', 
+                      'streak-reward-7', 'streak-reward-14', 'streak-reward-15', 'streak-reward-17'
+                    ].includes(zoomedReward.id)) && (
                       <div className="mt-4 w-full px-4">
                         {bonusGames[zoomedReward.id]?.completed && !rewardsTestMode ? (
                           <button disabled className="w-full bg-slate-200 text-slate-400 font-black text-xs py-3 rounded-xl cursor-not-allowed">
@@ -1513,11 +1522,19 @@ export default function Home() {
                             onClick={() => {
                               setZoomedReward(null);
                               setShowStreakRewardsModal(false);
-                              setActiveRunnerGame({
-                                rewardId: zoomedReward.id,
-                                characterId: zoomedReward.id,
-                                characterName: zoomedReward.title
-                              });
+                              if (['streak-reward-2', 'streak-reward-14', 'streak-reward-17'].includes(zoomedReward.id)) {
+                                setActiveCatcherGame({
+                                  rewardId: zoomedReward.id,
+                                  characterId: zoomedReward.id,
+                                  characterName: zoomedReward.title
+                                });
+                              } else {
+                                setActiveRunnerGame({
+                                  rewardId: zoomedReward.id,
+                                  characterId: zoomedReward.id,
+                                  characterName: zoomedReward.title
+                                });
+                              }
                             }}
                             className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-slate-950 font-black text-xs py-3 rounded-xl shadow-md transform hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
                           >
@@ -1659,6 +1676,23 @@ export default function Home() {
           testMode={rewardsTestMode}
           onClose={(completed) => {
             setActiveRunnerGame(null);
+            if (completed) {
+              loadBonusGamesState();
+            }
+          }}
+        />
+      )}
+
+      {/* CATCHER BONUS GAME FULLSCREEN PORTAL */}
+      {activeCatcherGame && (
+        <CatcherGame
+          childId={currentChild.id}
+          rewardId={activeCatcherGame.rewardId}
+          characterId={activeCatcherGame.characterId}
+          characterName={activeCatcherGame.characterName}
+          testMode={rewardsTestMode}
+          onClose={(completed) => {
+            setActiveCatcherGame(null);
             if (completed) {
               loadBonusGamesState();
             }
