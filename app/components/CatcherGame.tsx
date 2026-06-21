@@ -274,8 +274,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
     player: {
       x: 370,
       targetX: 370,
-      y: 225, // groundY (325) - height (100)
-      width: 73, // Aspect ratio 0.66 scaled to height 110 (73x110)
+      y: 215, // groundY (325) - height (110)
+      width: 55, // Aspect ratio 0.5 scaled to height 110 (55x110)
       height: 110,
       facingLeft: false,
       catchingTimer: 0,
@@ -530,11 +530,11 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         }
 
         g.items.push({
-          x: itemX,
+          x: itemX - 5, // Center the 50px item on the lane
           y: -70,
           vy: 3.5 + Math.random() * 1.5,
-          width: 40,
-          height: 60,
+          width: 50,
+          height: 50,
           type,
           collected: false,
           lane
@@ -552,8 +552,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         if (!item.collected) {
           // Draw item
           if (spriteImg.complete && spriteImg.naturalWidth > 0) {
-            // Slicing parameters: column width 418, row height 627
-            // Star is index 0, normal index 1, danger index 2 of bottom row (y = 627)
+            // Slicing parameters: column width 418, row height 418 (square)
+            // Star is index 0, normal index 1, danger index 2 of bottom row (y = 836)
             let col = 1;
             if (item.type === "star") col = 0;
             if (item.type === "danger") col = 2;
@@ -570,7 +570,7 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
 
             ctx.drawImage(
               spriteImg,
-              col * 418, 627, 418, 627, // Source rect
+              col * 418, 836, 418, 418, // Source rect (items row starts at y=836 and has height 418)
               item.x, item.y, item.width, item.height // Destination rect
             );
             ctx.restore();
@@ -650,7 +650,7 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
           return;
         }
 
-        // Slicing parameters: column width 418, row height 627
+        // Slicing parameters: column width 418, row height 836
         let frameIndex = g.player.frame; // walks between frame 0 and 1
         if (g.player.catchingTimer > 0) {
           frameIndex = 2; // display catching frame
@@ -672,13 +672,13 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
             ctx.scale(-1, 1);
             ctx.drawImage(
               spriteImg,
-              frameIndex * 418, 0, 418, 627, // Source
+              frameIndex * 418, 0, 418, 836, // Source
               0, 0, g.player.width, g.player.height // Destination
             );
           } else {
             ctx.drawImage(
               spriteImg,
-              frameIndex * 418, 0, 418, 627, // Source
+              frameIndex * 418, 0, 418, 836, // Source
               px, py, g.player.width, g.player.height // Destination
             );
           }
