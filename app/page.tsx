@@ -12,6 +12,7 @@ import StarHistoryModal from "./components/StarHistoryModal";
 import PinModal from "./components/PinModal";
 import RunnerGame from "./components/RunnerGame";
 import CatcherGame from "./components/CatcherGame";
+import TapReactionGame from "./components/TapReactionGame";
 import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
@@ -513,6 +514,11 @@ export default function Home() {
     characterName: string;
   } | null>(null);
   const [activeCatcherGame, setActiveCatcherGame] = useState<{
+    rewardId: string;
+    characterId: string;
+    characterName: string;
+  } | null>(null);
+  const [activeTapReactionGame, setActiveTapReactionGame] = useState<{
     rewardId: string;
     characterId: string;
     characterName: string;
@@ -1583,10 +1589,12 @@ export default function Home() {
                     <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
                       Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
-                    {/* Render Runner or Catcher game launch button for supported cards (or all cards if in test mode) */}
+                    {/* Render Runner, Catcher, or Tap Reaction game launch button for supported cards */}
                     {([
-                      'streak-reward-1', 'streak-reward-2', 'streak-reward-5', 
-                      'streak-reward-7', 'streak-reward-14', 'streak-reward-15', 'streak-reward-17'
+                      'streak-reward-1', 'streak-reward-2', 'streak-reward-4',
+                      'streak-reward-5', 'streak-reward-7', 'streak-reward-8',
+                      'streak-reward-10', 'streak-reward-14', 'streak-reward-15',
+                      'streak-reward-17', 'streak-reward-19'
                     ].includes(zoomedReward.id)) && (
                       <div className="mt-4 w-full px-4">
                         {bonusGames[zoomedReward.id]?.completed && !rewardsTestMode ? (
@@ -1600,6 +1608,12 @@ export default function Home() {
                               setShowStreakRewardsModal(false);
                               if (['streak-reward-2', 'streak-reward-14', 'streak-reward-17'].includes(zoomedReward.id)) {
                                 setActiveCatcherGame({
+                                  rewardId: zoomedReward.id,
+                                  characterId: zoomedReward.id,
+                                  characterName: zoomedReward.title
+                                });
+                              } else if (['streak-reward-4', 'streak-reward-8', 'streak-reward-10', 'streak-reward-19'].includes(zoomedReward.id)) {
+                                setActiveTapReactionGame({
                                   rewardId: zoomedReward.id,
                                   characterId: zoomedReward.id,
                                   characterName: zoomedReward.title
@@ -1769,6 +1783,23 @@ export default function Home() {
           testMode={rewardsTestMode}
           onClose={(completed) => {
             setActiveCatcherGame(null);
+            if (completed) {
+              loadBonusGamesState();
+            }
+          }}
+        />
+      )}
+
+      {/* TAP REACTION BONUS GAME FULLSCREEN PORTAL */}
+      {activeTapReactionGame && (
+        <TapReactionGame
+          childId={currentChild.id}
+          rewardId={activeTapReactionGame.rewardId}
+          characterId={activeTapReactionGame.characterId}
+          characterName={activeTapReactionGame.characterName}
+          testMode={rewardsTestMode}
+          onClose={(completed) => {
+            setActiveTapReactionGame(null);
             if (completed) {
               loadBonusGamesState();
             }
