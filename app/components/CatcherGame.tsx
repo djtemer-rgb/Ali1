@@ -44,11 +44,12 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
   const [shouldRotate, setShouldRotate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [failReason, setFailReason] = useState<"hearts" | "timeout" | null>(null);
 
   const spriteImgRef = useRef<HTMLImageElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const GAME_DURATION = 60; // Max 60 seconds
+  const GAME_DURATION = 30; // Max 30 seconds
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
 
   // Play Sound Synth
@@ -388,8 +389,9 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setGameState("success");
-          playSound("success");
+          setFailReason("timeout");
+          setGameState("fail");
+          playSound("fail");
           return 0;
         }
         return prev - 1;
@@ -649,6 +651,7 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
                 setHearts((prev) => {
                   const nextVal = prev - 1;
                   if (nextVal <= 0) {
+                    setFailReason("hearts");
                     setGameState("fail");
                     playSound("fail");
                   }
@@ -755,6 +758,7 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
     setCaughtCount(0);
     setTempStars(0);
     setTimeLeft(GAME_DURATION);
+    setFailReason(null);
     const g = gameRef.current;
     g.player.x = 370;
     g.player.targetX = 370;
@@ -960,11 +964,23 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
         {/* Failure / Loss View Overlay */}
         {gameState === "fail" && (
           <div className="absolute inset-0 z-30 bg-slate-950/95 flex flex-col items-center justify-center text-white text-center p-6">
-            <div className="text-6xl mb-4">💔🥺</div>
-            <h2 className="text-2xl md:text-3xl font-black text-red-500">Пока не получилось</h2>
-            <p className="text-xs md:text-sm text-slate-400 max-w-xs mt-2 leading-relaxed">
-              Не расстраивайся! Герои не сдаются при неудачах. Давай попробуем ещё разок!
-            </p>
+            {failReason === "timeout" ? (
+              <>
+                <div className="text-6xl mb-4">⏱️🥺</div>
+                <h2 className="text-2xl md:text-3xl font-black text-amber-400">Время вышло!</h2>
+                <p className="text-xs md:text-sm text-slate-400 max-w-xs mt-2 leading-relaxed">
+                  Ты не успел поймать все нужные предметы за 30 секунд. Не расстраивайся, давай попробуем ещё разок!
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-6xl mb-4">💔🥺</div>
+                <h2 className="text-2xl md:text-3xl font-black text-red-500">Пока не получилось</h2>
+                <p className="text-xs md:text-sm text-slate-400 max-w-xs mt-2 leading-relaxed">
+                  Не расстраивайся! Герои не сдаются при неудачах. Давай попробуем ещё разок!
+                </p>
+              </>
+            )}
             <div className="flex gap-4 mt-8">
               <button 
                 onClick={() => onClose(false)}
