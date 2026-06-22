@@ -431,8 +431,16 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
     const groundY = canvas.height - 75; // ground y level is 325
 
     const loop = (time: number) => {
-      const dt = Math.min(100, time - g.lastTime) / 16.666; // Normalize to 60fps delta
+      if (!time) {
+        time = performance.now();
+      }
+      let delta = time - g.lastTime;
+      if (delta < 0 || isNaN(delta) || delta > 1000) {
+        delta = 16.666;
+      }
+      const dt = Math.min(100, delta) / 16.666; // Normalize to 60fps delta
       g.lastTime = time;
+
 
       // 1. Draw themed sky background
       const skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);

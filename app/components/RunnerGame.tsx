@@ -527,9 +527,17 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
     });
 
     const loop = (time: number) => {
-      const dt = Math.min(100, time - g.lastTime) / 16.666; // Normalize to 60fps delta
+      if (!time) {
+        time = performance.now();
+      }
+      let delta = time - g.lastTime;
+      if (delta < 0 || isNaN(delta) || delta > 1000) {
+        delta = 16.666;
+      }
+      const dt = Math.min(100, delta) / 16.666; // Normalize to 60fps delta
       g.lastTime = time;
       g.distance += dt;
+
 
       // Update positions
       g.bgOffset = (g.bgOffset + 3 * dt) % canvas.width;
