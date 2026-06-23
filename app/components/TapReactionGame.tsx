@@ -25,6 +25,7 @@ interface SpannedItem {
   opacity: number;
   scale: number;
   glowColor: string;
+  elapsed: number;
 }
 
 interface Particle {
@@ -54,6 +55,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [failReason, setFailReason] = useState<"hearts" | "timeout" | null>(null);
+  const [loopError, setLoopError] = useState<string | null>(null);
 
   const spriteImgRef = useRef<HTMLImageElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -279,6 +281,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     spawnTimer: number;
     lastTime: number;
     itemIdCounter: number;
+    frameCount: number;
   }>({
     happyTimer: 0,
     alertTimer: 0,
@@ -286,7 +289,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     particles: [],
     spawnTimer: 0,
     lastTime: 0,
-    itemIdCounter: 0
+    itemIdCounter: 0,
+    frameCount: 0
   });
 
   // Handle pointer down (tap on item)
@@ -496,15 +500,17 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     });
 
     const loop = (time: number) => {
-      if (!time) {
-        time = performance.now();
-      }
-      let delta = time - g.lastTime;
-      if (delta < 0 || isNaN(delta) || delta > 1000) {
-        delta = 16.666;
-      }
-      const dt = Math.min(100, delta) / 16.666; // Normalize to 60fps delta
-      g.lastTime = time;
+      try {
+        g.frameCount++;
+        if (!time) {
+          time = performance.now();
+        }
+        let delta = time - g.lastTime;
+        if (delta < 0 || isNaN(delta) || delta > 1000) {
+          delta = 16.666;
+        }
+        const dt = Math.min(100, delta) / 16.666; // Normalize to 60fps delta
+        g.lastTime = time;
 
 
       // 1. Draw themed sky background
@@ -691,7 +697,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           opacity: 0,
           scale: 0.5,
           glowColor: type === "star" ? "rgba(253, 224, 71, 0.9)" :
-                     type === "danger" ? "rgba(239, 68, 68, 0.9)" : canvasTheme.usefulGlow
+                     type === "danger" ? "rgba(239, 68, 68, 0.9)" : canvasTheme.usefulGlow,
+          elapsed: 0
         });
 
         // Delay between spawns, decreases slightly as score increases (more action)
@@ -701,7 +708,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
 
       // 6. Update & Draw items
       g.items.forEach((item) => {
-        const elapsed = time - item.spawnTime;
+        item.elapsed += dt * 16.666;
+        const elapsed = item.elapsed;
         
         if (elapsed >= item.duration || item.clicked) {
           // Fade out / disappear
@@ -771,7 +779,27 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
       // Remove fully faded out or clicked out items
       g.items = g.items.filter((item) => item.opacity > 0.01);
 
+      // 7. Draw debug overlay (if in testMode or if we want to debug)
+      if (testMode || true) {
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        ctx.fillRect(10, 60, 160, 95);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 10px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(`Frame: ${g.frameCount}`, 18, 75);
+        ctx.fillText(`dt: ${dt.toFixed(2)}`, 18, 90);
+        ctx.fillText(`Items: ${g.items.length}`, 18, 105);
+        ctx.fillText(`SpawnTimer: ${g.spawnTimer.toFixed(1)}`, 18, 120);
+        ctx.fillText(`ImgLoaded: ${imageLoaded ? "YES" : "NO"}`, 18, 135);
+        ctx.restore();
+      }
+
       animId = requestAnimationFrame(loop);
+      } catch (err: any) {
+        console.error("Canvas loop error:", err);
+        setLoopError(err?.message || String(err));
+      }
     };
 
     animId = requestAnimationFrame(loop);
@@ -789,6 +817,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     setTempStars(0);
     setTimeLeft(GAME_DURATION);
     setFailReason(null);
+    setLoopError(null);
     const g = gameRef.current;
     g.happyTimer = 0;
     g.alertTimer = 0;
@@ -796,6 +825,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.particles = [];
     g.spawnTimer = 0;
     g.itemIdCounter = 0;
+    g.frameCount = 0;
     setGameState("playing");
   };
 
@@ -1009,6 +1039,22 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
                 Начать заново
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Loop Error overlay */}
+        {loopError && (
+          <div className="absolute inset-0 z-50 bg-red-950/95 text-white p-6 flex flex-col items-center justify-center text-center">
+            <h2 className="text-xl font-bold mb-2">Ошибка в игровом цикле</h2>
+            <pre className="bg-black/50 p-4 rounded text-xs overflow-auto max-w-full font-mono text-red-300 mb-4 whitespace-pre-wrap">
+              {loopError}
+            </pre>
+            <button 
+              onClick={() => { setLoopError(null); handleRestart(); }}
+              className="mt-4 bg-white hover:bg-slate-100 text-red-950 font-black text-xs px-5 py-2 rounded-full shadow-md transition-transform transform active:scale-95 cursor-pointer"
+            >
+              Начать заново
+            </button>
           </div>
         )}
 
