@@ -59,9 +59,14 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
 
   const spriteImgRef = useRef<HTMLImageElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const getGameDuration = (charId: string) => {
+    return charId === "streak-reward-19" ? 40 : 30;
+  };
+  const [timeLeft, setTimeLeft] = useState(() => getGameDuration(characterId));
 
-  const GAME_DURATION = 30; // 30 seconds
-  const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+  useEffect(() => {
+    setTimeLeft(getGameDuration(characterId));
+  }, [characterId]);
 
   // Play Sound Synth
   const playSound = (type: "collect" | "star" | "hit" | "success" | "fail") => {
@@ -154,6 +159,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "snow",
           particleColors: ["#ffffff", "#e0f2fe", "#bae6fd"],
           usefulGlow: "rgba(14, 165, 233, 0.9)",
+          gameDuration: 30,
+          maxDanger: 7,
+          dangerInterval: 4285,
           customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Ice block base in bottom center
             ctx.fillStyle = "rgba(186, 230, 253, 0.4)";
@@ -185,6 +193,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "spark",
           particleColors: ["#f97316", "#ef4444", "#facc15", "#ffffff"],
           usefulGlow: "rgba(249, 115, 22, 0.9)",
+          gameDuration: 30,
+          maxDanger: 9,
+          dangerInterval: 3333,
           customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Golden pedestal base
             ctx.fillStyle = "rgba(254, 240, 138, 0.4)";
@@ -218,6 +229,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "leaf",
           particleColors: ["#4ade80", "#22c55e", "#86efac"],
           usefulGlow: "rgba(34, 197, 94, 0.9)",
+          gameDuration: 30,
+          maxDanger: 12,
+          dangerInterval: 2500,
           customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Leafy round pedestal
             ctx.fillStyle = "rgba(134, 239, 172, 0.4)";
@@ -251,6 +265,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "bubble",
           particleColors: ["rgba(255, 255, 255, 0.6)", "rgba(186, 230, 253, 0.5)", "rgba(224, 242, 254, 0.4)"],
           usefulGlow: "rgba(14, 165, 233, 0.9)",
+          gameDuration: 40,
+          maxDanger: 15,
+          dangerInterval: 2666,
           customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Draw 3 small fish silhouettes swimming in the background
             ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
@@ -288,6 +305,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "none",
           particleColors: ["#ffffff"],
           usefulGlow: "rgba(34, 197, 94, 0.9)",
+          gameDuration: 30,
+          maxDanger: 8,
+          dangerInterval: 3750,
           customDraw: () => {}
         };
     }
@@ -342,6 +362,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     frameCount: number;
     score: number;
     dangerCount: number;
+    lastDangerTime: number;
   }>({
     happyTimer: 0,
     alertTimer: 0,
@@ -352,7 +373,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     itemIdCounter: 0,
     frameCount: 0,
     score: 0,
-    dangerCount: 0
+    dangerCount: 0,
+    lastDangerTime: 0
   });
 
   // Handle pointer down (tap on item)
@@ -522,6 +544,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.alertTimer = 0;
     g.score = 0;
     g.dangerCount = 0;
+    g.lastDangerTime = performance.now();
 
     // Pre-populate background ambient floating particles (12 items)
     g.particles = Array.from({ length: 12 }, () => {
@@ -566,6 +589,9 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
         g.frameCount++;
         if (!time) {
           time = performance.now();
+        }
+        if (g.frameCount === 1) {
+          g.lastDangerTime = time;
         }
         let delta = time - g.lastTime;
         if (delta < 0 || isNaN(delta) || delta > 1000) {
@@ -734,14 +760,37 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
         itemX = Math.max(25, Math.min(canvas.width - 85, itemX));
         itemY = Math.max(70, Math.min(canvas.height - 160, itemY));
 
-        // Spawn type probabilities: every 3rd item is danger (up to 5 max), otherwise 30% star / 70% normal
+        // Spawn type logic with soft-interval pacing for danger items
         const rand = Math.random();
         let type: "star" | "normal" | "danger" = "normal";
-        if (g.itemIdCounter % 3 === 0 && g.dangerCount < 5) {
+        
+        const timeSinceLastDanger = time - g.lastDangerTime;
+        const interval = canvasTheme.dangerInterval;
+        
+        let shouldForceDanger = false;
+        let canSpawnDanger = true;
+        
+        if (g.dangerCount < canvasTheme.maxDanger) {
+          if (timeSinceLastDanger > interval * 1.4) {
+            shouldForceDanger = true;
+          }
+          if (timeSinceLastDanger < interval * 0.7) {
+            canSpawnDanger = false;
+          }
+        } else {
+          canSpawnDanger = false;
+        }
+        
+        if (shouldForceDanger) {
           type = "danger";
           g.dangerCount++;
+          g.lastDangerTime = time;
+        } else if (canSpawnDanger && rand < 0.25) {
+          type = "danger";
+          g.dangerCount++;
+          g.lastDangerTime = time;
         } else {
-          type = rand < 0.3 ? "star" : "normal";
+          type = Math.random() < 0.3 ? "star" : "normal";
         }
 
         const duration = 1250 + Math.random() * 300; // visible for 1.25s - 1.55s
@@ -859,12 +908,11 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     };
   }, [gameState]);
 
-  // Restart handler
   const handleRestart = () => {
     setHearts(3);
     setScoreCount(0);
     setTempStars(0);
-    setTimeLeft(GAME_DURATION);
+    setTimeLeft(getGameDuration(characterId));
     setFailReason(null);
     setLoopError(null);
     const g = gameRef.current;
@@ -877,6 +925,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.frameCount = 0;
     g.score = 0;
     g.dangerCount = 0;
+    g.lastDangerTime = 0;
     setGameState("playing");
   };
 
