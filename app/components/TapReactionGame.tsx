@@ -282,6 +282,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     lastTime: number;
     itemIdCounter: number;
     frameCount: number;
+    score: number;
   }>({
     happyTimer: 0,
     alertTimer: 0,
@@ -290,7 +291,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     spawnTimer: 0,
     lastTime: 0,
     itemIdCounter: 0,
-    frameCount: 0
+    frameCount: 0,
+    score: 0
   });
 
   // Handle pointer down (tap on item)
@@ -412,14 +414,12 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           g.happyTimer = 900;
           g.alertTimer = 0;
 
-          setScoreCount((prev) => {
-            const nextVal = prev + 1;
-            if (nextVal >= 15) {
-              setGameState("success");
-              playSound("success");
-            }
-            return nextVal;
-          });
+          g.score++;
+          setScoreCount(g.score);
+          if (g.score >= 15) {
+            setGameState("success");
+            playSound("success");
+          }
         }
         break; // Tapped one item, don't tap overlapping ones underneath
       }
@@ -460,6 +460,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.items = [];
     g.happyTimer = 0;
     g.alertTimer = 0;
+    g.score = 0;
 
     // Pre-populate background ambient floating particles (12 items)
     g.particles = Array.from({ length: 12 }, () => {
@@ -702,7 +703,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
         });
 
         // Delay between spawns, decreases slightly as score increases (more action)
-        const spawnDelay = Math.max(35, 75 - scoreCount * 2);
+        const spawnDelay = Math.max(35, 75 - g.score * 2);
         g.spawnTimer = spawnDelay + Math.random() * 25;
       }
 
@@ -779,8 +780,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
       // Remove fully faded out or clicked out items
       g.items = g.items.filter((item) => item.opacity > 0.01);
 
-      // 7. Draw debug overlay (if in testMode or if we want to debug)
-      if (testMode || true) {
+      // 7. Draw debug overlay (if in testMode)
+      if (testMode) {
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
         ctx.fillRect(10, 60, 160, 95);
@@ -808,7 +809,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
       cancelAnimationFrame(animId);
       clearInterval(timer);
     };
-  }, [gameState, scoreCount]);
+  }, [gameState]);
 
   // Restart handler
   const handleRestart = () => {
@@ -826,6 +827,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.spawnTimer = 0;
     g.itemIdCounter = 0;
     g.frameCount = 0;
+    g.score = 0;
     setGameState("playing");
   };
 
