@@ -154,7 +154,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "snow",
           particleColors: ["#ffffff", "#e0f2fe", "#bae6fd"],
           usefulGlow: "rgba(14, 165, 233, 0.9)",
-          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Ice block base in bottom center
             ctx.fillStyle = "rgba(186, 230, 253, 0.4)";
             ctx.strokeStyle = "rgba(56, 189, 248, 0.6)";
@@ -167,6 +167,16 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+
+            // Draw crystal lines inside the ice block
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2 - 70, canvas.height / 2 + 135);
+            ctx.lineTo(canvas.width / 2 - 20, canvas.height / 2 + 155);
+            ctx.moveTo(canvas.width / 2 + 60, canvas.height / 2 + 135);
+            ctx.lineTo(canvas.width / 2 + 30, canvas.height / 2 + 152);
+            ctx.stroke();
           }
         };
       case "streak-reward-8": // Crocodile (Fire/Orange theme)
@@ -175,7 +185,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "spark",
           particleColors: ["#f97316", "#ef4444", "#facc15", "#ffffff"],
           usefulGlow: "rgba(249, 115, 22, 0.9)",
-          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Golden pedestal base
             ctx.fillStyle = "rgba(254, 240, 138, 0.4)";
             ctx.strokeStyle = "rgba(234, 179, 8, 0.6)";
@@ -188,6 +198,18 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+
+            // Radial flame glow behind the pedestal
+            const fireGlow = ctx.createRadialGradient(
+              canvas.width / 2, canvas.height / 2 + 130, 5,
+              canvas.width / 2, canvas.height / 2 + 130, 80
+            );
+            fireGlow.addColorStop(0, "rgba(249, 115, 22, 0.22)");
+            fireGlow.addColorStop(1, "rgba(249, 115, 22, 0)");
+            ctx.fillStyle = fireGlow;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2 + 130, 80, 0, Math.PI * 2);
+            ctx.fill();
           }
         };
       case "streak-reward-10": // Koala (Forest/Nature theme)
@@ -196,7 +218,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "leaf",
           particleColors: ["#4ade80", "#22c55e", "#86efac"],
           usefulGlow: "rgba(34, 197, 94, 0.9)",
-          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
             // Leafy round pedestal
             ctx.fillStyle = "rgba(134, 239, 172, 0.4)";
             ctx.strokeStyle = "rgba(34, 197, 94, 0.6)";
@@ -205,6 +227,22 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
             ctx.ellipse(canvas.width / 2, canvas.height / 2 + 135, 90, 20, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
+
+            // Draw small forest flowers on the sides
+            ctx.fillStyle = "#facc15"; // center
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2 - 70, canvas.height / 2 + 135, 3, 0, Math.PI * 2);
+            ctx.arc(canvas.width / 2 + 70, canvas.height / 2 + 135, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = "#f87171"; // Red petals
+            for (let i = 0; i < 5; i++) {
+              const angle = (i * Math.PI * 2) / 5;
+              ctx.beginPath();
+              ctx.arc(canvas.width / 2 - 70 + Math.cos(angle) * 5, canvas.height / 2 + 135 + Math.sin(angle) * 5, 2, 0, Math.PI * 2);
+              ctx.arc(canvas.width / 2 + 70 + Math.cos(angle) * 5, canvas.height / 2 + 135 + Math.sin(angle) * 5, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
         };
       case "streak-reward-19": // Shark (Deep Sea theme)
@@ -213,7 +251,27 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           particleType: "bubble",
           particleColors: ["rgba(255, 255, 255, 0.6)", "rgba(186, 230, 253, 0.5)", "rgba(224, 242, 254, 0.4)"],
           usefulGlow: "rgba(14, 165, 233, 0.9)",
-          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+          customDraw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, time: number) => {
+            // Draw 3 small fish silhouettes swimming in the background
+            ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
+            for (let i = 0; i < 3; i++) {
+              const speed = 0.04 + i * 0.02;
+              const fishX = ((time * speed + i * 150) % (canvas.width + 100)) - 50;
+              const fishY = 150 + i * 120 + Math.sin(time * 0.002 + i) * 15;
+              
+              ctx.beginPath();
+              ctx.ellipse(fishX, fishY, 12, 6, 0, 0, Math.PI * 2);
+              ctx.fill();
+              
+              // Tail
+              ctx.beginPath();
+              ctx.moveTo(fishX - 12, fishY);
+              ctx.lineTo(fishX - 18, fishY - 6);
+              ctx.lineTo(fishX - 18, fishY + 6);
+              ctx.closePath();
+              ctx.fill();
+            }
+
             // Coral style ring base
             ctx.fillStyle = "rgba(56, 189, 248, 0.3)";
             ctx.strokeStyle = "rgba(14, 165, 233, 0.5)";
@@ -283,6 +341,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     itemIdCounter: number;
     frameCount: number;
     score: number;
+    dangerCount: number;
   }>({
     happyTimer: 0,
     alertTimer: 0,
@@ -292,7 +351,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     lastTime: 0,
     itemIdCounter: 0,
     frameCount: 0,
-    score: 0
+    score: 0,
+    dangerCount: 0
   });
 
   // Handle pointer down (tap on item)
@@ -461,6 +521,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.happyTimer = 0;
     g.alertTimer = 0;
     g.score = 0;
+    g.dangerCount = 0;
 
     // Pre-populate background ambient floating particles (12 items)
     g.particles = Array.from({ length: 12 }, () => {
@@ -522,7 +583,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // 2. Draw custom background decorations (pedestal, ice, coral etc.)
-      canvasTheme.customDraw(ctx, canvas);
+      canvasTheme.customDraw(ctx, canvas, time);
 
       // 3. Update & Draw ambient particles
       g.particles.forEach((p) => {
@@ -673,13 +734,14 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
         itemX = Math.max(25, Math.min(canvas.width - 85, itemX));
         itemY = Math.max(70, Math.min(canvas.height - 160, itemY));
 
-        // Spawn type probabilities: 55% normal, 25% star, 20% danger
+        // Spawn type probabilities: every 3rd item is danger (up to 5 max), otherwise 30% star / 70% normal
         const rand = Math.random();
         let type: "star" | "normal" | "danger" = "normal";
-        if (rand < 0.25) {
-          type = "star";
-        } else if (rand < 0.45) {
+        if (g.itemIdCounter % 3 === 0 && g.dangerCount < 5) {
           type = "danger";
+          g.dangerCount++;
+        } else {
+          type = rand < 0.3 ? "star" : "normal";
         }
 
         const duration = 1250 + Math.random() * 300; // visible for 1.25s - 1.55s
@@ -780,21 +842,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
       // Remove fully faded out or clicked out items
       g.items = g.items.filter((item) => item.opacity > 0.01);
 
-      // 7. Draw debug overlay (if in testMode)
-      if (testMode) {
-        ctx.save();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-        ctx.fillRect(10, 60, 160, 95);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 10px monospace";
-        ctx.textAlign = "left";
-        ctx.fillText(`Frame: ${g.frameCount}`, 18, 75);
-        ctx.fillText(`dt: ${dt.toFixed(2)}`, 18, 90);
-        ctx.fillText(`Items: ${g.items.length}`, 18, 105);
-        ctx.fillText(`SpawnTimer: ${g.spawnTimer.toFixed(1)}`, 18, 120);
-        ctx.fillText(`ImgLoaded: ${imageLoaded ? "YES" : "NO"}`, 18, 135);
-        ctx.restore();
-      }
+      // Debug overlay removed
 
       animId = requestAnimationFrame(loop);
       } catch (err: any) {
@@ -828,6 +876,7 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
     g.itemIdCounter = 0;
     g.frameCount = 0;
     g.score = 0;
+    g.dangerCount = 0;
     setGameState("playing");
   };
 
