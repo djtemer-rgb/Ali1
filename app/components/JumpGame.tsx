@@ -337,39 +337,47 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
     while (currentY > -g.levelHeight) {
       // Horizontal span reachable constraint
       let minX = Math.max(35, prevX - 165);
-      let maxX = Math.min(480 - 135, prevX + 165);
+      let maxX = Math.min(480 - 145, prevX + 165);
       let x = minX + Math.random() * (maxX - minX);
 
       const isMoving = Math.random() < 0.26;
       g.platforms.push({
         x,
         y: currentY,
-        w: 100,
+        w: 110, // Wider platforms to make landing easier for kids
         h: 20,
         type: isMoving ? "moving" : "normal",
         vx: isMoving ? (Math.random() < 0.5 ? -1.8 : 1.8) : 0,
-        rangeX: [30, 480 - 130]
+        rangeX: [30, 480 - 140]
       });
 
       prevX = x;
 
       // Spawn item or danger relative to platform
       const rand = Math.random();
-      if (rand < 0.28) {
+      if (rand < 0.32) {
         // Spawn star floating above platform
         g.stars.push({
-          x: x + 35,
+          x: x + 40,
           y: currentY - 45,
           w: 30,
           h: 30,
           collected: false
         });
-      } else if (rand > 0.76 && currentY < 400) { // No bombs on the very first few screens
-        // Spawn danger element floating
-        const offsetSide = Math.random() < 0.5 ? -45 : 45;
+      } else if (rand > 0.86 && currentY < 450) { // No bombs on the very first few screens
+        // Spawn danger element in a fair, dodgeable position
+        // Place it horizontally away from the platform center, or at the screen edges
+        const platformCenter = x + 55;
+        let dangerX = 40 + Math.random() * 400;
+        
+        // If it overlaps the platform center, nudge it to the sides
+        if (Math.abs(dangerX - platformCenter) < 90) {
+          dangerX = platformCenter > 240 ? 60 : 380;
+        }
+
         g.dangers.push({
-          x: Math.max(30, Math.min(450 - 35, x + 35 + offsetSide)),
-          y: currentY - 75,
+          x: Math.max(30, Math.min(450 - 35, dangerX)),
+          y: currentY - 68, // Halfway between platforms vertically
           w: 35,
           h: 35,
           active: true,
@@ -684,16 +692,18 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
         // Dangers
         g.dangers.forEach((danger) => {
           if (danger.active && g.player.invulnerable <= 0) {
-            if (
-              g.player.x + 12 < danger.x + danger.w &&
-              g.player.x + g.player.width - 12 > danger.x &&
-              g.player.y + 12 < danger.y + danger.h &&
-              g.player.y + g.player.height - 12 > danger.y
-            ) {
+            // Precise circular collision for extra fairness (forgiving bounding sphere)
+            const playerCX = g.player.x + g.player.width / 2;
+            const playerCY = g.player.y + g.player.height / 2;
+            const dangerCX = danger.x + danger.w / 2;
+            const dangerCY = danger.y + danger.h / 2;
+            const dist = Math.hypot(playerCX - dangerCX, playerCY - dangerCY);
+
+            if (dist < 26) { // Forgiving threshold (player bounding circle + danger bounding circle overlap)
               // Collided with danger!
               danger.active = false;
               g.player.invulnerable = 1500; // 1.5s flashing immunity
-              g.player.vy = -5; // Small recoil hop
+              g.player.vy = -6.5; // Upward hop recoil
               playSound("hit");
 
               // Spawn toxic explosion particles
@@ -902,6 +912,27 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
               }
               const pulse = Math.sin(danger.pulseTimer || 0) * 3;
               
+              // Draw a warning red glow circle behind the bomb
+              ctx.save();
+              const dangerCX = danger.x + danger.w / 2;
+              const dangerCY = dy + danger.h / 2;
+              
+              // Pulsing halo radius
+              const haloRadius = 18 + Math.sin(danger.pulseTimer || 0) * 4;
+              const haloGlow = ctx.createRadialGradient(
+                dangerCX, dangerCY, 2,
+                dangerCX, dangerCY, haloRadius
+              );
+              haloGlow.addColorStop(0, "rgba(239, 68, 68, 0.45)");
+              haloGlow.addColorStop(0.5, "rgba(239, 68, 68, 0.15)");
+              haloGlow.addColorStop(1, "rgba(239, 68, 68, 0)");
+              
+              ctx.fillStyle = haloGlow;
+              ctx.beginPath();
+              ctx.arc(dangerCX, dangerCY, haloRadius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+              
               if (spriteImg.complete && spriteImg.naturalWidth > 0) {
                 // Col 2, Row 1 is the Danger Item
                 ctx.drawImage(
@@ -940,15 +971,24 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           }
 
           ctx.save();
-          // Bounce scale stretch animation
+          
+          // Move origin to the bottom center of the player
+          const cx = px + g.player.width / 2;
+          const cy = py + g.player.height;
+          ctx.translate(cx, cy);
+          
+          // Apply bounce scale squash/stretch
+          let scaleX = 1;
+          let scaleY = 1;
           if (g.player.bounceAnim > 0) {
-            const scaleY = 1 + g.player.bounceAnim * 0.15;
-            const scaleX = 1 - g.player.bounceAnim * 0.12;
-            const cx = px + g.player.width / 2;
-            const cy = py + g.player.height;
-            ctx.translate(cx, cy);
-            ctx.scale(scaleX, scaleY);
-            ctx.translate(-g.player.width / 2, -g.player.height);
+            scaleY = 1 + g.player.bounceAnim * 0.18;
+            scaleX = 1 - g.player.bounceAnim * 0.14;
+          }
+          ctx.scale(scaleX, scaleY);
+          
+          // Apply horizontal flipping
+          if (g.player.facingLeft) {
+            ctx.scale(-1, 1);
           }
 
           // Glow depending on invulnerable or normal
@@ -961,30 +1001,20 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           }
 
           if (spriteImg.complete && spriteImg.naturalWidth > 0) {
-            if (g.player.facingLeft) {
-              // Flip character horizontally
-              ctx.translate(px + g.player.width, py);
-              ctx.scale(-1, 1);
-              ctx.drawImage(
-                spriteImg,
-                col * 418, 0, 418, 627, // Source
-                0, 0, g.player.width, g.player.height // Dest
-              );
-            } else {
-              ctx.drawImage(
-                spriteImg,
-                col * 418, 0, 418, 627, // Source
-                px, py, g.player.width, g.player.height // Dest
-              );
-            }
+            // Draw centered around origin (bottom-center is at local 0,0)
+            ctx.drawImage(
+              spriteImg,
+              col * 418, 0, 418, 627, // Source
+              -g.player.width / 2, -g.player.height, g.player.width, g.player.height // Destination
+            );
           } else {
-            // Fallback square
+            // Fallback rendering centered around origin
             ctx.fillStyle = g.player.invulnerable > 0 ? "#f87171" : "#3b82f6";
-            ctx.fillRect(px, py, g.player.width, g.player.height);
+            ctx.fillRect(-g.player.width / 2, -g.player.height, g.player.width, g.player.height);
             ctx.fillStyle = "#ffffff";
             ctx.font = "30px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText(characterId === "streak-reward-9" ? "🐺" : "🦊", px + g.player.width/2, py + g.player.height/2 + 10);
+            ctx.fillText(characterId === "streak-reward-9" ? "🐺" : "🦊", 0, -g.player.height / 2 + 10);
           }
 
           ctx.restore();

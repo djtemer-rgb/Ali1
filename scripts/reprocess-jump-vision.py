@@ -96,26 +96,42 @@ def process_vision(input_path, output_path):
                 
             cell_crop = img.crop((x0, y0, x1, y1))
             
-            # Find bounding box of non-transparent pixels in this cell
-            bbox = cell_crop.getbbox()
+            # Create a core copy and erase borders to sever neighboring cell bleed
+            core = cell_crop.copy()
+            core_pixels = core.load()
+            
+            # Erase left/right/top/bottom edges to prevent neighboring graphics bleed
+            border_x = 35
+            border_y = 25
+            cell_w_curr = x1 - x0
+            cell_h_curr = y1 - y0
+            
+            for x in range(cell_w_curr):
+                for y in range(cell_h_curr):
+                    if x < border_x or x > cell_w_curr - border_x or y < border_y or y > cell_h_curr - border_y:
+                        core_pixels[x, y] = (0, 0, 0, 0)
+            
+            # Find bounding box on the core (no bleed)
+            bbox = core.getbbox()
             if not bbox:
-                print(f"  Warning: Cell ({r}, {c}) is completely empty.")
+                print(f"  Warning: Cell ({r}, {c}) is completely empty after bleed erasure.")
                 continue
                 
             bx0, by0, bx1, by1 = bbox
             sprite_w = bx1 - bx0
             sprite_h = by1 - by0
             
-            sprite_img = cell_crop.crop(bbox)
+            # Crop from core to guarantee zero neighbor bleed
+            sprite_img = core.crop(bbox)
             
-            # Create a clean standard cell of size 418x627
+            # Create a clean cell of size 418x627
             clean_cell = Image.new("RGBA", (cell_w, cell_h), (0, 0, 0, 0))
             
             # Center horizontally
             dest_x = (cell_w - sprite_w) // 2
             
             if r == 0:
-                # Character: align bottom with 15px margin to keep feet fully visible on the pedestal
+                # Character: align bottom with 15px margin to keep feet fully visible
                 dest_y = cell_h - sprite_h - 15
             else:
                 # Item: center vertically
