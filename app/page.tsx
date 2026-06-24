@@ -13,6 +13,7 @@ import PinModal from "./components/PinModal";
 import RunnerGame from "./components/RunnerGame";
 import CatcherGame from "./components/CatcherGame";
 import TapReactionGame from "./components/TapReactionGame";
+import JumpGame from "./components/JumpGame";
 import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
@@ -519,6 +520,11 @@ export default function Home() {
     characterName: string;
   } | null>(null);
   const [activeTapReactionGame, setActiveTapReactionGame] = useState<{
+    rewardId: string;
+    characterId: string;
+    characterName: string;
+  } | null>(null);
+  const [activeJumpGame, setActiveJumpGame] = useState<{
     rewardId: string;
     characterId: string;
     characterName: string;
@@ -1591,10 +1597,10 @@ export default function Home() {
                     </p>
                     {/* Render Runner, Catcher, or Tap Reaction game launch button for supported cards */}
                     {([
-                      'streak-reward-1', 'streak-reward-2', 'streak-reward-4',
-                      'streak-reward-5', 'streak-reward-7', 'streak-reward-8',
-                      'streak-reward-10', 'streak-reward-14', 'streak-reward-15',
-                      'streak-reward-17', 'streak-reward-19'
+                      'streak-reward-1', 'streak-reward-2', 'streak-reward-3', 'streak-reward-4',
+                      'streak-reward-5', 'streak-reward-7', 'streak-reward-8', 'streak-reward-9',
+                      'streak-reward-10', 'streak-reward-12', 'streak-reward-14', 'streak-reward-15',
+                      'streak-reward-17', 'streak-reward-18', 'streak-reward-19'
                     ].includes(zoomedReward.id)) && (
                       <div className="mt-4 w-full px-4">
                         {bonusGames[zoomedReward.id]?.completed && !rewardsTestMode ? (
@@ -1614,6 +1620,12 @@ export default function Home() {
                                 });
                               } else if (['streak-reward-4', 'streak-reward-8', 'streak-reward-10', 'streak-reward-19'].includes(zoomedReward.id)) {
                                 setActiveTapReactionGame({
+                                  rewardId: zoomedReward.id,
+                                  characterId: zoomedReward.id,
+                                  characterName: zoomedReward.title
+                                });
+                              } else if (['streak-reward-3', 'streak-reward-9', 'streak-reward-12', 'streak-reward-18'].includes(zoomedReward.id)) {
+                                setActiveJumpGame({
                                   rewardId: zoomedReward.id,
                                   characterId: zoomedReward.id,
                                   characterName: zoomedReward.title
@@ -1800,6 +1812,23 @@ export default function Home() {
           testMode={rewardsTestMode}
           onClose={(completed) => {
             setActiveTapReactionGame(null);
+            if (completed) {
+              loadBonusGamesState();
+            }
+          }}
+        />
+      )}
+
+      {/* JUMP BONUS GAME FULLSCREEN PORTAL */}
+      {activeJumpGame && (
+        <JumpGame
+          childId={currentChild.id}
+          rewardId={activeJumpGame.rewardId}
+          characterId={activeJumpGame.characterId}
+          characterName={activeJumpGame.characterName}
+          testMode={rewardsTestMode}
+          onClose={(completed) => {
+            setActiveJumpGame(null);
             if (completed) {
               loadBonusGamesState();
             }
