@@ -74,7 +74,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
   const spriteImgRef = useRef<HTMLImageElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   
-  const GAME_DURATION = 40; // 40 seconds to climb
+  const GAME_DURATION = 60; // 60 seconds to climb
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
 
   // Play Sound Synth
@@ -338,8 +338,8 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
     lastTime: 0,
     frameCount: 0,
     score: 0,
-    levelHeight: 4600,
-    finishPlatform: { x: 90, y: -4630, w: 300, h: 40 },
+    levelHeight: 7200,
+    finishPlatform: { x: 90, y: -7240, w: 300, h: 40 },
     dragActive: false,
     dragStartX: 0,
     dragStartPlayerX: 240 - 30
@@ -433,7 +433,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
       const midX = (prevX + x) / 2;
       const midY = (prevY + currentY) / 2;
 
-      // Spawn item or danger relative to platform
+      // Spawn star or useful item (mutually exclusive)
       const rand = Math.random();
       if (rand < 0.28) {
         // Spawn star floating above platform
@@ -453,43 +453,72 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           h: 30,
           collected: false
         });
-      } else if (currentY < 650 - safeHeight && Math.random() < spawnChance) {
-        // Spawn danger element (bomb)
+      }
+
+      // Spawn danger element (bomb) completely independently of items!
+      if (currentY < 650 - safeHeight && Math.random() < spawnChance) {
         let dangerX = 40;
         let dangerY = midY - 17;
-        const placeRand = Math.random();
+        let placementFound = false;
+        let attempts = 0;
+        let placeRand = Math.random();
 
-        if (placeRand < edgeChance) {
-          // 1. Edge placement: Put it far to the left or right edges of the screen
-          dangerX = Math.random() < 0.5 ? 45 + Math.random() * 30 : 405 - Math.random() * 30;
-        } else if (placeRand < edgeChance + abovePlatformChance && !isMoving) {
-          // 2. Above platform placement: Put it directly above the target static platform
-          dangerX = x + 35 + Math.random() * 40;
-          dangerY = currentY - 68; // directly blocking the space above the platform
-        } else {
-          // 3. Jump path placement: Put it in or near the trajectory between platforms
-          const directRand = Math.random();
-          if (directRand < directBlockChance) {
-            // Directly on the jump path midpoint
-            dangerX = midX;
+        while (attempts < 10 && !placementFound) {
+          if (placeRand < edgeChance) {
+            // 1. Edge placement: Put it far to the left or right edges of the screen
+            dangerX = Math.random() < 0.5 ? 45 + Math.random() * 30 : 405 - Math.random() * 30;
+            dangerY = midY - 17;
+          } else if (placeRand < edgeChance + abovePlatformChance && !isMoving) {
+            // 2. Above platform placement: Put it directly above the target static platform
+            dangerX = x + 25 + Math.random() * 60;
+            dangerY = currentY - 128; // safe clearance above platform
           } else {
-            // Near the jump path midpoint, offset by midPathOffset
-            const offset = midPathOffset + Math.random() * 15;
-            dangerX = midX + (Math.random() < 0.5 ? -offset : offset);
+            // 3. Jump path placement: Put it in or near the trajectory between platforms
+            const directRand = Math.random();
+            if (directRand < directBlockChance) {
+              // Directly on the jump path midpoint
+              dangerX = midX;
+            } else {
+              // Near the jump path midpoint, offset by midPathOffset
+              const offset = midPathOffset + Math.random() * 15;
+              dangerX = midX + (Math.random() < 0.5 ? -offset : offset);
+            }
+            dangerY = midY - 17;
+          }
+
+          dangerX = Math.max(35, Math.min(480 - 70, dangerX));
+
+          // Check if this position is safe (no overlap with player standing area on any platform)
+          let safe = true;
+          for (let p of g.platforms) {
+            if (dangerX + 35 > p.x - 15 && dangerX < p.x + p.w + 15) {
+              if (dangerY + 35 > p.y - 95 && dangerY < p.y + 5) {
+                safe = false;
+                break;
+              }
+            }
+          }
+
+          if (safe) {
+            placementFound = true;
+          } else {
+            attempts++;
+            if (attempts >= 5) {
+              placeRand = 0.0; // force edge placement on subsequent attempts
+            }
           }
         }
 
-        // Ensure dangerX is inside the canvas boundaries (width is 480, margin is 35)
-        dangerX = Math.max(35, Math.min(480 - 70, dangerX));
-
-        g.dangers.push({
-          x: dangerX,
-          y: dangerY,
-          w: 35,
-          h: 35,
-          active: true,
-          pulseTimer: Math.random() * Math.PI
-        });
+        if (placementFound) {
+          g.dangers.push({
+            x: dangerX,
+            y: dangerY,
+            w: 35,
+            h: 35,
+            active: true,
+            pulseTimer: Math.random() * Math.PI
+          });
+        }
       }
 
       prevX = x;
