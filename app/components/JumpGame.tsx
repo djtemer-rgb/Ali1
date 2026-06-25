@@ -39,6 +39,14 @@ interface DangerItem {
   pulseTimer?: number;
 }
 
+interface UsefulItem {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  collected: boolean;
+}
+
 interface Particle {
   x: number;
   y: number;
@@ -57,6 +65,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
   const [gameState, setGameState] = useState<"start" | "playing" | "paused" | "success" | "fail">("start");
   const [hearts, setHearts] = useState(3);
   const [tempStars, setTempStars] = useState(0);
+  const [score, setScore] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [failReason, setFailReason] = useState<"hearts" | "timeout" | null>(null);
@@ -128,12 +137,34 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
 
   // Asset Path Selector
   const getAssetPath = () => {
+    let basePath = "";
     switch (characterId) {
-      case "streak-reward-3": return "/images/bonus-games/jump/03_raccoon_plush.png";
-      case "streak-reward-9": return "/images/bonus-games/jump/09_wolf_nord.png";
-      case "streak-reward-12": return "/images/bonus-games/jump/12_tiger_ryks.png";
-      case "streak-reward-18": return "/images/bonus-games/jump/18_leopard_blitz.png";
-      default: return "/images/bonus-games/jump/03_raccoon_plush.png";
+      case "streak-reward-3": basePath = "/images/bonus-games/jump/03_raccoon_plush.png"; break;
+      case "streak-reward-9": basePath = "/images/bonus-games/jump/09_wolf_nord.png"; break;
+      case "streak-reward-12": basePath = "/images/bonus-games/jump/12_tiger_ryks.png"; break;
+      case "streak-reward-18": basePath = "/images/bonus-games/jump/18_leopard_blitz.png"; break;
+      default: basePath = "/images/bonus-games/jump/03_raccoon_plush.png";
+    }
+    return basePath + "?v=4";
+  };
+
+  const getUsefulItemEmoji = () => {
+    switch (characterId) {
+      case "streak-reward-3": return "🌰";
+      case "streak-reward-9": return "❄️";
+      case "streak-reward-12": return "🥩";
+      case "streak-reward-18": return "💎";
+      default: return "🌰";
+    }
+  };
+
+  const getUsefulItemGlowColor = () => {
+    switch (characterId) {
+      case "streak-reward-3": return "rgba(245, 158, 11, 0.4)";
+      case "streak-reward-9": return "rgba(14, 165, 233, 0.4)";
+      case "streak-reward-12": return "rgba(239, 68, 68, 0.4)";
+      case "streak-reward-18": return "rgba(168, 85, 247, 0.4)";
+      default: return "rgba(255, 255, 255, 0.4)";
     }
   };
 
@@ -273,6 +304,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
     cameraY: number;
     platforms: Platform[];
     stars: StarItem[];
+    usefulItems: UsefulItem[];
     dangers: DangerItem[];
     particles: Particle[];
     lastTime: number;
@@ -300,6 +332,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
     cameraY: 0,
     platforms: [],
     stars: [],
+    usefulItems: [],
     dangers: [],
     particles: [],
     lastTime: 0,
@@ -317,9 +350,11 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
     const g = gameRef.current;
     g.platforms = [];
     g.stars = [];
+    g.usefulItems = [];
     g.dangers = [];
     g.particles = [];
     g.score = 0;
+    setScore(0);
     
     // Bottom starter platform
     g.platforms.push({
@@ -355,9 +390,18 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
 
       // Spawn item or danger relative to platform
       const rand = Math.random();
-      if (rand < 0.32) {
+      if (rand < 0.28) {
         // Spawn star floating above platform
         g.stars.push({
+          x: x + 40,
+          y: currentY - 45,
+          w: 30,
+          h: 30,
+          collected: false
+        });
+      } else if (rand < 0.60) {
+        // Spawn useful item floating above platform
+        g.usefulItems.push({
           x: x + 40,
           y: currentY - 45,
           w: 30,
@@ -689,6 +733,44 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           }
         });
 
+        // Useful Items
+        g.usefulItems.forEach((item) => {
+          if (!item.collected) {
+            // AABB check
+            if (
+              g.player.x + 8 < item.x + item.w &&
+              g.player.x + g.player.width - 8 > item.x &&
+              g.player.y + 8 < item.y + item.h &&
+              g.player.y + g.player.height - 8 > item.y
+            ) {
+              item.collected = true;
+              playSound("collect");
+              setScore((prev) => prev + 1);
+              g.score += 1;
+
+              // Sparkle particles
+              const glowColor = getUsefulItemGlowColor();
+              const sparkleColor = glowColor.includes("rgba") ? glowColor.replace("0.4", "1.0") : "#10b981";
+              for (let p = 0; p < 8; p++) {
+                const angle = Math.random() * Math.PI * 2;
+                const spd = 1.0 + Math.random() * 2.0;
+                g.particles.push({
+                  x: item.x + item.w / 2,
+                  y: item.y + item.h / 2,
+                  vx: Math.cos(angle) * spd,
+                  vy: Math.sin(angle) * spd,
+                  size: 2.0 + Math.random() * 2.5,
+                  color: sparkleColor,
+                  alpha: 1.0,
+                  decay: 0.04,
+                  rotation: Math.random() * Math.PI,
+                  rotSpeed: (Math.random() - 0.5) * 0.05
+                });
+              }
+            }
+          }
+        });
+
         // Dangers
         g.dangers.forEach((danger) => {
           if (danger.active && g.player.invulnerable <= 0) {
@@ -847,13 +929,13 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
               // Col 0, Row 1 of spritesheet is the platform
               ctx.drawImage(
                 spriteImg,
-                0, 627, 418, 627, // Source rect
-                plat.x, plat.y - g.cameraY - 20, plat.w, plat.h + 30 // Destination (slight padding correction)
+                0, 627, 418, 220, // Source rect
+                plat.x, py - 4, plat.w, 55 // Destination (slight overlap correction, height 55)
               );
             } else {
               // Fallback
               ctx.fillStyle = "#84cc16"; // Bright green
-              ctx.fillRect(plat.x, plat.y - g.cameraY, plat.w, plat.h);
+              ctx.fillRect(plat.x, py, plat.w, plat.h);
             }
           }
         });
@@ -888,7 +970,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
                 // Col 1, Row 1 is the Star
                 ctx.drawImage(
                   spriteImg,
-                  418, 627, 418, 627,
+                  418, 627, 418, 418,
                   star.x, sy, star.w, star.h
                 );
               } else {
@@ -898,6 +980,39 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
                 ctx.textAlign = "center";
                 ctx.fillText("⭐", star.x + star.w / 2, sy + star.h / 2 + 6);
               }
+            }
+          }
+        });
+
+        // Draw Useful Items
+        g.usefulItems.forEach((item) => {
+          if (!item.collected) {
+            const iy = item.y - g.cameraY;
+            if (iy + item.h >= 0 && iy <= canvas.height) {
+              ctx.save();
+              const itemCX = item.x + item.w / 2;
+              const itemCY = iy + item.h / 2;
+              
+              const glowRadius = 15 + Math.sin(g.frameCount * 0.1) * 3;
+              const glowGrad = ctx.createRadialGradient(
+                itemCX, itemCY, 2,
+                itemCX, itemCY, glowRadius
+              );
+              glowGrad.addColorStop(0, getUsefulItemGlowColor());
+              glowGrad.addColorStop(1, "rgba(0,0,0,0)");
+              
+              ctx.fillStyle = glowGrad;
+              ctx.beginPath();
+              ctx.arc(itemCX, itemCY, glowRadius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+
+              // Draw emoji
+              ctx.fillStyle = "#ffffff";
+              ctx.font = "22px sans-serif";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(getUsefulItemEmoji(), itemCX, itemCY + 2);
             }
           }
         });
@@ -937,7 +1052,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
                 // Col 2, Row 1 is the Danger Item
                 ctx.drawImage(
                   spriteImg,
-                  836, 627, 418, 627,
+                  836, 627, 418, 418,
                   danger.x - pulse/2, dy - pulse/2, danger.w + pulse, danger.h + pulse
                 );
               } else {
@@ -1113,6 +1228,11 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
               ))}
             </div>
 
+            {/* Useful Items Collected */}
+            <div className="bg-black/40 border border-white/10 text-emerald-400 font-extrabold text-xs px-2.5 py-1 rounded-full flex items-center gap-1">
+              <span>{getUsefulItemEmoji()}</span> {score}
+            </div>
+
             {/* Stars Collected */}
             <div className="bg-black/40 border border-white/10 text-amber-400 font-extrabold text-xs px-2.5 py-1 rounded-full flex items-center gap-0.5">
               <span>⭐</span> {tempStars}
@@ -1165,7 +1285,7 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
             <p className="text-xs md:text-sm text-white/95 max-w-xs leading-relaxed mt-3 drop-shadow-sm">
               Герой прыгает <span className="font-extrabold text-yellow-300">вверх автоматически</span>!<br/>
               Води пальцем или мышкой влево-вправо, чтобы направлять его на платформы.<br/>
-              Собирай звёзды ⭐ и уворачивайся от опасных красных бомбочек 💣!
+              Собирай полезные предметы {getUsefulItemEmoji()}, звёзды ⭐ и избегай опасных бомбочек 💣!
             </p>
             {!imageLoaded ? (
               <div className="mt-6 flex flex-col items-center gap-2">
@@ -1205,7 +1325,8 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
             <div className="text-7xl mb-4 animate-[spin_6s_linear_infinite]">👑🏆</div>
             <h2 className="text-2xl md:text-3xl font-black text-yellow-400">Игра пройдена!</h2>
             <p className="text-sm font-bold text-slate-200 mt-3">Поздравляю! Ты поднялся на самый верх!</p>
-            <p className="text-xs text-amber-400 mt-1">Собрано временных звёзд: {tempStars} ⭐</p>
+              <p className="text-xs text-emerald-400 mt-1">Собрано полезных предметов: {score} {getUsefulItemEmoji()}</p>
+            <p className="text-xs text-amber-400 mt-0.5">Собрано временных звёзд: {tempStars} ⭐</p>
             <button 
               onClick={saveCompletion}
               className="mt-8 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-sm md:text-base px-10 py-3.5 rounded-full shadow-lg transition-transform transform active:scale-95 cursor-pointer"
