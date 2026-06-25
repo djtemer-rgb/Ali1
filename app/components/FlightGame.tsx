@@ -18,6 +18,7 @@ interface StarItem {
   h: number;
   collected: boolean;
   isSpecial?: boolean;
+  isInsidePortal?: boolean;
 }
 
 interface PortalItem {
@@ -321,7 +322,8 @@ export default function FlightGame({
         w: 30,
         h: 30,
         collected: false,
-        isSpecial: false
+        isSpecial: false,
+        isInsidePortal: true
       });
       
       // Spawn secondary item in the open space between portals
@@ -333,7 +335,8 @@ export default function FlightGame({
           w: 30,
           h: 30,
           collected: false,
-          isSpecial: isSpecialItem
+          isSpecial: isSpecialItem,
+          isInsidePortal: false
         });
       }
     });
@@ -1130,19 +1133,21 @@ export default function FlightGame({
               } else {
                 // Standard Star collected
                 playSound("star");
-                setStarsCollected((prev) => prev + 1);
+                const starsGained = s.isInsidePortal ? 2 : 1;
+                setStarsCollected((prev) => prev + starsGained);
 
-                // Spark particles
-                for (let pIdx = 0; pIdx < 8; pIdx++) {
+                // Spark particles (more sparks and larger size for X2 inside portal)
+                const sparkCount = s.isInsidePortal ? 14 : 8;
+                for (let pIdx = 0; pIdx < sparkCount; pIdx++) {
                   const angle = Math.random() * Math.PI * 2;
-                  const spd = 1.5 + Math.random() * 2.0;
+                  const spd = 1.5 + Math.random() * (s.isInsidePortal ? 3.0 : 2.0);
                   g.particles.push({
                     x: scx,
                     y: scy,
                     vx: Math.cos(angle) * spd,
                     vy: Math.sin(angle) * spd,
-                    size: 2.0 + Math.random() * 3.0,
-                    color: "#eab308",
+                    size: (s.isInsidePortal ? 2.5 : 2.0) + Math.random() * 3.0,
+                    color: s.isInsidePortal ? "#facc15" : "#eab308",
                     alpha: 1.0,
                     decay: 0.04,
                     rotation: Math.random() * Math.PI
