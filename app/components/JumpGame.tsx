@@ -367,7 +367,51 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
 
     let currentY = 510;
     let prevX = 240 - 50;
+    let prevY = 650;
     const verticalGap = 135;
+
+    // Difficulty configuration based on characterId
+    let spawnChance = 0.22;
+    let safeHeight = 800; // y-level safe zone: currentY > 650 - safeHeight
+    let edgeChance = 0.50;
+    let midPathOffset = 50;
+    let directBlockChance = 0.0;
+    let abovePlatformChance = 0.0;
+
+    switch (characterId) {
+      case "streak-reward-3": // Raccoon - Easy
+        spawnChance = 0.12;
+        safeHeight = 1400;
+        edgeChance = 1.0;
+        midPathOffset = 90;
+        directBlockChance = 0.0;
+        abovePlatformChance = 0.0;
+        break;
+      case "streak-reward-9": // Wolf - Medium
+        spawnChance = 0.22;
+        safeHeight = 800;
+        edgeChance = 0.50;
+        midPathOffset = 50;
+        directBlockChance = 0.0;
+        abovePlatformChance = 0.0;
+        break;
+      case "streak-reward-12": // Tiger - Medium-Hard
+        spawnChance = 0.30;
+        safeHeight = 400;
+        edgeChance = 0.25;
+        midPathOffset = 25;
+        directBlockChance = 0.15;
+        abovePlatformChance = 0.10;
+        break;
+      case "streak-reward-18": // Leopard - Hard
+        spawnChance = 0.38;
+        safeHeight = 200;
+        edgeChance = 0.10;
+        midPathOffset = 15;
+        directBlockChance = 0.40;
+        abovePlatformChance = 0.25;
+        break;
+    }
 
     while (currentY > -g.levelHeight) {
       // Horizontal span reachable constraint
@@ -386,7 +430,8 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
         rangeX: [30, 480 - 140]
       });
 
-      prevX = x;
+      const midX = (prevX + x) / 2;
+      const midY = (prevY + currentY) / 2;
 
       // Spawn item or danger relative to platform
       const rand = Math.random();
@@ -408,26 +453,47 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           h: 30,
           collected: false
         });
-      } else if (rand > 0.86 && currentY < 450) { // No bombs on the very first few screens
-        // Spawn danger element in a fair, dodgeable position
-        // Place it horizontally away from the platform center, or at the screen edges
-        const platformCenter = x + 55;
-        let dangerX = 40 + Math.random() * 400;
-        
-        // If it overlaps the platform center, nudge it to the sides
-        if (Math.abs(dangerX - platformCenter) < 90) {
-          dangerX = platformCenter > 240 ? 60 : 380;
+      } else if (currentY < 650 - safeHeight && Math.random() < spawnChance) {
+        // Spawn danger element (bomb)
+        let dangerX = 40;
+        let dangerY = midY - 17;
+        const placeRand = Math.random();
+
+        if (placeRand < edgeChance) {
+          // 1. Edge placement: Put it far to the left or right edges of the screen
+          dangerX = Math.random() < 0.5 ? 45 + Math.random() * 30 : 405 - Math.random() * 30;
+        } else if (placeRand < edgeChance + abovePlatformChance && !isMoving) {
+          // 2. Above platform placement: Put it directly above the target static platform
+          dangerX = x + 35 + Math.random() * 40;
+          dangerY = currentY - 68; // directly blocking the space above the platform
+        } else {
+          // 3. Jump path placement: Put it in or near the trajectory between platforms
+          const directRand = Math.random();
+          if (directRand < directBlockChance) {
+            // Directly on the jump path midpoint
+            dangerX = midX;
+          } else {
+            // Near the jump path midpoint, offset by midPathOffset
+            const offset = midPathOffset + Math.random() * 15;
+            dangerX = midX + (Math.random() < 0.5 ? -offset : offset);
+          }
         }
 
+        // Ensure dangerX is inside the canvas boundaries (width is 480, margin is 35)
+        dangerX = Math.max(35, Math.min(480 - 70, dangerX));
+
         g.dangers.push({
-          x: Math.max(30, Math.min(450 - 35, dangerX)),
-          y: currentY - 68, // Halfway between platforms vertically
+          x: dangerX,
+          y: dangerY,
           w: 35,
           h: 35,
           active: true,
           pulseTimer: Math.random() * Math.PI
         });
       }
+
+      prevX = x;
+      prevY = currentY;
 
       currentY -= (verticalGap + Math.random() * 25);
     }
