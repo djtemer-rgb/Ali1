@@ -171,6 +171,9 @@ export default function SettingsPage() {
   // Interface / avatars
   const [avatarAli, setAvatarAli] = useState<string | null>(null);
   const [avatarSaid, setAvatarSaid] = useState<string | null>(null);
+  const [heartsAli, setHeartsAli] = useState<number>(2);
+  const [heartsSaid, setHeartsSaid] = useState<number>(2);
+  const [isUpdatingHearts, setIsUpdatingHearts] = useState<Record<string, boolean>>({});
   const [showInbox, setShowInbox] = useState(false);
   const [events, setEvents] = useState<ParentEvent[]>([]);
   const [eventFilter, setEventFilter] = useState<'all' | 'unread'>('all');
@@ -282,6 +285,19 @@ export default function SettingsPage() {
         const said = childrenData.find((c: any) => c.id === 'said');
         if (ali?.avatarUrl) setAvatarAli(ali.avatarUrl);
         if (said?.avatarUrl) setAvatarSaid(said.avatarUrl);
+      }
+      // Load streak progress for hearts
+      try {
+        const [progAliRes, progSaidRes] = await Promise.all([
+          fetch('/api/streak/progress?childId=ali'),
+          fetch('/api/streak/progress?childId=said')
+        ]);
+        const progAliData = await progAliRes.json();
+        const progSaidData = await progSaidRes.json();
+        setHeartsAli(progAliData.freezeHearts !== undefined ? Number(progAliData.freezeHearts) : 2);
+        setHeartsSaid(progSaidData.freezeHearts !== undefined ? Number(progSaidData.freezeHearts) : 2);
+      } catch (err) {
+        console.error('Failed to load child streak progress:', err);
       }
       const tplData = await tplRes.json();
       setSettingsData(setData);
@@ -805,6 +821,30 @@ export default function SettingsPage() {
     };
     await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     setSettingsData(settings);
+  };
+
+  const updateChildHearts = async (childId: 'ali' | 'said', val: number) => {
+    setIsUpdatingHearts(prev => ({ ...prev, [childId]: true }));
+    try {
+      const res = await fetch('/api/streak/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId, freezeHearts: val })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (childId === 'ali') setHeartsAli(val);
+        else setHeartsSaid(val);
+        showSaved(`Количество сердечек ${childId === 'ali' ? 'Али' : 'Саида'} обновлено до ${val}`);
+      } else {
+        showSaved(`Ошибка: ${data.error || 'не удалось обновить'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      showSaved('Сбой подключения при обновлении сердечек');
+    } finally {
+      setIsUpdatingHearts(prev => ({ ...prev, [childId]: false }));
+    }
   };
 
   const saveNotifications = async () => {
@@ -2561,6 +2601,50 @@ export default function SettingsPage() {
                           showSaved(`${label}: оценки ${checked ? 'включены' : 'скрыты'}`);
                         }}
                       />
+                    </div>
+
+                    {/* Hearts / Freeze Editor */}
+                    <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-slate-700 font-sans">Заморозки (жизни серии)</p>
+                          <p className="text-[10px] text-slate-400 font-sans">Сердечки для сохранения серии при пропуске</p>
+                        </div>
+                        <div className="flex items-center gap-1 select-none">
+                          {[1, 2].map((num) => {
+                            const currentHearts = id === 'ali' ? heartsAli : heartsSaid;
+                            const isActive = num <= currentHearts;
+                            return (
+                              <span key={num} className={`text-lg transition-all ${isActive ? 'scale-100 filter-none' : 'scale-90 opacity-20 grayscale'}`}>
+                                ❤️
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5 pt-1">
+                        {[0, 1, 2].map((val) => {
+                          const currentHearts = id === 'ali' ? heartsAli : heartsSaid;
+                          const isSelected = currentHearts === val;
+                          const labelText = val === 0 ? '0 ❤️' : val === 1 ? '1 ❤️' : '2 ❤️';
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              disabled={isUpdatingHearts[id]}
+                              onClick={() => updateChildHearts(id, val)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-extrabold border transition-all ${
+                                isSelected
+                                  ? 'bg-red-50 border-red-200 text-red-600 shadow-sm'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              } disabled:opacity-50`}
+                            >
+                              {labelText}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
