@@ -66,7 +66,8 @@ export default function FlightGame({
   const [starsCollected, setStarsCollected] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [isLandscape, setIsLandscape] = useState(false);
+  const [showRotationHint, setShowRotationHint] = useState(true);
+  const [shouldRotate, setShouldRotate] = useState(false);
   
   const spriteImgRef = useRef<HTMLImageElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -74,14 +75,24 @@ export default function FlightGame({
   const GAME_DURATION = 90; // 90 seconds (1 minute 30 seconds)
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
 
-  // Check Landscape orientation
+  // Detect orientation to apply CSS rotation in portrait
   useEffect(() => {
-    const checkOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setShouldRotate(window.innerHeight > window.innerWidth);
+      }
     };
-    checkOrientation();
-    window.addEventListener("resize", checkOrientation);
-    return () => window.removeEventListener("resize", checkOrientation);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Screen Orientation Detection - Transient hint screen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowRotationHint(false);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Theme settings based on characterId
@@ -1431,24 +1442,39 @@ export default function FlightGame({
     onClose(true);
   };
 
-  // Orientation Check warning render
-  if (!isLandscape && !testMode) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-center select-none touch-none">
-        <div className="text-5xl mb-4 animate-bounce">📱🔄</div>
-        <h3 className="text-white font-extrabold text-lg">Поверни телефон</h3>
-        <p className="text-slate-400 text-xs mt-2 max-w-xs leading-relaxed">
-          Для этой игры нужен альбомный (горизонтальный) режим экрана. Поверни устройство или сделай экран шире!
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 font-sans select-none overflow-hidden touch-none">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 font-sans select-none overflow-hidden touch-none">
       
-      {/* Main landscape canvas container */}
-      <div className="relative w-full max-w-[840px] aspect-[84/40] bg-slate-900 shadow-2xl border border-white/5 md:rounded-2xl overflow-hidden flex items-center justify-center">
+      {/* Main Game Shell Window (rotated 90deg clockwise when screen is portrait) */}
+      <div 
+        style={shouldRotate ? {
+          width: "100vh",
+          height: "100vw",
+          maxWidth: "none",
+          maxHeight: "none",
+          transform: "rotate(90deg)",
+          transformOrigin: "center",
+          flexShrink: 0
+        } : {}}
+        className="relative w-full h-full max-w-[840px] max-h-[480px] bg-slate-900 overflow-hidden flex flex-col md:rounded-3xl md:shadow-2xl border border-slate-800"
+      >
+        
+        {/* 1. Landscape Orientation Check Overlay (inside rotated shell) */}
+        {showRotationHint && (
+          <div className="absolute inset-0 bg-slate-900 z-[110] flex flex-col items-center justify-center text-white px-6 text-center">
+            <div className="text-6xl animate-bounce mb-6">📱🔄</div>
+            <h2 className="text-xl font-black mb-2">Поверни телефон</h2>
+            <p className="text-slate-400 text-xs max-w-xs leading-normal mb-4">
+              Для запуска бонусного полёта переверни устройство в альбомный режим.
+            </p>
+            <button 
+              onClick={() => setShowRotationHint(false)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs px-5 py-2 rounded-full shadow-md transition-transform transform active:scale-95 cursor-pointer"
+            >
+              Понятно
+            </button>
+          </div>
+        )}
         
         {/* HUD Overlay during play */}
         {gameState === "playing" && (

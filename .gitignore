@@ -156,3 +156,6 @@ vite.config.ts.timestamp-*
 
 # Raw original images for rewards resizing
 # /images/
+
+# CodeGraph files
+.codegraph/

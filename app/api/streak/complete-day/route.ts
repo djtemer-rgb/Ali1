@@ -3,6 +3,7 @@ import { getJson, setJson } from '../../upstash';
 import { invalidateReportCache } from '../../report-cache';
 import { getChildSettings } from '@/app/lib/settings-shared';
 import { sendTelegramIfEnabled, sendWebPushToChild } from '@/app/lib/notifications';
+import { processStreakAndHearts } from '@/app/lib/streak-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,87 +39,30 @@ export async function POST(request: Request) {
     const settings = await getJson('aq:settings') || {};
     const freezeRestoreDays = Number(settings.freezeRestoreDays) || 5;
 
-    let freezeHearts = progress.freezeHearts !== undefined ? Number(progress.freezeHearts) : 2;
-    let lastHeartRestoreDate = progress.lastHeartRestoreDate || lastCompletedDate || date;
+    // Use shared pure logic to first calculate/apply missed days (if any)
+    const { nextProgress: midProgress, heartConsumed } = processStreakAndHearts(
+      progress,
+      date,
+      freezeRestoreDays
+    );
 
-    // Run heart recovery up to current completion 'date'
-    if (freezeHearts >= 2) {
-      lastHeartRestoreDate = date;
-    } else {
-      const parseUTCDate = (dateStr: string) => {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        return new Date(Date.UTC(y, m - 1, d));
-      };
-
-      const tToday = parseUTCDate(date).getTime();
-      const tLast = parseUTCDate(lastHeartRestoreDate).getTime();
-      const diffMs = tToday - tLast;
-
-      if (diffMs > 0) {
-        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-        if (diffDays >= freezeRestoreDays) {
-          const intervals = Math.floor(diffDays / freezeRestoreDays);
-          freezeHearts = Math.min(2, freezeHearts + intervals);
-
-          const lastRestoreDateObj = parseUTCDate(lastHeartRestoreDate);
-          lastRestoreDateObj.setUTCDate(lastRestoreDateObj.getUTCDate() + (intervals * freezeRestoreDays));
-          lastHeartRestoreDate = lastRestoreDateObj.toISOString().split('T')[0];
-          
-          if (freezeHearts >= 2) {
-            lastHeartRestoreDate = date;
-          }
-        }
-      }
-    }
-
+    // Apply today's completion on top of the midProgress
     let newStreak = 1;
-    let heartConsumed = 0;
-
-    if (lastCompletedDate) {
-      const parseUTCDate = (dateStr: string) => {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        return new Date(Date.UTC(y, m - 1, d));
-      };
-
-      const tCurrent = parseUTCDate(date).getTime();
-      const tLast = parseUTCDate(lastCompletedDate).getTime();
-      const diffMs = tCurrent - tLast;
-      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 1) {
-        newStreak = currentStreak + 1;
-      } else if (diffDays > 1) {
-        const missedDays = diffDays - 1;
-        if (freezeHearts >= missedDays) {
-          // Consume hearts to save streak
-          freezeHearts -= missedDays;
-          heartConsumed = missedDays;
-          newStreak = currentStreak + 1;
-          
-          if (freezeHearts === 2 - missedDays) {
-            lastHeartRestoreDate = date;
-          }
-        } else {
-          // Insufficient hearts: streak resets, hearts are fully refilled
-          newStreak = 1;
-          freezeHearts = 2;
-          lastHeartRestoreDate = date;
-        }
-      } else {
-        // diffDays <= 0 means same day or past day completed out of order
-        newStreak = currentStreak;
-      }
+    if (midProgress.lastCompletedDate) {
+      // Since processStreakAndHearts filled/protected all missed days up to yesterday,
+      // the lastCompletedDate is now guaranteed to be yesterday, so we just increment by 1.
+      newStreak = midProgress.currentStreak + 1;
     } else {
-      // First completion starting streak
+      // First completion starting streak (or after streak reset)
       newStreak = 1;
     }
 
-    // Save progress
+    // Save final progress
     const nextProgress = {
       currentStreak: newStreak,
       lastCompletedDate: date,
-      freezeHearts,
-      lastHeartRestoreDate
+      freezeHearts: midProgress.freezeHearts,
+      lastHeartRestoreDate: midProgress.lastHeartRestoreDate
     };
     await setJson(progressKey, nextProgress);
 
@@ -134,7 +78,7 @@ export async function POST(request: Request) {
           childId,
           type: 'system',
           title: 'Использована заморозка серии',
-          body: `${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${freezeHearts} из 2. ❤️`,
+          body: `${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${nextProgress.freezeHearts} из 2. ❤️`,
           read: false,
           createdAt: new Date().toISOString()
         };
@@ -142,7 +86,7 @@ export async function POST(request: Request) {
         await setJson(eventsKey, events);
 
         // Telegram alert
-        const tgMessage = `❤️ <b>Использована заморозка серии!</b>\n\n${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${freezeHearts} из 2.`;
+        const tgMessage = `❤️ <b>Использована заморозка серии!</b>\n\n${childName} пропустил дней: ${heartConsumed}, но его серия сохранена! Осталось сердечек: ${nextProgress.freezeHearts} из 2.`;
         await sendTelegramIfEnabled(settings, childId, 'system', tgMessage);
       } catch (err) {
         console.error('Failed to send freeze hearts notifications:', err);
