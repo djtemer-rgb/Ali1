@@ -52,7 +52,8 @@ export default function GradeInput({ childId, onGradeAdded }: GradeInputProps) {
           subjectName: selectedSubject,
           grade: selectedGrade,
           date: new Date().toISOString().split('T')[0]
-        })
+        }),
+        keepalive: true
       });
       
       if (res.ok) {

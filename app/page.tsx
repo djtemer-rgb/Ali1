@@ -667,9 +667,9 @@ export default function Home() {
 
     // First save the task state, standard task ledger, and completion event concurrently
     await Promise.all([
-      fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) }),
-      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }) }),
-      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }) }),
+      fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true }),
+      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }), keepalive: true }),
+      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }), keepalive: true }),
     ]);
 
     // Then, if all tasks are done, save the day completion bonus and event sequentially to avoid race condition on aq:star-ledger
@@ -685,7 +685,8 @@ export default function Home() {
               source: 'day-bonus',
               sourceId: today,
               reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
-            })
+            }),
+            keepalive: true
           }),
           fetch('/api/events', {
             method: 'POST',
@@ -695,7 +696,8 @@ export default function Home() {
               type: 'day-completed',
               title: 'День завершён',
               body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
-            })
+            }),
+            keepalive: true
           })
         ]);
       } else {
@@ -707,7 +709,8 @@ export default function Home() {
             type: 'day-completed',
             title: 'День завершён',
             body: `${currentChild.name} выполнил все задачи на сегодня! 🎉`
-          })
+          }),
+          keepalive: true
         });
       }
 
@@ -716,7 +719,8 @@ export default function Home() {
         const streakRes = await fetch('/api/streak/complete-day', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ childId: currentChild.id, date: today })
+          body: JSON.stringify({ childId: currentChild.id, date: today }),
+          keepalive: true
         });
         const streakData = await streakRes.json();
         if (streakData.success) {
@@ -790,6 +794,7 @@ export default function Home() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatedTemplates),
+            keepalive: true
           });
         }
       } catch (error) {
@@ -804,14 +809,14 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0];
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, detailsOpened: true } : t);
     setTasks(updatedTasks);
-    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
+    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true });
   };
 
   const handleSubtasksUpdate = async (taskId: string, subtasks: any[]) => {
     const today = new Date().toISOString().split('T')[0];
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, subtasks } : t);
     setTasks(updatedTasks);
-    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }) });
+    await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true });
   };
 
   const triggerTestAnimation = () => {
@@ -880,9 +885,9 @@ export default function Home() {
     confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, colors: ['#8B5CF6', '#6366F1', '#F59E0B'] });
 
     await Promise.all([
-      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})` }) }),
-      fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }) }),
-      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`, rewardId: reward.id, details: { childName: currentChild.name, rewardTitle: reward.title, costStars: reward.costStars, status: 'selected' } }) })
+      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: -reward.costStars, source: 'reward-purchase', sourceId: reward.id, reason: `Покупка награды: ${reward.title} (${formatStarAmount(-reward.costStars)})` }), keepalive: true }),
+      fetch('/api/rewards/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, rewardId: reward.id, status: 'selected' }), keepalive: true }),
+      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'reward-selected', title: 'Награда выбрана', body: `${currentChild.name} выбрал награду: ${reward.title} (${formatStarAmount(-reward.costStars)})`, rewardId: reward.id, details: { childName: currentChild.name, rewardTitle: reward.title, costStars: reward.costStars, status: 'selected' } }), keepalive: true })
     ]);
   };
 

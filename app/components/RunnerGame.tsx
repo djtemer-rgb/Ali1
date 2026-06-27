@@ -882,7 +882,8 @@ export default function RunnerGame({ childId, rewardId, characterId, characterNa
           rewardId,
           gameId: "runner",
           completed: true
-        })
+        }),
+        keepalive: true
       });
     } catch (e) {
       console.error("Failed to save bonus game stats:", e);

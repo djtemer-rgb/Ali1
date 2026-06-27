@@ -1276,7 +1276,8 @@ export default function JumpGame({ childId, rewardId, characterId, characterName
           rewardId,
           gameId: "jump",
           completed: true
-        })
+        }),
+        keepalive: true
       });
     } catch (e) {
       console.error("Failed to save jump game completion:", e);

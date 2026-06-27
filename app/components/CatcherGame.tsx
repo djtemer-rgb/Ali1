@@ -792,7 +792,8 @@ export default function CatcherGame({ childId, rewardId, characterId, characterN
           rewardId,
           gameId: "catcher",
           completed: true
-        })
+        }),
+        keepalive: true
       });
     } catch (e) {
       console.error("Failed to save catcher game completion:", e);

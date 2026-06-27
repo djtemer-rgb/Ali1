@@ -943,7 +943,8 @@ export default function TapReactionGame({ childId, rewardId, characterId, charac
           rewardId,
           gameId: "tap_reaction",
           completed: true
-        })
+        }),
+        keepalive: true
       });
     } catch (e) {
       console.error("Failed to save tap reaction completion:", e);

@@ -1434,7 +1434,8 @@ export default function FlightGame({
           rewardId,
           gameId: "flight",
           completed: true
-        })
+        }),
+        keepalive: true
       });
     } catch (e) {
       console.error("Failed to save flight game completion:", e);
