@@ -2604,7 +2604,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Hearts / Freeze Editor */}
-                    <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+                    <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-bold text-slate-700 font-sans">Заморозки (жизни серии)</p>
@@ -2645,10 +2645,107 @@ export default function SettingsPage() {
                           );
                         })}
                       </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                        <select
+                          id={`select-recharge-${id}`}
+                          defaultValue="2"
+                          className="border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold bg-slate-50 text-slate-700 outline-none"
+                        >
+                          <option value="1">+1 ❤️ (Пополнить одно)</option>
+                          <option value="2">+2 ❤️ (Пополнить оба)</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={isUpdatingHearts[id]}
+                          onClick={async () => {
+                            const sel = (document.getElementById(`select-recharge-${id}`) as HTMLSelectElement)?.value || '2';
+                            const amount = parseInt(sel, 10);
+                            const text = amount === 1 ? '1 сердечко' : 'оба сердечка (2 шт.)';
+                            if (window.confirm(`Точно ли хотите пополнить ${text} для ${label}?`)) {
+                              setIsUpdatingHearts(prev => ({ ...prev, [id]: true }));
+                              try {
+                                const res = await fetch('/api/streak/progress', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ childId: id, freezeHearts: amount, mode: 'add' })
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  const updatedProg = data.results[id];
+                                  if (id === 'ali') setHeartsAli(updatedProg.freezeHearts);
+                                  else setHeartsSaid(updatedProg.freezeHearts);
+                                  showSaved(`Сердечки для ${label} пополнены! (Всего: ${updatedProg.freezeHearts}/2)`);
+                                }
+                              } catch (e) {
+                                console.error(e);
+                              } finally {
+                                setIsUpdatingHearts(prev => ({ ...prev, [id]: false }));
+                              }
+                            }
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          ❤️ Пополнить
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          </AccordionSection>
+        )}
+
+        {/* Common Hearts Recharge for both kids */}
+        {settingsChildId === 'common' && (
+          <AccordionSection id="common-hearts" title="Заморозки (сердечки серии) — Общий режим" accentColor="border-t-4 border-t-red-500"
+            icon={<Award size={18} className="text-red-500" />}>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+              <div>
+                <p className="text-sm font-bold text-slate-800">Пополнение сердечек сразу для обоих детей (Али и Саид)</p>
+                <p className="text-xs text-slate-500">Сердечки добавляются к текущему запасу каждому ребёнку, но не могут превышать максимум 2 штуки. Третье сердечко не откладывается в запас.</p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <select
+                  id="select-recharge-common"
+                  defaultValue="2"
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold bg-white text-slate-700 outline-none"
+                >
+                  <option value="1">+1 ❤️ (Пополнить одно сердечко)</option>
+                  <option value="2">+2 ❤️ (Пополнить оба сердечка)</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const sel = (document.getElementById('select-recharge-common') as HTMLSelectElement)?.value || '2';
+                    const amount = parseInt(sel, 10);
+                    const text = amount === 1 ? '1 сердечко' : 'оба сердечка (2 шт.)';
+                    if (window.confirm(`Точно ли хотите пополнить ${text} сразу для Али и Саида?`)) {
+                      try {
+                        const res = await fetch('/api/streak/progress', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ childId: 'both', freezeHearts: amount, mode: 'add' })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          if (data.results?.ali) setHeartsAli(data.results.ali.freezeHearts);
+                          if (data.results?.said) setHeartsSaid(data.results.said.freezeHearts);
+                          showSaved(`Сердечки пополнены для Али и Саида!`);
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        showSaved('Ошибка при пополнении сердечек');
+                      }
+                    }
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  ❤️ Пополнить для двоих
+                </button>
+              </div>
             </div>
           </AccordionSection>
         )}
