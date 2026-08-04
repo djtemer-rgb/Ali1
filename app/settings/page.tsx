@@ -1238,50 +1238,51 @@ export default function SettingsPage() {
     }
 
     const finalAmount = manualOp === 'add' ? amount : -amount;
+    const targets: ('ali' | 'said')[] = settingsChildId === 'common' ? ['ali', 'said'] : [settingsChildId as 'ali' | 'said'];
 
     setIsSubmittingManualStars(true);
     try {
-      const res = await fetch('/api/star-ledger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          childId: settingsChildId,
-          amount: finalAmount,
-          source: 'manual',
-          reason: cleanReason
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const childNameText = settingsChildId === 'ali' ? 'Али' : 'Саид';
-        const childNameTextGen = settingsChildId === 'ali' ? 'Али' : 'Саида';
-
-        await fetch('/api/events', {
+      for (const cid of targets) {
+        const res = await fetch('/api/star-ledger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            childId: settingsChildId,
-            type: 'manual-stars',
-            title: manualOp === 'add' ? 'Звёзды начислены вручную' : 'Звёзды списаны вручную',
-            body: `${manualOp === 'add' ? 'Начислено' : 'Списано'} ${amount} ⭐. Комментарий: ${cleanReason}`,
-            details: {
-              childName: childNameText,
-              stars: finalAmount,
-              reason: cleanReason,
-              ledgerId: data?.item?.id,
-              reverted: false
-            }
+            childId: cid,
+            amount: finalAmount,
+            source: 'manual',
+            reason: cleanReason
           })
         });
 
-        showSaved(`Успешно ${manualOp === 'add' ? 'начислено' : 'списано'} ${amount} ⭐ для ${childNameTextGen}`);
-        setManualStars('');
-        setManualReason('');
-        loadEvents();
-      } else {
-        showSaved('Ошибка при обновлении баланса звёзд');
+        if (res.ok) {
+          const data = await res.json();
+          const childNameText = cid === 'ali' ? 'Али' : 'Саид';
+
+          await fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              childId: cid,
+              type: 'manual-stars',
+              title: manualOp === 'add' ? 'Звёзды начислены вручную' : 'Звёзды списаны вручную',
+              body: `${manualOp === 'add' ? 'Начислено' : 'Списано'} ${amount} ⭐. Комментарий: ${cleanReason}`,
+              details: {
+                childName: childNameText,
+                stars: finalAmount,
+                reason: cleanReason,
+                ledgerId: data?.item?.id,
+                reverted: false
+              }
+            })
+          });
+        }
       }
+
+      const targetText = settingsChildId === 'common' ? 'Али и Саида' : (settingsChildId === 'ali' ? 'Али' : 'Саида');
+      showSaved(`Успешно ${manualOp === 'add' ? 'начислено' : 'списано'} ${amount} ⭐ для ${targetText}`);
+      setManualStars('');
+      setManualReason('');
+      loadEvents();
     } catch (e) {
       console.error(e);
       showSaved('Ошибка сети');
@@ -2017,16 +2018,15 @@ export default function SettingsPage() {
         </AccordionSection>
 
         {/* УПРАВЛЕНИЕ ЗВЁЗДАМИ */}
-        {settingsChildId !== 'common' && (
-          <AccordionSection id="manual-stars" title="Управление звёздами" accentColor="border-t-4 border-t-amber-500"
-            icon={<Crown size={18} className="text-amber-500" />}>
-            <div className="space-y-4">
-              <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2">
-                <User size={16} className="text-blue-500" />
-                <p className="text-xs font-semibold text-blue-700">
-                  Действие применится к профилю: <span className="font-extrabold">{childName}</span>
-                </p>
-              </div>
+        <AccordionSection id="manual-stars" title="Управление звёздами" accentColor="border-t-4 border-t-amber-500"
+          icon={<Crown size={18} className="text-amber-500" />}>
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2">
+              <User size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-blue-700">
+                Действие применится к профилю: <span className="font-extrabold">{settingsChildId === 'common' ? 'Общий (Али и Саид)' : childName}</span>
+              </p>
+            </div>
 
               <div className="flex gap-2">
                 <button
@@ -2079,7 +2079,6 @@ export default function SettingsPage() {
               </button>
             </div>
           </AccordionSection>
-        )}
 
         {/* 5. REWARDS */}
         <AccordionSection id="rewards" title="Награды" accentColor="border-t-4 border-t-purple-500"
