@@ -574,7 +574,26 @@ export default function Home() {
   useEffect(() => {
     const doLoad = async () => {
       const today = new Date().toISOString().split('T')[0];
-      setLoadingTasks(true); setLoadingRewards(true);
+      
+      // Instant 0ms cache hydration for swift child layer switching
+      try {
+        const cachedRaw = localStorage.getItem(`aq:day-cache:${currentChild.id}:${today}`);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (Array.isArray(cached) && cached.length > 0) {
+            setTasks(cached);
+            setLoadingTasks(false);
+          } else {
+            setLoadingTasks(true);
+          }
+        } else {
+          setLoadingTasks(true);
+        }
+      } catch {
+        setLoadingTasks(true);
+      }
+      setLoadingRewards(true);
+
       try {
         const [tasksRes, starsRes, rewardsRes, tplRes, rewardStatusRes, streakRewRes, streakProgRes, bonusRes] = await Promise.all([
           fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`),
@@ -596,12 +615,14 @@ export default function Home() {
         }
         const allTemplates = Array.isArray(tplData) ? tplData : [];
         const templateIds = new Set(allTemplates.map((template: any) => template.id));
-        setTasks(Array.isArray(tasksData)
+        const reconciledTasks = Array.isArray(tasksData)
           ? sortTasksByTemplateOrder(
               tasksData.filter((task: any) => !task.templateId || templateIds.has(task.templateId)),
               Array.isArray(allTemplates) ? allTemplates : [],
             )
-          : []);
+          : [];
+        setTasks(reconciledTasks);
+        try { localStorage.setItem(`aq:day-cache:${currentChild.id}:${today}`, JSON.stringify(reconciledTasks)); } catch {}
         setStars(starsData.balance || 0);
         const childRewards = Array.isArray(rewardsData) ? rewardsData : [];
         const reserve = Array.isArray(rewardStatusData)
@@ -673,161 +694,168 @@ export default function Home() {
 
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), difficulty: difficulty || t.difficulty, detailsOpened: true } : t);
     setTasks(updatedTasks);
+    try {
+      localStorage.setItem(`aq:day-cache:${currentChild.id}:${today}`, JSON.stringify(updatedTasks));
+    } catch {}
+
     const allDone = updatedTasks.length > 0 && updatedTasks.every(t => t.completed);
     const isOneTimeTask = !!task.oneTimeDate;
     const bonusAmount = bonusAllTasksToday;
 
-    // First save the task state, standard task ledger, and completion event concurrently
-    await Promise.all([
-      fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true }),
-      fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }), keepalive: true }),
-      fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }), keepalive: true }),
-    ]);
+    // 1. INSTANT 0ms OPTIMISTIC UI: Update stars and immediately trigger reward modal without waiting for cloud network latency
+    setStars(prev => prev + task.stars + (allDone && bonusAmount > 0 ? bonusAmount : 0));
 
-    // Then, if all tasks are done, trigger motivational reward and save day completion bonus/events
     if (allDone) {
-      // Trigger final motivational reward modal if not viewed today yet
       if (!isDayRewardViewed(currentChild.id, today)) {
         const nextMotivational = getNextMotivationalReward(currentChild.id as 'ali' | 'said');
         setActiveHeroReward(nextMotivational);
         setHeroRewardModalOpen(true);
       }
+    }
 
-      if (bonusAmount > 0) {
-        await Promise.all([
-          fetch('/api/star-ledger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              childId: currentChild.id,
-              amount: bonusAmount,
-              source: 'day-bonus',
-              sourceId: today,
-              reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
-            }),
-            keepalive: true
-          }),
-          fetch('/api/events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              childId: currentChild.id,
-              type: 'day-completed',
-              title: 'День завершён',
-              body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
-            }),
-            keepalive: true
-          })
-        ]);
-      } else {
-        await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            childId: currentChild.id,
-            type: 'day-completed',
-            title: 'День завершён',
-            body: `${currentChild.name} выполнил все задачи на сегодня! 🎉`
-          }),
-          keepalive: true
-        });
-      }
-
-      // Call complete-day streak API
+    // 2. ASYNC CLOUD PERSISTENCE: Non-blocking background sync to Upstash Redis with keepalive guaranteed delivery
+    (async () => {
       try {
-        const streakRes = await fetch('/api/streak/complete-day', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ childId: currentChild.id, date: today }),
-          keepalive: true
-        });
-        const streakData = await streakRes.json();
-        if (streakData.success) {
-          setStreakProgress(prev => ({
-            ...prev,
-            currentStreak: streakData.newStreak,
-            lastCompletedDate: today
-          }));
+        await Promise.all([
+          fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true }),
+          fetch('/api/star-ledger', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, amount: task.stars, source: 'task', sourceId: taskId, reason: completion.ledgerReason, details: completion.details }), keepalive: true }),
+          fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }), keepalive: true }),
+        ]);
 
-          if (streakData.earnedReward) {
-            setEarnedStreakReward(streakData.earnedReward);
-            setAnimationStep('award');
-            playTriumphSound();
-            if (Number(streakData.earnedReward.bonusStars) > 0) {
-              setStars(prev => prev + Number(streakData.earnedReward.bonusStars));
-            }
-            confetti({ particleCount: 180, spread: 100, origin: { y: 0.4 }, colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA'] });
+        if (allDone) {
+          if (bonusAmount > 0) {
+            await Promise.all([
+              fetch('/api/star-ledger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  childId: currentChild.id,
+                  amount: bonusAmount,
+                  source: 'day-bonus',
+                  sourceId: today,
+                  reason: `Бонус за выполнение всех задач за день (+${bonusAmount} ⭐)`
+                }),
+                keepalive: true
+              }),
+              fetch('/api/events', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  childId: currentChild.id,
+                  type: 'day-completed',
+                  title: 'День завершён',
+                  body: `${currentChild.name} выполнил все задачи на сегодня и получил дополнительно ${bonusAmount} ⭐! 🎉`
+                }),
+                keepalive: true
+              })
+            ]);
+          } else {
+            await fetch('/api/events', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                childId: currentChild.id,
+                type: 'day-completed',
+                title: 'День завершён',
+                body: `${currentChild.name} выполнил все задачи на сегодня! 🎉`
+              }),
+              keepalive: true
+            });
+          }
 
-            setTimeout(() => {
-              const targetEl = document.getElementById("nav-item-streak-rewards");
-              const cardEl = document.getElementById("animating-streak-card");
-              if (targetEl && cardEl) {
-                const targetRect = targetEl.getBoundingClientRect();
-                const cardRect = cardEl.getBoundingClientRect();
-                setFlyCoords({
-                  x: (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2),
-                  y: (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2)
-                });
+          const streakRes = await fetch('/api/streak/complete-day', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ childId: currentChild.id, date: today }),
+            keepalive: true
+          });
+          const streakData = await streakRes.json();
+          if (streakData.success) {
+            setStreakProgress(prev => ({
+              ...prev,
+              currentStreak: streakData.newStreak,
+              lastCompletedDate: today
+            }));
+
+            if (streakData.earnedReward) {
+              setEarnedStreakReward(streakData.earnedReward);
+              setAnimationStep('award');
+              playTriumphSound();
+              if (Number(streakData.earnedReward.bonusStars) > 0) {
+                setStars(prev => prev + Number(streakData.earnedReward.bonusStars));
               }
-            }, 100);
+              confetti({ particleCount: 180, spread: 100, origin: { y: 0.4 }, colors: ['#A78BFA', '#FBBF24', '#34D399', '#60A5FA'] });
 
-            setTimeout(() => {
-              setAnimationStep('fly');
-            }, 3200);
+              setTimeout(() => {
+                const targetEl = document.getElementById("nav-item-streak-rewards");
+                const cardEl = document.getElementById("animating-streak-card");
+                if (targetEl && cardEl) {
+                  const targetRect = targetEl.getBoundingClientRect();
+                  const cardRect = cardEl.getBoundingClientRect();
+                  setFlyCoords({
+                    x: (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2),
+                    y: (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2)
+                  });
+                }
+              }, 100);
 
-            setTimeout(async () => {
-              setEarnedStreakReward(null);
-              setAnimationStep('idle');
-              setAnimateNavButton(true);
-              setTimeout(() => setAnimateNavButton(false), 800);
+              setTimeout(() => {
+                setAnimationStep('fly');
+              }, 3200);
 
-              const progressRes = await fetch(`/api/streak/progress?childId=${currentChild.id}`);
-              const progressData = await progressRes.json();
-              setStreakProgress(progressData);
-              confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
-            }, 4000);
+              setTimeout(async () => {
+                setEarnedStreakReward(null);
+                setAnimationStep('idle');
+                setAnimateNavButton(true);
+                setTimeout(() => setAnimateNavButton(false), 800);
+
+                const progressRes = await fetch(`/api/streak/progress?childId=${currentChild.id}`);
+                const progressData = await progressRes.json();
+                setStreakProgress(progressData);
+                confetti({ particleCount: 80, spread: 60, origin: { y: 0.2 } });
+              }, 4000);
+            }
+          }
+        }
+
+        if (isOneTimeTask && task.templateId) {
+          try {
+            const templatesRes = await fetch('/api/tasks/templates');
+            const allTemplates = await templatesRes.json();
+            if (Array.isArray(allTemplates)) {
+              const updatedTemplates = allTemplates.map((template: any) => {
+                if (template.id !== task.templateId) return template;
+                const repeatDays = Array.isArray(template.repeatDays) ? template.repeatDays : [];
+                if (repeatDays.length > 0) return template;
+                return {
+                  ...template,
+                  active: false,
+                  inactiveAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              await fetch('/api/tasks/templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedTemplates),
+                keepalive: true
+              });
+            }
+          } catch (error) {
+            console.error('Failed to archive one-time template:', error);
           }
         }
       } catch (err) {
-        console.error('Failed to update streak progress:', err);
+        console.error('Background task sync error:', err);
       }
-    }
-
-    if (isOneTimeTask && task.templateId) {
-      try {
-        const templatesRes = await fetch('/api/tasks/templates');
-        const allTemplates = await templatesRes.json();
-        if (Array.isArray(allTemplates)) {
-          const updatedTemplates = allTemplates.map((template: any) => {
-            if (template.id !== task.templateId) return template;
-            const repeatDays = Array.isArray(template.repeatDays) ? template.repeatDays : [];
-            if (repeatDays.length > 0) return template;
-            return {
-              ...template,
-              active: false,
-              inactiveAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-          });
-          await fetch('/api/tasks/templates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedTemplates),
-            keepalive: true
-          });
-        }
-      } catch (error) {
-        console.error('Failed to archive one-time template:', error);
-      }
-    }
-
-    setStars(prev => prev + task.stars + (allDone && bonusAmount > 0 ? bonusAmount : 0));
+    })();
   };
 
   const handleDetailsOpened = async (taskId: string) => {
     const today = new Date().toISOString().split('T')[0];
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, detailsOpened: true } : t);
     setTasks(updatedTasks);
+    try { localStorage.setItem(`aq:day-cache:${currentChild.id}:${today}`, JSON.stringify(updatedTasks)); } catch {}
     await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true });
   };
 
@@ -835,14 +863,15 @@ export default function Home() {
     const today = new Date().toISOString().split('T')[0];
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, subtasks } : t);
     setTasks(updatedTasks);
+    try { localStorage.setItem(`aq:day-cache:${currentChild.id}:${today}`, JSON.stringify(updatedTasks)); } catch {}
     await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true });
   };
 
   const handleCloseHeroRewardModal = () => {
     setHeroRewardModalOpen(false);
-    if (!rewardsTestMode) {
+    if (!rewardsTestMode && activeHeroReward) {
       const today = new Date().toISOString().split('T')[0];
-      markDayRewardViewed(currentChild.id, today);
+      markDayRewardViewed(activeHeroReward.childId, today);
     }
   };
 
