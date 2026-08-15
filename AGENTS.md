@@ -36,18 +36,20 @@ Prefer Next.js App Router + TypeScript + Tailwind + Upstash Redis + Vercel + Git
 - All AI and Telegram calls must go through server routes.
 - Do not expose OpenRouter, Telegram, Upstash, VAPID private keys to browser.
 
-## Use skills
-Before implementing product logic, load `product-guardian`.
-Before child UI, load `child-ux`.
-Before Vercel/PWA/routes/env work, load `vercel-next`.
-Before data changes, load `storage-contract`.
-Before AI/voice/TTS, load `ai-safety`.
-Before final answer, load `qa-checklist`.
+## Use skills & Knowledge Base
+- Before implementing any new feature or changing code, read the master documentation in `knowledge/README.md` and related docs.
+- Use skill `ali-quest-dashboard` (`skills/ali-quest-dashboard/SKILL.md`).
+- Before child UI, load `child-ux`.
+- Before Vercel/PWA/routes/env work, load `vercel-next`.
+- Before data changes, load `storage-contract`.
+- Before AI/voice/TTS, load `ai-safety`.
+- Before final answer, load `qa-checklist`.
 
-## Use MCP
-Use `context7` when checking documentation for Next.js, Vercel, Upstash, PWA, web push.
-Use `gh_grep` for code examples only when needed.
-Do not enable heavy MCP tools unless necessary.
+## Use MCP & CodeGraph
+- **CodeGraph is MANDATORY**: Before introducing new features, refactoring, or modifying backend/frontend code, always query `codegraph` (`codegraph_status`, `codegraph_context`, `codegraph_explore`, `codegraph_impact`) with `projectPath: "/Users/temer/Documents/Проекты/Ali1"`. This provides instant AST knowledge of all symbols, callers, callees, and dependencies without full-codebase rescan.
+- Use `context7` when checking documentation for Next.js, Vercel, Upstash, PWA, web push.
+- Use `gh_grep` for code examples only when needed.
+- Do not enable heavy MCP tools unless necessary.
 
 ## Final report
 Always report in Russian:
