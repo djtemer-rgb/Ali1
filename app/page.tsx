@@ -15,6 +15,14 @@ import CatcherGame from "./components/CatcherGame";
 import TapReactionGame from "./components/TapReactionGame";
 import JumpGame from "./components/JumpGame";
 import FlightGame from "./components/FlightGame";
+import HeroRewardModal from "./components/HeroRewardModal";
+import {
+  getNextMotivationalReward,
+  getNextTestReward,
+  isDayRewardViewed,
+  markDayRewardViewed,
+  MotivationalRewardItem,
+} from "@/app/lib/motivational-rewards";
 import { buildTaskCompletionBundle, formatRewardReserveLabel, formatStarAmount } from "@/app/lib/reporting";
 import { getChildSettings } from "@/app/lib/settings-shared";
 
@@ -536,6 +544,10 @@ export default function Home() {
     characterName: string;
   } | null>(null);
 
+  // Hero Motivational Rewards States
+  const [heroRewardModalOpen, setHeroRewardModalOpen] = useState(false);
+  const [activeHeroReward, setActiveHeroReward] = useState<MotivationalRewardItem | null>(null);
+
   useEffect(() => {
     document.cookie.split('; ').find(c => c.startsWith('parent-session=')) ? setIsLoggedIn(true) : setIsLoggedIn(false);
 
@@ -672,8 +684,15 @@ export default function Home() {
       fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, type: 'task-completed', title: 'Задача выполнена', body: completion.eventBody, details: { ...completion.details, childName: currentChild.name } }), keepalive: true }),
     ]);
 
-    // Then, if all tasks are done, save the day completion bonus and event sequentially to avoid race condition on aq:star-ledger
+    // Then, if all tasks are done, trigger motivational reward and save day completion bonus/events
     if (allDone) {
+      // Trigger final motivational reward modal if not viewed today yet
+      if (!isDayRewardViewed(currentChild.id, today)) {
+        const nextMotivational = getNextMotivationalReward(currentChild.id as 'ali' | 'said');
+        setActiveHeroReward(nextMotivational);
+        setHeroRewardModalOpen(true);
+      }
+
       if (bonusAmount > 0) {
         await Promise.all([
           fetch('/api/star-ledger', {
@@ -819,6 +838,21 @@ export default function Home() {
     await fetch(`/api/tasks/day?childId=${currentChild.id}&date=${today}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ childId: currentChild.id, date: today, tasks: updatedTasks }), keepalive: true });
   };
 
+  const handleCloseHeroRewardModal = () => {
+    setHeroRewardModalOpen(false);
+    if (!rewardsTestMode) {
+      const today = new Date().toISOString().split('T')[0];
+      markDayRewardViewed(currentChild.id, today);
+    }
+  };
+
+  const triggerTestMotivationalReward = () => {
+    setShowStreakRewardsModal(false);
+    const testReward = getNextTestReward(currentChild.id as 'ali' | 'said');
+    setActiveHeroReward(testReward);
+    setHeroRewardModalOpen(true);
+  };
+
   const triggerTestAnimation = () => {
     setShowStreakRewardsModal(false);
     
@@ -905,8 +939,14 @@ export default function Home() {
     <div className="min-h-screen bg-[#F4F7FB] font-sans text-slate-800 pb-10">
       {/* FLOATING DEMO MODE BANNER */}
       {rewardsTestMode && (
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 text-center text-xs font-bold flex items-center justify-center gap-3 shadow-md relative z-50">
-          <span>🎭 Режим демонстрации наград активен (данные детей в безопасности)</span>
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 text-center text-xs font-bold flex flex-wrap items-center justify-center gap-2 sm:gap-3 shadow-md relative z-50">
+          <span>🎭 Режим демонстрации активен</span>
+          <button
+            onClick={triggerTestMotivationalReward}
+            className="bg-amber-400 hover:bg-amber-300 text-slate-900 px-3 py-1 rounded-lg transition-colors text-[10px] font-black cursor-pointer shadow-sm flex items-center gap-1"
+          >
+            <span>🎙️</span> Речь героя ({currentChild.name})
+          </button>
           <button
             onClick={() => {
               setRewardsTestMode(false);
@@ -919,7 +959,7 @@ export default function Home() {
             }}
             className="bg-white text-purple-700 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors text-[10px] font-black cursor-pointer shadow-sm"
           >
-            Выйти из режима демо
+            Выйти из демо
           </button>
         </div>
       )}
@@ -1484,12 +1524,18 @@ export default function Home() {
               </div>
               
               {(isDevOrParent || rewardsTestMode) && (
-                <div className="p-4 bg-white border-t border-slate-100 flex justify-center shrink-0">
+                <div className="p-4 bg-white border-t border-slate-100 flex flex-col sm:flex-row gap-2 justify-center shrink-0">
                   <button
                     onClick={triggerTestAnimation}
-                    className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <span>🎭</span> Проверить анимацию награды (Тест)
+                    <span>🎭</span> Тест карточки серии
+                  </button>
+                  <button
+                    onClick={triggerTestMotivationalReward}
+                    className="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🎙️</span> Тест речи героя ({currentChild.name})
                   </button>
                 </div>
               )}
@@ -1870,6 +1916,13 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* FINAL MOTIVATIONAL HERO REWARD MODAL */}
+      <HeroRewardModal
+        open={heroRewardModalOpen}
+        reward={activeHeroReward}
+        onClose={handleCloseHeroRewardModal}
+      />
     </div>
   );
 }

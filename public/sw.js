@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ali-quest-v1';
+const CACHE_NAME = 'ali-quest-v2';
 
 const ASSETS = [
   '/',
@@ -12,17 +12,52 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS);
     })
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // For video and audio assets, cache on first fetch and serve cache-first
+  if (url.pathname.startsWith('/videos/rewards/') || url.pathname.startsWith('/audio/rewards/')) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cachedResponse = await cache.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        try {
+          const fetchResponse = await fetch(event.request);
+          if (fetchResponse.status === 200) {
+            cache.put(event.request, fetchResponse.clone());
+          }
+          return fetchResponse;
+        } catch (err) {
+          return cachedResponse || new Response('Network error', { status: 408 });
+        }
+      })
+    );
+    return;
+  }
+
+  // For general pages and assets
   event.respondWith(
     caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((fetchResponse) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, fetchResponse.clone());
-          return fetchResponse;
-        });
-      });
+      return (
+        response ||
+        fetch(event.request)
+          .then((fetchResponse) => {
+            if (fetchResponse.status === 200 && !url.pathname.startsWith('/api/')) {
+              return caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, fetchResponse.clone());
+                return fetchResponse;
+              });
+            }
+            return fetchResponse;
+          })
+      );
     }).catch(() => {
       return caches.match('/');
     })
@@ -35,7 +70,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
