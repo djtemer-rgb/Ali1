@@ -673,7 +673,7 @@ export default function Home() {
 
     const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString(), difficulty: difficulty || t.difficulty, detailsOpened: true } : t);
     setTasks(updatedTasks);
-    const allDone = updatedTasks.every(t => t.completed);
+    const allDone = updatedTasks.length > 0 && updatedTasks.every(t => t.completed);
     const isOneTimeTask = !!task.oneTimeDate;
     const bonusAmount = bonusAllTasksToday;
 
