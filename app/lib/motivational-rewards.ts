@@ -9,7 +9,20 @@ export interface MotivationalRewardItem {
   videoSrc: string;
   theme: string;
   title: string;
+  personalTrackSrc: string;
+  childName: string;
 }
+
+export const CHILD_PERSONAL_TRACKS: Record<ChildId, { trackSrc: string; name: string }> = {
+  ali: {
+    trackSrc: '/audio/rewards/tracks/ali_theme.mp3',
+    name: 'Али',
+  },
+  said: {
+    trackSrc: '/audio/rewards/tracks/said_theme.mp3',
+    name: 'Саид',
+  },
+};
 
 // Rigid Video Mapping according to specifications:
 // ALI:
@@ -69,6 +82,8 @@ export function getRewardItem(childId: ChildId, audioNumber: number): Motivation
     group: 'football',
   };
 
+  const trackInfo = CHILD_PERSONAL_TRACKS[childId] || CHILD_PERSONAL_TRACKS.ali;
+
   return {
     childId,
     audioNumber: num,
@@ -76,6 +91,8 @@ export function getRewardItem(childId: ChildId, audioNumber: number): Motivation
     videoSrc: info.videoSrc,
     theme: info.theme,
     title: info.title,
+    personalTrackSrc: trackInfo.trackSrc,
+    childName: trackInfo.name,
   };
 }
 
