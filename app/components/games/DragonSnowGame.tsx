@@ -688,9 +688,11 @@ export default function DragonSnowGame({
           }
         });
 
+        // Fast 2-blink collision feedback (0.7s total duration, only 2 quick blinks!)
         if (gameRef.current.invincibleTimer > 0) {
           gameRef.current.invincibleTimer -= delta;
-          dragonRoot.visible = Math.floor(time * 18) % 2 === 0;
+          const blinkPhase = Math.floor((0.7 - gameRef.current.invincibleTimer) * 5.7);
+          dragonRoot.visible = blinkPhase % 2 === 0;
         } else {
           dragonRoot.visible = true;
         }
@@ -739,11 +741,11 @@ export default function DragonSnowGame({
               item.collected = true;
               item.mesh.visible = false;
               if (item.type === "star") {
-                gameRef.current.score += 10;
+                gameRef.current.score += 5; // Balanced point distribution for 60s flight
                 gameRef.current.stars += 1;
                 soundEngineRef.current.playCollectStar();
               } else {
-                gameRef.current.score += 25;
+                gameRef.current.score += 10;
                 gameRef.current.stars += 2;
                 soundEngineRef.current.playCollectCrystal();
               }
@@ -766,8 +768,8 @@ export default function DragonSnowGame({
                 item.collected = true;
                 item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
-                gameRef.current.invincibleTimer = 3.0; // 3 seconds invincibility
-                gameRef.current.speedPenalty = 0.5; // Slow down to 50% on hit then recover!
+                gameRef.current.invincibleTimer = 0.7; // Fast 0.7s: 2 quick blinks!
+                gameRef.current.speedPenalty = 0.55; // Quick speed drop, recovers in 1.2s
                 gameRef.current.jumpY = 0.35; // Bouncy collision jump
                 soundEngineRef.current.playHit();
                 setHearts(gameRef.current.hearts);
