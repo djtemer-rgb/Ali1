@@ -272,9 +272,9 @@ const DEFAULT_STREAK_REWARDS = [
   },
   {
     id: 'streak-reward-20',
-    title: 'Звёздный дракончик — Астра',
-    description: 'Выполняй все задачи 90 дней подряд!\nСерия: Легендарные',
-    emoji: '🐲',
+    title: 'Легендарный Артефакт — Arcade Nexus',
+    description: 'Выполняй все задачи 90 дней подряд!\nСерия: Легендарные • 3D Игровой Портал',
+    emoji: '🌌',
     daysStreak: 90,
     bonusStars: 500,
     active: true,

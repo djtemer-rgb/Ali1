@@ -16,6 +16,7 @@ import TapReactionGame from "./components/TapReactionGame";
 import JumpGame from "./components/JumpGame";
 import FlightGame from "./components/FlightGame";
 import HeroRewardModal from "./components/HeroRewardModal";
+import GameHubModal from "./components/GameHubModal";
 import {
   getNextMotivationalReward,
   getNextTestReward,
@@ -543,6 +544,7 @@ export default function Home() {
     characterId: string;
     characterName: string;
   } | null>(null);
+  const [showGameHubModal, setShowGameHubModal] = useState(false);
 
   // Hero Motivational Rewards States
   const [heroRewardModalOpen, setHeroRewardModalOpen] = useState(false);
@@ -1539,9 +1541,15 @@ export default function Home() {
                               )
                             ) : (
                               <>
-                                <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(reward.color)} 0%, transparent 100%)` }} />
-                                <div className="absolute w-28 h-28 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(reward.color)} 45deg, transparent 90deg, ${getLockedConicColors(reward.color)} 135deg, transparent 180deg, ${getLockedConicColors(reward.color)} 225deg, transparent 270deg, ${getLockedConicColors(reward.color)} 315deg, transparent 360deg)` }} />
-                                <span className={`font-extrabold text-5xl select-none animate-pulse ${getLockedQuestionMarkColor(reward.color)}`}>?</span>
+                                {reward.id === 'streak-reward-20' ? (
+                                  <img src="/images/rewards/20_locked.png" alt="Секретный Артефакт" className="w-full h-full object-contain p-1 relative z-10" />
+                                ) : (
+                                  <>
+                                    <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(reward.color)} 0%, transparent 100%)` }} />
+                                    <div className="absolute w-28 h-28 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(reward.color)} 45deg, transparent 90deg, ${getLockedConicColors(reward.color)} 135deg, transparent 180deg, ${getLockedConicColors(reward.color)} 225deg, transparent 270deg, ${getLockedConicColors(reward.color)} 315deg, transparent 360deg)` }} />
+                                    <span className={`font-extrabold text-5xl select-none animate-pulse ${getLockedQuestionMarkColor(reward.color)}`}>?</span>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>
@@ -1665,9 +1673,15 @@ export default function Home() {
                     )
                   ) : (
                     <>
-                      <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(zoomedReward.color)} 0%, transparent 100%)` }} />
-                      <div className="absolute w-36 h-36 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(zoomedReward.color)} 45deg, transparent 90deg, ${getLockedConicColors(zoomedReward.color)} 135deg, transparent 180deg, ${getLockedConicColors(zoomedReward.color)} 225deg, transparent 270deg, ${getLockedConicColors(zoomedReward.color)} 315deg, transparent 360deg)` }} />
-                      <span className={`font-extrabold text-7xl select-none animate-pulse ${getLockedQuestionMarkColor(zoomedReward.color)}`}>?</span>
+                      {zoomedReward.id === 'streak-reward-20' ? (
+                        <img src="/images/rewards/20_locked.png" alt="Секретный Артефакт" className="w-full h-full object-contain p-1 md:p-2 relative z-10" />
+                      ) : (
+                        <>
+                          <div className="absolute inset-0 animate-pulse" style={{ background: `radial-gradient(circle, ${getLockedRadialGradient(zoomedReward.color)} 0%, transparent 100%)` }} />
+                          <div className="absolute w-36 h-36 rounded-full animate-[spin_16s_linear_infinite] opacity-80" style={{ background: `conic-gradient(from 0deg, transparent 0deg, ${getLockedConicColors(zoomedReward.color)} 45deg, transparent 90deg, ${getLockedConicColors(zoomedReward.color)} 135deg, transparent 180deg, ${getLockedConicColors(zoomedReward.color)} 225deg, transparent 270deg, ${getLockedConicColors(zoomedReward.color)} 315deg, transparent 360deg)` }} />
+                          <span className={`font-extrabold text-7xl select-none animate-pulse ${getLockedQuestionMarkColor(zoomedReward.color)}`}>?</span>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -1681,6 +1695,24 @@ export default function Home() {
                     <p className="text-[11px] text-green-600 font-bold mt-2 bg-green-50 px-3 py-1 rounded-full border border-green-100 inline-block">
                       Получено раз: {streakProgress.earned?.[zoomedReward.id] || 0}
                     </p>
+
+                    {/* Streak Reward 20: 3D Game Hub Launch Button */}
+                    {zoomedReward.id === 'streak-reward-20' && (
+                      <div className="mt-4 w-full px-4">
+                        <button
+                          onClick={() => {
+                            setZoomedReward(null);
+                            setShowStreakRewardsModal(false);
+                            setShowGameHubModal(true);
+                          }}
+                          className="w-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs py-3.5 rounded-xl shadow-lg shadow-amber-500/25 transform hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <Sparkles size={16} className="text-slate-950 animate-spin" />
+                          <span>3D Игровой Портал (3 Игры) 🎮</span>
+                        </button>
+                      </div>
+                    )}
+
                     {/* Render Runner, Catcher, or Tap Reaction game launch button for supported cards */}
                     {([
                       'streak-reward-1', 'streak-reward-2', 'streak-reward-3', 'streak-reward-4',
@@ -1951,6 +1983,15 @@ export default function Home() {
         open={heroRewardModalOpen}
         reward={activeHeroReward}
         onClose={handleCloseHeroRewardModal}
+      />
+
+      {/* 3D GAME HUB MODAL */}
+      <GameHubModal
+        open={showGameHubModal}
+        onClose={() => setShowGameHubModal(false)}
+        onGameComplete={() => {
+          loadBonusGamesState();
+        }}
       />
     </div>
   );
