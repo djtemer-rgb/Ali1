@@ -66,88 +66,27 @@ const CARS: CarInfo[] = [
   },
 ];
 
-// Rich Realistic Wet Night Highway Asphalt Texture (Bold Crisp Stripes)
-function generateHighwayTextures() {
-  const roadCanvas = document.createElement("canvas");
-  roadCanvas.width = 512;
-  roadCanvas.height = 512;
-  const rCtx = roadCanvas.getContext("2d");
-  if (rCtx) {
-    // 1. Deep charcoal/navy wet asphalt base
-    rCtx.fillStyle = "#0d131d";
-    rCtx.fillRect(0, 0, 512, 512);
-
-    // 2. Wet tire sheen / glossy reflection lanes
-    const sheenGrad = rCtx.createLinearGradient(0, 0, 512, 0);
-    sheenGrad.addColorStop(0, "rgba(20, 27, 41, 0.9)");
-    sheenGrad.addColorStop(0.25, "rgba(30, 41, 59, 0.6)");
-    sheenGrad.addColorStop(0.5, "rgba(15, 23, 42, 0.9)");
-    sheenGrad.addColorStop(0.75, "rgba(30, 41, 59, 0.6)");
-    sheenGrad.addColorStop(1, "rgba(20, 27, 41, 0.9)");
-    rCtx.fillStyle = sheenGrad;
-    rCtx.fillRect(0, 0, 512, 512);
-
-    // 3. Dense realistic asphalt aggregate noise
-    for (let i = 0; i < 12000; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const shade = Math.floor(24 + Math.random() * 30);
-      rCtx.fillStyle = `rgb(${shade}, ${shade + 2}, ${shade + 6})`;
-      rCtx.fillRect(x, y, 2, 2);
-    }
-
-    // 4. Crisp, bold white dashed lane dividers (32px wide for bold high-res visibility)
-    [128, 256, 384].forEach((lx) => {
-      for (let y = 0; y < 512; y += 64) {
-        // Outer soft glow
-        rCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
-        rCtx.fillRect(lx - 16, y + 6, 32, 52);
-        // Solid pure white core
-        rCtx.fillStyle = "#ffffff";
-        rCtx.fillRect(lx - 12, y + 8, 24, 48);
-      }
-    });
-
-    // 5. Solid bright safety amber highway shoulder lines (24px wide)
-    rCtx.fillStyle = "#f59e0b";
-    rCtx.fillRect(0, 0, 22, 512);
-    rCtx.fillRect(512 - 22, 0, 22, 512);
-
-    // Inner bright yellow neon pinstripe
-    rCtx.fillStyle = "#fef08a";
-    rCtx.fillRect(16, 0, 6, 512);
-    rCtx.fillRect(512 - 22, 0, 6, 512);
-  }
-
-  const roadTex = new THREE.CanvasTexture(roadCanvas);
-  roadTex.generateMipmaps = false;
-  roadTex.minFilter = THREE.LinearFilter;
-  roadTex.magFilter = THREE.LinearFilter;
-  roadTex.wrapS = THREE.RepeatWrapping;
-  roadTex.wrapT = THREE.RepeatWrapping;
-  roadTex.repeat.set(1, 40);
-  roadTex.needsUpdate = true;
-
-  // Skyscraper window grid
+// Procedural Skyscraper Window Texture
+function generateSkyscraperTexture() {
   const bldgCanvas = document.createElement("canvas");
   bldgCanvas.width = 256;
   bldgCanvas.height = 512;
   const bCtx = bldgCanvas.getContext("2d");
   if (bCtx) {
-    bCtx.fillStyle = "#090d16";
+    bCtx.fillStyle = "#0c0a1a";
     bCtx.fillRect(0, 0, 256, 512);
 
     for (let y = 10; y < 500; y += 22) {
       for (let x = 10; x < 246; x += 18) {
         const r = Math.random();
         if (r < 0.45) {
-          bCtx.fillStyle = "#111827";
+          bCtx.fillStyle = "#16122b";
         } else if (r < 0.78) {
-          bCtx.fillStyle = "rgba(56, 189, 248, 0.95)";
-        } else if (r < 0.94) {
-          bCtx.fillStyle = "rgba(254, 240, 138, 0.95)";
+          bCtx.fillStyle = "rgba(56, 189, 248, 0.95)"; // Neon Cyan
+        } else if (r < 0.92) {
+          bCtx.fillStyle = "rgba(254, 240, 138, 0.95)"; // Warm Amber
         } else {
-          bCtx.fillStyle = "rgba(244, 63, 94, 0.9)";
+          bCtx.fillStyle = "rgba(244, 63, 94, 0.95)"; // Sunset Magenta Beacon
         }
         bCtx.fillRect(x, y, 12, 14);
       }
@@ -159,8 +98,113 @@ function generateHighwayTextures() {
   bldgTex.wrapT = THREE.RepeatWrapping;
   bldgTex.repeat.set(2, 4);
   bldgTex.needsUpdate = true;
+  return bldgTex;
+}
 
-  return { roadTex, bldgTex };
+// Procedural Twilight Crimson Sunset Sky Dome Dome Background
+function createSunsetSky() {
+  const skyCanvas = document.createElement("canvas");
+  skyCanvas.width = 512;
+  skyCanvas.height = 1024;
+  const ctx = skyCanvas.getContext("2d");
+  if (ctx) {
+    const grad = ctx.createLinearGradient(0, 0, 0, 1024);
+    grad.addColorStop(0.0, "#050512"); // Zenith Night Sky
+    grad.addColorStop(0.35, "#150d2a"); // Deep Twilight Indigo
+    grad.addColorStop(0.58, "#4a044e"); // Twilight Purple
+    grad.addColorStop(0.72, "#831843"); // Crimson Dusk
+    grad.addColorStop(0.85, "#be123c"); // Radiant Magenta Sunset
+    grad.addColorStop(0.95, "#e11d48"); // Horizon Rose Glow
+    grad.addColorStop(1.0, "#fb7185"); // Warm Sunset Horizon
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 1024);
+  }
+
+  const skyTex = new THREE.CanvasTexture(skyCanvas);
+  skyTex.wrapS = THREE.ClampToEdgeWrapping;
+  skyTex.wrapT = THREE.ClampToEdgeWrapping;
+  skyTex.needsUpdate = true;
+
+  const skyGeo = new THREE.SphereGeometry(300, 32, 24);
+  const skyMat = new THREE.MeshBasicMaterial({
+    map: skyTex,
+    side: THREE.BackSide,
+    depthWrite: false,
+  });
+  return new THREE.Mesh(skyGeo, skyMat);
+}
+
+// 3D Modular Highway Segment (Real 3D Geometry — Zero Aliasing / Zero Moire / Zero Flickering!)
+function createHighwaySegment(length: number, width: number) {
+  const segment = new THREE.Group();
+
+  // 1. Dark Wet Asphalt Deck
+  const asphaltMat = new THREE.MeshStandardMaterial({
+    color: 0x111622,
+    roughness: 0.32,
+    metalness: 0.2,
+  });
+  const asphaltGeo = new THREE.PlaneGeometry(width, length);
+  const asphaltMesh = new THREE.Mesh(asphaltGeo, asphaltMat);
+  asphaltMesh.rotation.x = -Math.PI / 2;
+  asphaltMesh.position.y = 0;
+  segment.add(asphaltMesh);
+
+  // 2. Real 3D White Dashed Lane Dividers (Divides road into 4 equal lanes at x = -2.5, 0.0, +2.5)
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const dividerXPositions = [-2.5, 0.0, 2.5];
+  const dashLength = 4.0;
+  const dashSpacing = 8.0;
+  const numDashes = Math.floor(length / dashSpacing);
+
+  const dashGeo = new THREE.PlaneGeometry(0.24, dashLength);
+  dashGeo.rotateX(-Math.PI / 2);
+
+  dividerXPositions.forEach((posX) => {
+    for (let d = 0; d < numDashes; d++) {
+      const dash = new THREE.Mesh(dashGeo, dashMat);
+      const posZ = -length / 2 + d * dashSpacing + dashSpacing / 2;
+      dash.position.set(posX, 0.005, posZ);
+      segment.add(dash);
+    }
+  });
+
+  // 3. Glowing Neon Amber Highway Shoulders
+  const shoulderMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+  const shoulderGeo = new THREE.PlaneGeometry(0.35, length);
+  shoulderGeo.rotateX(-Math.PI / 2);
+
+  const leftShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
+  leftShoulder.position.set(-width / 2 + 0.175, 0.006, 0);
+  segment.add(leftShoulder);
+
+  const rightShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
+  rightShoulder.position.set(width / 2 - 0.175, 0.006, 0);
+  segment.add(rightShoulder);
+
+  // 4. Glowing Guardrails
+  const railMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    emissive: 0xd97706,
+    emissiveIntensity: 0.9,
+    metalness: 0.9,
+    roughness: 0.15,
+  });
+  const leftRail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, length), railMat);
+  leftRail.position.set(-width / 2 - 0.175, 0.3, 0);
+  segment.add(leftRail);
+
+  const rightRail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, length), railMat);
+  rightRail.position.set(width / 2 + 0.175, 0.3, 0);
+  segment.add(rightRail);
+
+  // 5. Bridge Bed Understructure
+  const bedMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.95 });
+  const bridgeBed = new THREE.Mesh(new THREE.BoxGeometry(width + 1.2, 2.0, length), bedMat);
+  bridgeBed.position.set(0, -1.0, 0);
+  segment.add(bridgeBed);
+
+  return segment;
 }
 
 // Audio System
@@ -343,7 +387,7 @@ export default function CarHighwayGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
 
-  // Exact 4-lane centers across 10m road
+  // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
   const LANES = [-3.75, -1.25, 1.25, 3.75];
 
   const gameRef = useRef({
@@ -356,10 +400,11 @@ export default function CarHighwayGame({
     speedPenalty: 1.0, // Drops on crash to 0.45, recovers smoothly over 3s!
     targetX: 1.25,
     playerX: 1.25,
-    playerZ: -4.2, // Fully visible with plenty of margin
+    playerZ: -4.2,
     jumpY: 0,
     roadWidth: 10.0,
-    roadLength: 500,
+    segmentLength: 120,
+    roadSegments: [] as THREE.Group[],
     invincibleTimer: 0,
     items: [] as Array<{
       mesh: THREE.Object3D;
@@ -370,10 +415,10 @@ export default function CarHighwayGame({
       radius: number;
     }>,
     buildings: [] as Array<THREE.Mesh>,
-    roadTex: null as THREE.CanvasTexture | null,
     carRoot: null as THREE.Group | null,
     turntableMesh: null as THREE.Mesh | null,
     speedLines: null as THREE.LineSegments | null,
+    starPoints: null as THREE.Points | null,
     loadedModels: {} as Record<string, THREE.Object3D>,
     scene: null as THREE.Scene | null,
     camera: null as THREE.PerspectiveCamera | null,
@@ -555,19 +600,18 @@ export default function CarHighwayGame({
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
 
-    // 1. Scene
+    // 1. Scene & Atmosphere
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060913);
-    scene.fog = new THREE.FogExp2(0x0a101f, 0.007);
+    scene.fog = new THREE.FogExp2(0x380a2a, 0.005); // Twilight Crimson Sunset Fog
     gameRef.current.scene = scene;
 
     // 2. Camera
-    const camera = new THREE.PerspectiveCamera(56, width / height, 0.1, 400);
+    const camera = new THREE.PerspectiveCamera(56, width / height, 0.1, 500);
     camera.position.set(2.8, 1.8, 1.8);
     camera.lookAt(0, 0.5, -1.8);
     gameRef.current.camera = camera;
 
-    // 3. Renderer (Clean 60fps, No shadow-map glitches)
+    // 3. Renderer (Hardware MSAA antialiasing, ACES Filmic Tone Mapping)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -575,15 +619,39 @@ export default function CarHighwayGame({
     renderer.toneMappingExposure = 1.35;
     container.appendChild(renderer.domElement);
 
-    // 4. Lighting
-    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x1e1b4b, 2.2);
+    // 4. Twilight Crimson Sunset Sky & Starfield
+    const skyDome = createSunsetSky();
+    scene.add(skyDome);
+
+    // Starfield in upper night sky
+    const starCount = 800;
+    const starGeo = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      starPositions[i] = (Math.random() - 0.5) * 400;
+      starPositions[i + 1] = 40 + Math.random() * 150; // Upper sky
+      starPositions[i + 2] = (Math.random() - 0.5) * 400;
+    }
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.9,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const starPoints = new THREE.Points(starGeo, starMat);
+    scene.add(starPoints);
+    gameRef.current.starPoints = starPoints;
+
+    // 5. Lighting: Sunset Warm Key Light + Neon Ambient
+    const hemiLight = new THREE.HemisphereLight(0xf472b6, 0x1e1035, 2.2); // Pink sunset to indigo
     scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfef08a, 2.6);
-    sunLight.position.set(25, 45, -15);
-    scene.add(sunLight);
+    const sunsetSun = new THREE.DirectionalLight(0xfb923c, 2.8); // Warm sunset orange
+    sunsetSun.position.set(25, 35, -50);
+    scene.add(sunsetSun);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 2.2);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
     rimLight.position.set(-25, 20, 20);
     scene.add(rimLight);
 
@@ -593,55 +661,31 @@ export default function CarHighwayGame({
     scene.add(spotLight);
     scene.add(spotLight.target);
 
-    // 5. Seamless Wet Asphalt Highway Deck (Baked Canvas with Zero Z-Fighting)
+    // 6. Solid 3D Highway Segments (Real 3D Geometry — Zero Moire, Zero Aliasing, Zero Flickering!)
     const roadWidth = 10.0;
-    const roadLength = 500;
-    const { roadTex, bldgTex } = generateHighwayTextures();
-    gameRef.current.roadTex = roadTex;
+    const segmentLength = 120;
+    const numSegments = 3;
+    const roadSegments: THREE.Group[] = [];
 
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength);
-    const roadMat = new THREE.MeshStandardMaterial({
-      map: roadTex,
-      roughness: 0.35, // Sleek wet specular sheen
-      metalness: 0.25,
-      side: THREE.DoubleSide,
-    });
-    const roadMesh = new THREE.Mesh(roadGeo, roadMat);
-    roadMesh.rotation.x = -Math.PI / 2;
-    roadMesh.position.set(0, 0, -roadLength / 2 + 20);
-    scene.add(roadMesh);
+    for (let s = 0; s < numSegments; s++) {
+      const seg = createHighwaySegment(segmentLength, roadWidth);
+      seg.position.set(0, 0, -s * segmentLength + 20);
+      scene.add(seg);
+      roadSegments.push(seg);
+    }
+    gameRef.current.roadSegments = roadSegments;
+    gameRef.current.segmentLength = segmentLength;
 
-    // Glowing Bridge Guardrails (at x = -5.15 and +5.15)
-    const railMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.9,
-      metalness: 0.9,
-      roughness: 0.15,
-    });
-    const leftRail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, roadLength), railMat);
-    leftRail.position.set(-roadWidth / 2 - 0.175, 0.3, -roadLength / 2 + 20);
-    scene.add(leftRail);
-
-    const rightRail = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, roadLength), railMat);
-    rightRail.position.set(roadWidth / 2 + 0.175, 0.3, -roadLength / 2 + 20);
-    scene.add(rightRail);
-
-    // Concrete Bridge Understructure & Piers
-    const bridgeBedGeo = new THREE.BoxGeometry(roadWidth + 1.2, 2.0, roadLength);
-    const bridgeBedMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 });
-    const bridgeBed = new THREE.Mesh(bridgeBedGeo, bridgeBedMat);
-    bridgeBed.position.set(0, -1.0, -roadLength / 2 + 20);
-    scene.add(bridgeBed);
-
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
+    // Bridge Piers
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x141028, roughness: 0.95 });
     for (let p = 0; p < 14; p++) {
       const pier = new THREE.Mesh(new THREE.BoxGeometry(3.5, 40, 3.5), pillarMat);
       pier.position.set(0, -21.0, -p * 35);
       scene.add(pier);
     }
 
-    // Active Glowing Night Skyscrapers
+    // 7. Active Glowing Night Skyscrapers
+    const bldgTex = generateSkyscraperTexture();
     const bldgMat = new THREE.MeshStandardMaterial({
       map: bldgTex,
       emissiveMap: bldgTex,
@@ -703,7 +747,7 @@ export default function CarHighwayGame({
     scene.add(speedLines);
     gameRef.current.speedLines = speedLines;
 
-    // 6. Car Player Root
+    // 8. Car Player Root
     const carRoot = new THREE.Group();
     carRoot.position.set(0, 0.2, -1.8);
     carRoot.rotation.set(0, 0.35, 0);
@@ -712,7 +756,7 @@ export default function CarHighwayGame({
 
     switchCarModel(CARS[selectedCarIndex]);
 
-    // 7. Deterministic Obstacles & Collectibles
+    // 9. Deterministic Obstacles & Collectibles
     const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.14, 20);
     const coinMat = new THREE.MeshStandardMaterial({
       color: 0xfacc15,
@@ -787,7 +831,7 @@ export default function CarHighwayGame({
     }
     gameRef.current.items = itemsPool;
 
-    // 8. Controls
+    // 10. Controls
     let isPointerDown = false;
     let startPointerX = 0;
     let startPlayerX = 0;
@@ -850,7 +894,7 @@ export default function CarHighwayGame({
     };
     window.addEventListener("resize", onResize);
 
-    // 9. Main 60 FPS Loop
+    // 11. Main 60 FPS Loop
     const clock = new THREE.Clock();
     let animId: number;
 
@@ -873,6 +917,10 @@ export default function CarHighwayGame({
         gameRef.current.speedLines.geometry.attributes.position.needsUpdate = true;
       }
 
+      if (gameRef.current.starPoints) {
+        gameRef.current.starPoints.rotation.y = time * 0.01;
+      }
+
       if (gameRef.current.running) {
         // Smooth recovery from collision slowdown over 3.0 seconds
         if (gameRef.current.speedPenalty < 1.0) {
@@ -889,10 +937,14 @@ export default function CarHighwayGame({
 
         const moveDist = effectiveSpeed * delta;
 
-        // Smooth continuous UV texture scroll on single asphalt plane
-        if (gameRef.current.roadTex) {
-          gameRef.current.roadTex.offset.y += (effectiveSpeed / 500) * delta * 40;
-        }
+        // Move 3D Road Segments Forward Smoothly (Zero Moire, Zero Aliasing!)
+        const totalTrackLength = numSegments * segmentLength;
+        gameRef.current.roadSegments.forEach((seg) => {
+          seg.position.z += moveDist;
+          if (seg.position.z > 60) {
+            seg.position.z -= totalTrackLength;
+          }
+        });
 
         // Move active skyscrapers
         gameRef.current.buildings.forEach((bldg) => {
