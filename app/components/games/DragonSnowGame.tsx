@@ -22,7 +22,6 @@ function createWinterPineTree() {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3f2d21, roughness: 0.9 });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = 1.1;
-  trunk.castShadow = true;
   tree.add(trunk);
 
   const foliageMat = new THREE.MeshStandardMaterial({ color: 0x164e3b, roughness: 0.85, flatShading: true });
@@ -37,7 +36,6 @@ function createWinterPineTree() {
   layers.forEach((l) => {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(l.r, l.h, 7), foliageMat);
     cone.position.y = l.y;
-    cone.castShadow = true;
     tree.add(cone);
 
     const cap = new THREE.Mesh(new THREE.ConeGeometry(l.r * 0.82, l.h * 0.45, 7), snowCapMat);
@@ -153,7 +151,7 @@ class SoundEngine {
 export default function DragonSnowGame({
   onClose,
   onVictory,
-  targetScore = 300,
+  targetScore = 500, // Doubled duration for long satisfying run!
 }: DragonSnowGameProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const soundEngineRef = useRef<SoundEngine>(new SoundEngine());
@@ -179,6 +177,7 @@ export default function DragonSnowGame({
     targetX: 0,
     playerX: 0,
     playerZ: -2.0,
+    jumpY: 0,
     gullyRadius: 4.8,
     gullyDepth: 1.2,
     slopeDropRatio: 0.18,
@@ -226,6 +225,7 @@ export default function DragonSnowGame({
     gameRef.current.speed = gameRef.current.baseSpeed;
     gameRef.current.playerX = 0;
     gameRef.current.targetX = 0;
+    gameRef.current.jumpY = 0;
     gameRef.current.invincibleTimer = 0;
 
     gameRef.current.items.forEach((item, idx) => {
@@ -259,21 +259,16 @@ export default function DragonSnowGame({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.3;
     container.appendChild(renderer.domElement);
 
     // 4. Lighting
-    const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x1e3a8a, 1.8);
+    const hemiLight = new THREE.HemisphereLight(0xf0f9ff, 0x1e3a8a, 2.0);
     scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.8);
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.6);
     sunLight.position.set(25, 45, 15);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
     scene.add(sunLight);
 
     // 5. Solid Natural Downhill Snow Run Ground Mesh
@@ -340,7 +335,6 @@ export default function DragonSnowGame({
     });
     const groundMesh = new THREE.Mesh(groundGeo, groundMat);
     groundMesh.position.set(0, 0, groundZCenter);
-    groundMesh.receiveShadow = true;
     scene.add(groundMesh);
 
     // 6. Winter Pine Trees (Planted Firmly on Ground Banks)
@@ -449,18 +443,11 @@ export default function DragonSnowGame({
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 2.1 / maxDim; // slightly more compact
+        const scale = 2.1 / maxDim;
         model.scale.set(scale, scale, scale);
 
         model.position.set(-center.x * scale, -box.min.y * scale + 0.02, -center.z * scale);
         model.rotation.y = Math.PI;
-
-        model.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
 
         dragonRoot.add(model);
         setGameState("ready");
@@ -513,7 +500,6 @@ export default function DragonSnowGame({
       const gullyY = Math.pow(absX / gameRef.current.gullyRadius, 2) * gameRef.current.gullyDepth;
       const slopeY = zPos * gameRef.current.slopeDropRatio;
       rockMesh.position.set(LANES[obsLane1], slopeY + gullyY + 0.65, zPos);
-      rockMesh.castShadow = true;
       scene.add(rockMesh);
       itemsPool.push({
         mesh: rockMesh,
@@ -550,7 +536,7 @@ export default function DragonSnowGame({
     }
     gameRef.current.items = itemsPool;
 
-    // 10. Controls: Clamped strictly to outer lane limits so no player can bypass rocks
+    // 10. Controls: Clamped strictly to outer lane limits
     let isPointerDown = false;
     let startPointerX = 0;
     let startPlayerX = 0;
@@ -565,7 +551,7 @@ export default function DragonSnowGame({
       if (!isPointerDown) return;
       const deltaX = e.clientX - startPointerX;
       const sensitivity = 0.022;
-      const maxX = 3.85; // Strict clamping to 5 lanes
+      const maxX = 3.85;
       gameRef.current.targetX = THREE.MathUtils.clamp(
         startPlayerX + deltaX * sensitivity,
         -maxX,
@@ -632,7 +618,8 @@ export default function DragonSnowGame({
       }
 
       if (gameRef.current.running) {
-        const speedFactor = 1 + Math.min(gameRef.current.score / 250, 1.25);
+        // Progressive gentle speed curve (max 1.35x cap, steady comfortable duration!)
+        const speedFactor = 1 + Math.min(gameRef.current.score / 400, 0.35);
         gameRef.current.speed = gameRef.current.baseSpeed * speedFactor;
         setSpeedMultiplier(parseFloat(speedFactor.toFixed(1)));
 
@@ -642,10 +629,14 @@ export default function DragonSnowGame({
         dragonRoot.position.x = gameRef.current.playerX;
         dragonRoot.position.z = gameRef.current.playerZ;
 
+        if (gameRef.current.jumpY > 0) {
+          gameRef.current.jumpY = Math.max(0, gameRef.current.jumpY - delta * 2.2);
+        }
+
         const absX = Math.abs(gameRef.current.playerX);
         const gullyY = Math.pow(absX / gameRef.current.gullyRadius, 2) * gameRef.current.gullyDepth;
         const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
-        dragonRoot.position.y = playerSlopeY + 0.12 + gullyY + Math.sin(time * 10) * 0.03;
+        dragonRoot.position.y = playerSlopeY + 0.12 + gullyY + gameRef.current.jumpY + Math.sin(time * 10) * 0.03;
 
         const normX = gameRef.current.playerX / gameRef.current.gullyRadius;
         const bankAngle = -dx * 0.28 - normX * 0.22;
@@ -768,10 +759,9 @@ export default function DragonSnowGame({
                 item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
                 gameRef.current.invincibleTimer = 1.6;
+                gameRef.current.jumpY = 0.35; // Bouncy collision jump without permanent camera displacement!
                 soundEngineRef.current.playHit();
                 setHearts(gameRef.current.hearts);
-
-                camera.position.y += 0.3;
 
                 if (gameRef.current.hearts <= 0) {
                   gameRef.current.running = false;

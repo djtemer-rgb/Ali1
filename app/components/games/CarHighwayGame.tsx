@@ -34,7 +34,7 @@ const CARS: CarInfo[] = [
     speedStat: 98,
     handlingStat: 99,
     nitroStat: 95,
-    scale: 3.0,
+    scale: 3.1,
     rotationY: Math.PI,
     yOffset: 0.02,
   },
@@ -47,7 +47,7 @@ const CARS: CarInfo[] = [
     speedStat: 97,
     handlingStat: 95,
     nitroStat: 97,
-    scale: 3.1,
+    scale: 3.2,
     rotationY: 0,
     yOffset: 0.02,
   },
@@ -60,13 +60,13 @@ const CARS: CarInfo[] = [
     speedStat: 100,
     handlingStat: 96,
     nitroStat: 99,
-    scale: 3.1,
+    scale: 3.2,
     rotationY: 0,
     yOffset: 0.03,
   },
 ];
 
-// Single Baked 4-Lane Asphalt Road Texture (Zero Z-Fighting)
+// Single Baked 4-Lane Asphalt Road Texture (Zero Z-Fighting, Zero Shadow Glitches)
 function generateHighwayTextures() {
   const roadCanvas = document.createElement("canvas");
   roadCanvas.width = 512;
@@ -78,7 +78,7 @@ function generateHighwayTextures() {
     rCtx.fillRect(0, 0, 512, 512);
 
     // Fine asphalt grain noise
-    for (let i = 0; i < 6000; i++) {
+    for (let i = 0; i < 7000; i++) {
       const x = Math.random() * 512;
       const y = Math.random() * 512;
       const g = Math.floor(25 + Math.random() * 22);
@@ -306,7 +306,7 @@ interface CarHighwayGameProps {
 export default function CarHighwayGame({
   onClose,
   onVictory,
-  targetScore = 300,
+  targetScore = 500, // Doubled duration for long satisfying race!
 }: CarHighwayGameProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const audioSysRef = useRef<CarAudioSystem>(new CarAudioSystem());
@@ -330,11 +330,12 @@ export default function CarHighwayGame({
     score: 0,
     stars: 0,
     hearts: 3,
-    baseSpeed: 42,
-    speed: 42,
+    baseSpeed: 38,
+    speed: 38,
     targetX: 1.25,
     playerX: 1.25,
     playerZ: -4.2, // Pushed forward so 100% of car body is visible in viewport!
+    jumpY: 0,
     roadWidth: 10.0,
     roadLength: 500,
     invincibleTimer: 0,
@@ -375,6 +376,7 @@ export default function CarHighwayGame({
     }
     gameRef.current.targetX = 1.25;
     gameRef.current.playerX = 1.25;
+    gameRef.current.jumpY = 0;
 
     if (gameRef.current.turntableMesh) {
       gameRef.current.turntableMesh.visible = false;
@@ -399,6 +401,7 @@ export default function CarHighwayGame({
     gameRef.current.speed = gameRef.current.baseSpeed;
     gameRef.current.playerX = 1.25;
     gameRef.current.targetX = 1.25;
+    gameRef.current.jumpY = 0;
 
     if (gameRef.current.camera) {
       gameRef.current.camera.position.set(2.8, 1.8, 1.8);
@@ -428,6 +431,7 @@ export default function CarHighwayGame({
     gameRef.current.speed = gameRef.current.baseSpeed;
     gameRef.current.playerX = 1.25;
     gameRef.current.targetX = 1.25;
+    gameRef.current.jumpY = 0;
     gameRef.current.invincibleTimer = 0;
 
     if (gameRef.current.camera) {
@@ -491,8 +495,6 @@ export default function CarHighwayGame({
 
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
             if (mat && car.id === "lambo") {
               mat.roughness = 0.22;
@@ -531,7 +533,7 @@ export default function CarHighwayGame({
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060913);
-    scene.fog = new THREE.FogExp2(0x0a101f, 0.01);
+    scene.fog = new THREE.FogExp2(0x0a101f, 0.008);
     gameRef.current.scene = scene;
 
     // 2. Camera
@@ -540,32 +542,27 @@ export default function CarHighwayGame({
     camera.lookAt(0, 0.5, -1.8);
     gameRef.current.camera = camera;
 
-    // 3. Renderer
+    // 3. Renderer (Clean 60fps, No shadow-map stair-stepping glitches)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
     container.appendChild(renderer.domElement);
 
     // 4. Lighting
-    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x1e1b4b, 2.0);
+    const hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x1e1b4b, 2.2);
     scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfef08a, 3.2);
+    const sunLight = new THREE.DirectionalLight(0xfef08a, 2.6);
     sunLight.position.set(25, 45, -15);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
     scene.add(sunLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 2.4);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 2.2);
     rimLight.position.set(-25, 20, 20);
     scene.add(rimLight);
 
-    const spotLight = new THREE.SpotLight(0xffffff, 5.0, 30, Math.PI / 4, 0.3);
+    const spotLight = new THREE.SpotLight(0xffffff, 4.0, 30, Math.PI / 4, 0.3);
     spotLight.position.set(0, 12, -1.8);
     spotLight.target.position.set(0, 0, -1.8);
     scene.add(spotLight);
@@ -587,7 +584,6 @@ export default function CarHighwayGame({
     const roadMesh = new THREE.Mesh(roadGeo, roadMat);
     roadMesh.rotation.x = -Math.PI / 2;
     roadMesh.position.set(0, 0, -roadLength / 2 + 20);
-    roadMesh.receiveShadow = true;
     scene.add(roadMesh);
 
     // Glowing Bridge Guardrails (at x = -5.15 and +5.15)
@@ -730,7 +726,6 @@ export default function CarHighwayGame({
 
       const barrierMesh = new THREE.Mesh(barrierGeo, barrierMat);
       barrierMesh.position.set(LANES[obstacleLane1], 0.45, zPos);
-      barrierMesh.castShadow = true;
       scene.add(barrierMesh);
       itemsPool.push({
         mesh: barrierMesh,
@@ -854,7 +849,8 @@ export default function CarHighwayGame({
       }
 
       if (gameRef.current.running) {
-        const speedFactor = 1 + Math.min(gameRef.current.score / 220, 1.4);
+        // Progressive gentle speed curve (max 1.35x cap, steady comfortable duration!)
+        const speedFactor = 1 + Math.min(gameRef.current.score / 400, 0.35);
         gameRef.current.speed = gameRef.current.baseSpeed * speedFactor;
         setSpeedMultiplier(parseFloat(speedFactor.toFixed(1)));
         audioSysRef.current.updateEnginePitch(speedFactor);
@@ -880,10 +876,15 @@ export default function CarHighwayGame({
         carRoot.position.x = gameRef.current.playerX;
         carRoot.position.z = gameRef.current.playerZ;
 
+        // Jump impulse decay
+        if (gameRef.current.jumpY > 0) {
+          gameRef.current.jumpY = Math.max(0, gameRef.current.jumpY - delta * 2.2);
+        }
+
         const steerRoll = -dx * 0.18;
         carRoot.rotation.z = THREE.MathUtils.lerp(carRoot.rotation.z, steerRoll, delta * 14);
         carRoot.rotation.y = THREE.MathUtils.lerp(carRoot.rotation.y, dx * 0.15, delta * 12);
-        carRoot.position.y = 0.04 + Math.sin(time * 30) * 0.008;
+        carRoot.position.y = 0.04 + gameRef.current.jumpY + Math.sin(time * 30) * 0.008;
 
         if (gameRef.current.invincibleTimer > 0) {
           gameRef.current.invincibleTimer -= delta;
@@ -945,10 +946,9 @@ export default function CarHighwayGame({
                 item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
                 gameRef.current.invincibleTimer = 1.6;
+                gameRef.current.jumpY = 0.35; // Nice bouncy collision jump that smoothly settles back down!
                 audioSysRef.current.playCrash();
                 setHearts(gameRef.current.hearts);
-
-                camera.position.y += 0.35;
 
                 if (gameRef.current.hearts <= 0) {
                   gameRef.current.running = false;
@@ -1178,7 +1178,7 @@ export default function CarHighwayGame({
         )}
       </AnimatePresence>
 
-      {/* GAME OVER MODAL (WIDE, SPACIOUS, MATCHES DESIGN SYSTEM) */}
+      {/* GAME OVER MODAL */}
       <AnimatePresence>
         {gameState === "gameover" && (
           <motion.div
