@@ -166,7 +166,8 @@ export default function DragonSnowGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
 
-  const LANES = [-2.8, -1.4, 0, 1.4, 2.8];
+  // 5 full-width playable lanes covering [-3.8 .. +3.8]
+  const LANES = [-3.8, -1.9, 0, 1.9, 3.8];
 
   const gameRef = useRef({
     running: false,
@@ -178,9 +179,9 @@ export default function DragonSnowGame({
     targetX: 0,
     playerX: 0,
     playerZ: -2.0,
-    gullyRadius: 5.2,
+    gullyRadius: 4.8,
     gullyDepth: 1.2,
-    slopeDropRatio: 0.18, // gentle natural downhill slope
+    slopeDropRatio: 0.18,
     invincibleTimer: 0,
     items: [] as Array<{
       mesh: THREE.Object3D;
@@ -249,7 +250,7 @@ export default function DragonSnowGame({
     scene.background = new THREE.Color(0x7ec0ee);
     scene.fog = new THREE.FogExp2(0x9bd0f5, 0.007);
 
-    // 2. Camera: Balanced 3rd person perspective overlooking the dragon and the ski run ahead
+    // 2. Camera: Balanced 3rd person perspective overlooking the dragon
     const camera = new THREE.PerspectiveCamera(54, width / height, 0.1, 400);
     camera.position.set(0, 3.4, 4.2);
     camera.lookAt(0, -0.6, -18.0);
@@ -279,21 +280,18 @@ export default function DragonSnowGame({
     const groundWidth = 36;
     const groundLength = 400;
     const groundGeo = new THREE.PlaneGeometry(groundWidth, groundLength, 32, 80);
-    groundGeo.rotateX(-Math.PI / 2); // Local X left/right, Local Z is forward/back
+    groundGeo.rotateX(-Math.PI / 2);
 
-    // Position mesh centered along track
     const groundZCenter = -groundLength / 2 + 10;
     const pos = groundGeo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const vx = pos.getX(i);
-      const vz = pos.getZ(i); // ranges from -200 to +200
-      const worldZ = vz + groundZCenter; // ranges from -390 to +10
+      const vz = pos.getZ(i);
+      const worldZ = vz + groundZCenter;
       const absX = Math.abs(vx);
 
-      // Downhill slope (Z goes negative -> Y goes negative)
       const slopeY = worldZ * gameRef.current.slopeDropRatio;
 
-      // Sculpted Gully
       let gullyY = 0;
       if (absX < gameRef.current.gullyRadius) {
         gullyY = Math.pow(absX / gameRef.current.gullyRadius, 2) * gameRef.current.gullyDepth;
@@ -306,7 +304,6 @@ export default function DragonSnowGame({
     }
     groundGeo.computeVertexNormals();
 
-    // Procedural Snow Trail Texture
     const snowCanvas = document.createElement("canvas");
     snowCanvas.width = 512;
     snowCanvas.height = 512;
@@ -315,7 +312,6 @@ export default function DragonSnowGame({
       sCtx.fillStyle = "#e0f2fe";
       sCtx.fillRect(0, 0, 512, 512);
 
-      // Powder noise
       for (let i = 0; i < 4000; i++) {
         const x = Math.random() * 512;
         const y = Math.random() * 512;
@@ -353,7 +349,7 @@ export default function DragonSnowGame({
     for (let i = 0; i < numTrees; i++) {
       const tree = createWinterPineTree();
       const isRight = i % 2 === 0;
-      const x = isRight ? 8.2 + (i % 3) * 2.5 : -8.2 - (i % 3) * 2.5;
+      const x = isRight ? 7.8 + (i % 3) * 2.5 : -7.8 - (i % 3) * 2.5;
       const z = -Math.floor(i / 2) * 16 - Math.random() * 4;
 
       const slopeY = z * gameRef.current.slopeDropRatio;
@@ -419,18 +415,17 @@ export default function DragonSnowGame({
     scene.add(ambientSnow);
     gameRef.current.ambientSnow = ambientSnow;
 
-    // 8. Player: Dragon Root
+    // 8. Player: Dragon Root (Leaning forward onto paws/feet)
     const dragonRoot = new THREE.Group();
     const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
-    dragonRoot.position.set(0, playerSlopeY + 0.15, gameRef.current.playerZ);
-    // Slight forward pitch aligned with downhill slope
-    dragonRoot.rotation.x = 0.14;
+    dragonRoot.position.set(0, playerSlopeY + 0.12, gameRef.current.playerZ);
+    dragonRoot.rotation.x = 0.35; // Leaning forward into snow!
     scene.add(dragonRoot);
     gameRef.current.dragonRoot = dragonRoot;
 
     // Frost glow ring
     const frostRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.4, 0.65, 20),
+      new THREE.RingGeometry(0.35, 0.55, 20),
       new THREE.MeshBasicMaterial({
         color: 0x38bdf8,
         transparent: true,
@@ -442,7 +437,7 @@ export default function DragonSnowGame({
     frostRing.position.y = 0.02;
     dragonRoot.add(frostRing);
 
-    // Load full 3D Dragon Model
+    // Load full 3D Dragon Model (Compact scale)
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
 
@@ -454,7 +449,7 @@ export default function DragonSnowGame({
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 2.4 / maxDim;
+        const scale = 2.1 / maxDim; // slightly more compact
         model.scale.set(scale, scale, scale);
 
         model.position.set(-center.x * scale, -box.min.y * scale + 0.02, -center.z * scale);
@@ -477,7 +472,7 @@ export default function DragonSnowGame({
       }
     );
 
-    // 9. Deterministic Solvable Track Rows
+    // 9. Deterministic Solvable Track Rows (Covering all 5 full lanes)
     const starGeo = new THREE.OctahedronGeometry(0.45, 0);
     const starMat = new THREE.MeshStandardMaterial({
       color: 0xfacc15,
@@ -510,7 +505,7 @@ export default function DragonSnowGame({
       const zPos = -25 - r * 25;
 
       const obsLane1 = Math.floor(Math.random() * LANES.length);
-      const spawnSecond = Math.random() < 0.35;
+      const spawnSecond = Math.random() < 0.4;
       const obsLane2 = spawnSecond ? (obsLane1 + 2) % LANES.length : -1;
 
       const rockMesh = new THREE.Mesh(rockGeo, rockMat);
@@ -555,7 +550,7 @@ export default function DragonSnowGame({
     }
     gameRef.current.items = itemsPool;
 
-    // 10. Controls: Lane-Snapped Keyboard + Smooth Pointer
+    // 10. Controls: Clamped strictly to outer lane limits so no player can bypass rocks
     let isPointerDown = false;
     let startPointerX = 0;
     let startPlayerX = 0;
@@ -570,7 +565,7 @@ export default function DragonSnowGame({
       if (!isPointerDown) return;
       const deltaX = e.clientX - startPointerX;
       const sensitivity = 0.022;
-      const maxX = gameRef.current.gullyRadius - 0.5;
+      const maxX = 3.85; // Strict clamping to 5 lanes
       gameRef.current.targetX = THREE.MathUtils.clamp(
         startPlayerX + deltaX * sensitivity,
         -maxX,
@@ -650,13 +645,13 @@ export default function DragonSnowGame({
         const absX = Math.abs(gameRef.current.playerX);
         const gullyY = Math.pow(absX / gameRef.current.gullyRadius, 2) * gameRef.current.gullyDepth;
         const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
-        dragonRoot.position.y = playerSlopeY + 0.15 + gullyY + Math.sin(time * 10) * 0.03;
+        dragonRoot.position.y = playerSlopeY + 0.12 + gullyY + Math.sin(time * 10) * 0.03;
 
         const normX = gameRef.current.playerX / gameRef.current.gullyRadius;
-        const bankAngle = -dx * 0.28 - normX * 0.25;
+        const bankAngle = -dx * 0.28 - normX * 0.22;
         dragonRoot.rotation.z = THREE.MathUtils.lerp(dragonRoot.rotation.z, bankAngle, delta * 12);
         dragonRoot.rotation.y = THREE.MathUtils.lerp(dragonRoot.rotation.y, dx * 0.16, delta * 10);
-        dragonRoot.rotation.x = 0.14;
+        dragonRoot.rotation.x = 0.35; // Firmly on paws/feet!
 
         // Dynamic snow carving plume
         const spawnCount = Math.abs(dx) > 0.05 ? 3 : 1;

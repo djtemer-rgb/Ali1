@@ -34,7 +34,7 @@ const CARS: CarInfo[] = [
     speedStat: 98,
     handlingStat: 99,
     nitroStat: 95,
-    scale: 3.2,
+    scale: 3.0,
     rotationY: Math.PI,
     yOffset: 0.02,
   },
@@ -47,7 +47,7 @@ const CARS: CarInfo[] = [
     speedStat: 97,
     handlingStat: 95,
     nitroStat: 97,
-    scale: 3.3,
+    scale: 3.1,
     rotationY: 0,
     yOffset: 0.02,
   },
@@ -60,11 +60,87 @@ const CARS: CarInfo[] = [
     speedStat: 100,
     handlingStat: 96,
     nitroStat: 99,
-    scale: 3.3,
+    scale: 3.1,
     rotationY: 0,
     yOffset: 0.03,
   },
 ];
+
+// Single Baked 4-Lane Asphalt Road Texture (Zero Z-Fighting)
+function generateHighwayTextures() {
+  const roadCanvas = document.createElement("canvas");
+  roadCanvas.width = 512;
+  roadCanvas.height = 512;
+  const rCtx = roadCanvas.getContext("2d");
+  if (rCtx) {
+    // Base dark asphalt
+    rCtx.fillStyle = "#1e293b";
+    rCtx.fillRect(0, 0, 512, 512);
+
+    // Fine asphalt grain noise
+    for (let i = 0; i < 6000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      const g = Math.floor(25 + Math.random() * 22);
+      rCtx.fillStyle = `rgb(${g}, ${g + 3}, ${g + 7})`;
+      rCtx.fillRect(x, y, 1.5, 1.5);
+    }
+
+    // 4 equal lanes: Dividers at 25%, 50%, 75% (128px, 256px, 384px)
+    rCtx.fillStyle = "#ffffff";
+    [128, 256, 384].forEach((lx) => {
+      for (let y = 0; y < 512; y += 64) {
+        rCtx.fillRect(lx - 4, y + 10, 8, 44);
+      }
+    });
+
+    // Solid bright amber shoulder lines
+    rCtx.fillStyle = "#f59e0b";
+    rCtx.fillRect(4, 0, 10, 512);
+    rCtx.fillRect(512 - 14, 0, 10, 512);
+  }
+
+  const roadTex = new THREE.CanvasTexture(roadCanvas);
+  roadTex.wrapS = THREE.RepeatWrapping;
+  roadTex.wrapT = THREE.RepeatWrapping;
+  roadTex.repeat.set(1, 45);
+  roadTex.anisotropy = 8;
+  roadTex.needsUpdate = true;
+
+  // Skyscraper window grid
+  const bldgCanvas = document.createElement("canvas");
+  bldgCanvas.width = 256;
+  bldgCanvas.height = 512;
+  const bCtx = bldgCanvas.getContext("2d");
+  if (bCtx) {
+    bCtx.fillStyle = "#090d16";
+    bCtx.fillRect(0, 0, 256, 512);
+
+    for (let y = 10; y < 500; y += 22) {
+      for (let x = 10; x < 246; x += 18) {
+        const r = Math.random();
+        if (r < 0.45) {
+          bCtx.fillStyle = "#111827";
+        } else if (r < 0.78) {
+          bCtx.fillStyle = "rgba(56, 189, 248, 0.95)"; // Neon Cyan
+        } else if (r < 0.94) {
+          bCtx.fillStyle = "rgba(254, 240, 138, 0.95)"; // Warm Amber
+        } else {
+          bCtx.fillStyle = "rgba(244, 63, 94, 0.9)"; // Red beacon
+        }
+        bCtx.fillRect(x, y, 12, 14);
+      }
+    }
+  }
+
+  const bldgTex = new THREE.CanvasTexture(bldgCanvas);
+  bldgTex.wrapS = THREE.RepeatWrapping;
+  bldgTex.wrapT = THREE.RepeatWrapping;
+  bldgTex.repeat.set(2, 4);
+  bldgTex.needsUpdate = true;
+
+  return { roadTex, bldgTex };
+}
 
 // Audio System
 class CarAudioSystem {
@@ -254,12 +330,13 @@ export default function CarHighwayGame({
     score: 0,
     stars: 0,
     hearts: 3,
-    baseSpeed: 38,
-    speed: 38,
+    baseSpeed: 42,
+    speed: 42,
     targetX: 1.25,
     playerX: 1.25,
-    playerZ: -2.5,
+    playerZ: -4.2, // Pushed forward so 100% of car body is visible in viewport!
     roadWidth: 10.0,
+    roadLength: 500,
     invincibleTimer: 0,
     items: [] as Array<{
       mesh: THREE.Object3D;
@@ -269,8 +346,8 @@ export default function CarHighwayGame({
       collected: boolean;
       radius: number;
     }>,
-    laneMarkings: [] as Array<THREE.Mesh>,
     buildings: [] as Array<THREE.Mesh>,
+    roadTex: null as THREE.CanvasTexture | null,
     carRoot: null as THREE.Group | null,
     turntableMesh: null as THREE.Mesh | null,
     speedLines: null as THREE.LineSegments | null,
@@ -288,8 +365,8 @@ export default function CarHighwayGame({
     if (!gameRef.current.carRoot) return;
 
     if (gameRef.current.camera) {
-      gameRef.current.camera.position.set(0, 3.5, 3.2);
-      gameRef.current.camera.lookAt(0, 0.6, -25.0);
+      gameRef.current.camera.position.set(0, 3.4, 2.5);
+      gameRef.current.camera.lookAt(0, 0.5, -25.0);
     }
 
     if (gameRef.current.carRoot) {
@@ -354,8 +431,8 @@ export default function CarHighwayGame({
     gameRef.current.invincibleTimer = 0;
 
     if (gameRef.current.camera) {
-      gameRef.current.camera.position.set(0, 3.5, 3.2);
-      gameRef.current.camera.lookAt(0, 0.6, -25.0);
+      gameRef.current.camera.position.set(0, 3.4, 2.5);
+      gameRef.current.camera.lookAt(0, 0.5, -25.0);
     }
 
     if (gameRef.current.carRoot) {
@@ -494,15 +571,17 @@ export default function CarHighwayGame({
     scene.add(spotLight);
     scene.add(spotLight.target);
 
-    // 5. Solid Asphalt Highway Deck
+    // 5. Seamless Asphalt Highway Deck (Baked Canvas with Zero Z-Fighting)
     const roadWidth = 10.0;
     const roadLength = 500;
+    const { roadTex, bldgTex } = generateHighwayTextures();
+    gameRef.current.roadTex = roadTex;
 
     const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength);
     const roadMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.8,
-      metalness: 0.2,
+      map: roadTex,
+      roughness: 0.75,
+      metalness: 0.25,
       side: THREE.DoubleSide,
     });
     const roadMesh = new THREE.Mesh(roadGeo, roadMat);
@@ -510,23 +589,6 @@ export default function CarHighwayGame({
     roadMesh.position.set(0, 0, -roadLength / 2 + 20);
     roadMesh.receiveShadow = true;
     scene.add(roadMesh);
-
-    // Explicit 3D Dashed Lane Markings along the 3 dividers (-2.5, 0.0, +2.5)
-    const laneMarkingsList: THREE.Mesh[] = [];
-    const dashGeo = new THREE.BoxGeometry(0.18, 0.02, 3.5);
-    const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const dividers = [-2.5, 0.0, 2.5];
-
-    for (let d = 0; d < dividers.length; d++) {
-      const divX = dividers[d];
-      for (let z = 15; z > -480; z -= 7.5) {
-        const dash = new THREE.Mesh(dashGeo, dashMat);
-        dash.position.set(divX, 0.015, z);
-        scene.add(dash);
-        laneMarkingsList.push(dash);
-      }
-    }
-    gameRef.current.laneMarkings = laneMarkingsList;
 
     // Glowing Bridge Guardrails (at x = -5.15 and +5.15)
     const railMat = new THREE.MeshStandardMaterial({
@@ -558,38 +620,7 @@ export default function CarHighwayGame({
       scene.add(pier);
     }
 
-    // Active Glowing Skyscraper Metropolis City
-    const bldgCanvas = document.createElement("canvas");
-    bldgCanvas.width = 256;
-    bldgCanvas.height = 512;
-    const bCtx = bldgCanvas.getContext("2d");
-    if (bCtx) {
-      bCtx.fillStyle = "#090d16";
-      bCtx.fillRect(0, 0, 256, 512);
-
-      for (let y = 10; y < 500; y += 22) {
-        for (let x = 10; x < 246; x += 18) {
-          const r = Math.random();
-          if (r < 0.45) {
-            bCtx.fillStyle = "#111827"; // Dark window
-          } else if (r < 0.78) {
-            bCtx.fillStyle = "rgba(56, 189, 248, 0.95)"; // Neon Cyan
-          } else if (r < 0.94) {
-            bCtx.fillStyle = "rgba(254, 240, 138, 0.95)"; // Warm Amber
-          } else {
-            bCtx.fillStyle = "rgba(244, 63, 94, 0.9)"; // Red beacon
-          }
-          bCtx.fillRect(x, y, 12, 14);
-        }
-      }
-    }
-
-    const bldgTex = new THREE.CanvasTexture(bldgCanvas);
-    bldgTex.wrapS = THREE.RepeatWrapping;
-    bldgTex.wrapT = THREE.RepeatWrapping;
-    bldgTex.repeat.set(2, 4);
-    bldgTex.needsUpdate = true;
-
+    // Active Glowing Skyscrapers (Strictly outside road boundaries: |x| >= 14.0)
     const bldgMat = new THREE.MeshStandardMaterial({
       map: bldgTex,
       emissiveMap: bldgTex,
@@ -830,13 +861,10 @@ export default function CarHighwayGame({
 
         const moveDist = gameRef.current.speed * delta;
 
-        // Move 3D Dashed Lane Markings towards camera
-        gameRef.current.laneMarkings.forEach((dash) => {
-          dash.position.z += moveDist;
-          if (dash.position.z > 20) {
-            dash.position.z -= 495;
-          }
-        });
+        // Smooth continuous UV texture scroll on single asphalt plane (ZERO Z-fighting)
+        if (gameRef.current.roadTex) {
+          gameRef.current.roadTex.offset.y += (gameRef.current.speed / 500) * delta * 45;
+        }
 
         // Move active skyscrapers
         gameRef.current.buildings.forEach((bldg) => {
