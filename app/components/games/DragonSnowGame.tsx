@@ -165,7 +165,7 @@ export default function DragonSnowGame({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   // 5 full-width playable lanes covering [-3.8 .. +3.8]
-  const LANES = [-3.8, -1.9, 0, 1.9, 3.8];
+  const LANES = [-4.5, -1.5, 1.5, 4.5];
 
   const gameRef = useRef({
     running: false,
@@ -254,7 +254,7 @@ export default function DragonSnowGame({
 
     // 2. Camera: Balanced 3rd person perspective overlooking the dragon
     const camera = new THREE.PerspectiveCamera(54, width / height, 0.1, 400);
-    camera.position.set(0, 3.4, 4.2);
+    camera.position.set(0, 3.0, 4.5);
     camera.lookAt(0, -0.6, -18.0);
 
     // 3. Renderer
@@ -414,8 +414,8 @@ export default function DragonSnowGame({
     // 8. Player: Dragon Root (Leaning forward onto paws/feet)
     const dragonRoot = new THREE.Group();
     const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
-    dragonRoot.position.set(0, playerSlopeY + 0.12, gameRef.current.playerZ);
-    dragonRoot.rotation.x = 0.35;
+    dragonRoot.position.set(0, playerSlopeY + 0.05, gameRef.current.playerZ);
+    dragonRoot.rotation.x = -0.05;
     scene.add(dragonRoot);
     gameRef.current.dragonRoot = dragonRoot;
 
@@ -480,7 +480,7 @@ export default function DragonSnowGame({
       roughness: 0.05,
     });
 
-    const rockGeo = new THREE.DodecahedronGeometry(0.75, 1);
+    const rockGeo = new THREE.DodecahedronGeometry(0.9, 0);
     const rockMat = new THREE.MeshStandardMaterial({
       color: 0x475569,
       roughness: 0.85,
@@ -553,7 +553,7 @@ export default function DragonSnowGame({
       if (!isPointerDown) return;
       const deltaX = e.clientX - startPointerX;
       const sensitivity = 0.022;
-      const maxX = 3.85;
+      const maxX = 4.5;
       gameRef.current.targetX = THREE.MathUtils.clamp(
         startPlayerX + deltaX * sensitivity,
         -maxX,
@@ -644,13 +644,13 @@ export default function DragonSnowGame({
         const absX = Math.abs(gameRef.current.playerX);
         const gullyY = Math.pow(absX / gameRef.current.gullyRadius, 2) * gameRef.current.gullyDepth;
         const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
-        dragonRoot.position.y = playerSlopeY + 0.12 + gullyY + gameRef.current.jumpY + Math.sin(time * 10) * 0.03;
+        dragonRoot.position.y = playerSlopeY + 0.05 + gullyY + gameRef.current.jumpY + Math.sin(time * 10) * 0.03;
 
         const normX = gameRef.current.playerX / gameRef.current.gullyRadius;
         const bankAngle = -dx * 0.28 - normX * 0.22;
         dragonRoot.rotation.z = THREE.MathUtils.lerp(dragonRoot.rotation.z, bankAngle, delta * 12);
         dragonRoot.rotation.y = THREE.MathUtils.lerp(dragonRoot.rotation.y, dx * 0.16, delta * 10);
-        dragonRoot.rotation.x = 0.35;
+        dragonRoot.rotation.x = -0.05;
 
         // Dynamic snow carving plume
         const spawnCount = Math.abs(dx) > 0.05 ? 3 : 1;
@@ -992,13 +992,22 @@ export default function DragonSnowGame({
               </p>
             </div>
 
-            <button
-              onClick={handleRestart}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 font-black text-sm text-white flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 active:scale-95 transition-all cursor-pointer"
-            >
-              <RotateCcw size={18} />
-              <span>Попробовать снова</span>
-            </button>
+            <div className="flex gap-3 w-full mt-2">
+              <button
+                onClick={handleRestart}
+                className="flex-1 h-14 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 font-black text-sm text-white flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 active:scale-95 transition-all cursor-pointer"
+              >
+                <RotateCcw size={18} />
+                <span>Попробовать снова</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-14 h-14 shrink-0 rounded-2xl bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md border border-rose-400/40 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 cursor-pointer"
+                aria-label="Выйти"
+              >
+                <X size={22} strokeWidth={2.5} />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

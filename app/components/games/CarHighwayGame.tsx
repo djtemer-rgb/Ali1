@@ -1302,17 +1302,26 @@ export default function CarHighwayGame({
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
-              <button
-                onClick={handleRestartRace}
-                className="flex-1 h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all cursor-pointer"
-              >
-                <RotateCcw size={18} />
-                <span>Попробовать снова</span>
-              </button>
+            <div className="flex flex-col w-full mt-2 gap-3">
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={handleRestartRace}
+                  className="flex-1 h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 active:scale-95 transition-all cursor-pointer"
+                >
+                  <RotateCcw size={18} />
+                  <span>Попробовать снова</span>
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-14 h-14 shrink-0 rounded-2xl bg-rose-600/80 hover:bg-rose-600 backdrop-blur-md border border-rose-400/40 text-white flex items-center justify-center transition-all shadow-lg active:scale-95 cursor-pointer"
+                  aria-label="Выйти"
+                >
+                  <X size={22} strokeWidth={2.5} />
+                </button>
+              </div>
               <button
                 onClick={handleBackToGarage}
-                className="flex-1 h-14 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold text-xs sm:text-sm text-white flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer"
+                className="w-full h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 font-bold text-xs text-white flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer"
               >
                 <span>В гараж 🏎️</span>
               </button>
