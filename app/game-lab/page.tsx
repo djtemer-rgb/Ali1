@@ -16,7 +16,7 @@ export default function GameLabPage() {
       {/* DIRECT DRAGON 3D GAME */}
       {activeTest === "direct-dragon" && (
         <DragonSnowGame
-          targetScore={300}
+          targetScore={600}
           onClose={() => setActiveTest("none")}
           onVictory={(score, stars) => {
             setLastResult({ score, stars });
@@ -27,7 +27,7 @@ export default function GameLabPage() {
       {/* DIRECT CAR HIGHWAY 3D GAME */}
       {activeTest === "direct-car" && (
         <CarHighwayGame
-          targetScore={300}
+          targetScore={600}
           onClose={() => setActiveTest("none")}
           onVictory={(score, stars) => {
             setLastResult({ score, stars });

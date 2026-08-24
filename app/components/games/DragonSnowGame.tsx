@@ -151,7 +151,7 @@ class SoundEngine {
 export default function DragonSnowGame({
   onClose,
   onVictory,
-  targetScore = 500, // Doubled duration for long satisfying run!
+  targetScore = 600, // Doubled duration for long satisfying run!
 }: DragonSnowGameProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const soundEngineRef = useRef<SoundEngine>(new SoundEngine());
@@ -172,8 +172,9 @@ export default function DragonSnowGame({
     score: 0,
     stars: 0,
     hearts: 3,
-    baseSpeed: 30,
-    speed: 30,
+    baseSpeed: 28,
+    speed: 28,
+    speedPenalty: 1.0, // Slows on hit, recovers over 3s!
     targetX: 0,
     playerX: 0,
     playerZ: -2.0,
@@ -223,6 +224,7 @@ export default function DragonSnowGame({
     gameRef.current.stars = 0;
     gameRef.current.hearts = 3;
     gameRef.current.speed = gameRef.current.baseSpeed;
+    gameRef.current.speedPenalty = 1.0;
     gameRef.current.playerX = 0;
     gameRef.current.targetX = 0;
     gameRef.current.jumpY = 0;
@@ -337,7 +339,7 @@ export default function DragonSnowGame({
     groundMesh.position.set(0, 0, groundZCenter);
     scene.add(groundMesh);
 
-    // 6. Winter Pine Trees (Planted Firmly on Ground Banks)
+    // 6. Winter Pine Trees
     const treesList: THREE.Group[] = [];
     const numTrees = 32;
     for (let i = 0; i < numTrees; i++) {
@@ -413,7 +415,7 @@ export default function DragonSnowGame({
     const dragonRoot = new THREE.Group();
     const playerSlopeY = gameRef.current.playerZ * gameRef.current.slopeDropRatio;
     dragonRoot.position.set(0, playerSlopeY + 0.12, gameRef.current.playerZ);
-    dragonRoot.rotation.x = 0.35; // Leaning forward into snow!
+    dragonRoot.rotation.x = 0.35;
     scene.add(dragonRoot);
     gameRef.current.dragonRoot = dragonRoot;
 
@@ -459,7 +461,7 @@ export default function DragonSnowGame({
       }
     );
 
-    // 9. Deterministic Solvable Track Rows (Covering all 5 full lanes)
+    // 9. Deterministic Solvable Track Rows (5 full lanes)
     const starGeo = new THREE.OctahedronGeometry(0.45, 0);
     const starMat = new THREE.MeshStandardMaterial({
       color: 0xfacc15,
@@ -618,10 +620,16 @@ export default function DragonSnowGame({
       }
 
       if (gameRef.current.running) {
-        // Progressive gentle speed curve (max 1.35x cap, steady comfortable duration!)
-        const speedFactor = 1 + Math.min(gameRef.current.score / 400, 0.35);
-        gameRef.current.speed = gameRef.current.baseSpeed * speedFactor;
-        setSpeedMultiplier(parseFloat(speedFactor.toFixed(1)));
+        // Slowdown recovery over 3.0s after hitting rock
+        if (gameRef.current.speedPenalty < 1.0) {
+          gameRef.current.speedPenalty = Math.min(1.0, gameRef.current.speedPenalty + delta * 0.22);
+        }
+
+        // Progressive gentle speed curve: 1.0x -> max 1.30x over 600 points (2x longer duration!)
+        const speedFactor = 1.0 + Math.min(gameRef.current.score / 500, 0.3);
+        const effectiveSpeed = gameRef.current.baseSpeed * speedFactor * gameRef.current.speedPenalty;
+        gameRef.current.speed = effectiveSpeed;
+        setSpeedMultiplier(parseFloat((speedFactor * gameRef.current.speedPenalty).toFixed(1)));
 
         // Smooth Movement across gully
         const dx = gameRef.current.targetX - gameRef.current.playerX;
@@ -642,7 +650,7 @@ export default function DragonSnowGame({
         const bankAngle = -dx * 0.28 - normX * 0.22;
         dragonRoot.rotation.z = THREE.MathUtils.lerp(dragonRoot.rotation.z, bankAngle, delta * 12);
         dragonRoot.rotation.y = THREE.MathUtils.lerp(dragonRoot.rotation.y, dx * 0.16, delta * 10);
-        dragonRoot.rotation.x = 0.35; // Firmly on paws/feet!
+        dragonRoot.rotation.x = 0.35;
 
         // Dynamic snow carving plume
         const spawnCount = Math.abs(dx) > 0.05 ? 3 : 1;
@@ -690,7 +698,7 @@ export default function DragonSnowGame({
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, gameRef.current.playerX * 0.3, delta * 6);
 
         // Move winter trees dynamically along the slope
-        const moveDist = gameRef.current.speed * delta;
+        const moveDist = effectiveSpeed * delta;
         gameRef.current.trees.forEach((tree) => {
           tree.position.z += moveDist;
           const slopeY = tree.position.z * gameRef.current.slopeDropRatio;
@@ -758,8 +766,9 @@ export default function DragonSnowGame({
                 item.collected = true;
                 item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
-                gameRef.current.invincibleTimer = 1.6;
-                gameRef.current.jumpY = 0.35; // Bouncy collision jump without permanent camera displacement!
+                gameRef.current.invincibleTimer = 3.0; // 3 seconds invincibility
+                gameRef.current.speedPenalty = 0.5; // Slow down to 50% on hit then recover!
+                gameRef.current.jumpY = 0.35; // Bouncy collision jump
                 soundEngineRef.current.playHit();
                 setHearts(gameRef.current.hearts);
 

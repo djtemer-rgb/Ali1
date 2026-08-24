@@ -27,7 +27,7 @@ export default function GameHubModal({
       {/* ACTIVE 3D DRAGON GAME */}
       {activeGameId === "dragon-snow" && (
         <DragonSnowGame
-          targetScore={300}
+          targetScore={600}
           onClose={() => setActiveGameId(null)}
           onVictory={(score, stars) => {
             if (onGameComplete) onGameComplete("dragon-snow", score, stars);
@@ -38,7 +38,7 @@ export default function GameHubModal({
       {/* ACTIVE 3D CAR HIGHWAY GAME */}
       {activeGameId === "car-highway" && (
         <CarHighwayGame
-          targetScore={300}
+          targetScore={600}
           onClose={() => setActiveGameId(null)}
           onVictory={(score, stars) => {
             if (onGameComplete) onGameComplete("car-highway", score, stars);

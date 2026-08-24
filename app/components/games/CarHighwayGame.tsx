@@ -66,45 +66,66 @@ const CARS: CarInfo[] = [
   },
 ];
 
-// Single Baked 4-Lane Asphalt Road Texture (Zero Z-Fighting, Zero Shadow Glitches)
+// Rich Realistic Wet Night Highway Asphalt Texture (Bold Crisp Stripes)
 function generateHighwayTextures() {
   const roadCanvas = document.createElement("canvas");
   roadCanvas.width = 512;
   roadCanvas.height = 512;
   const rCtx = roadCanvas.getContext("2d");
   if (rCtx) {
-    // Base dark asphalt
-    rCtx.fillStyle = "#1e293b";
+    // 1. Deep charcoal/navy wet asphalt base
+    rCtx.fillStyle = "#0d131d";
     rCtx.fillRect(0, 0, 512, 512);
 
-    // Fine asphalt grain noise
-    for (let i = 0; i < 7000; i++) {
+    // 2. Wet tire sheen / glossy reflection lanes
+    const sheenGrad = rCtx.createLinearGradient(0, 0, 512, 0);
+    sheenGrad.addColorStop(0, "rgba(20, 27, 41, 0.9)");
+    sheenGrad.addColorStop(0.25, "rgba(30, 41, 59, 0.6)");
+    sheenGrad.addColorStop(0.5, "rgba(15, 23, 42, 0.9)");
+    sheenGrad.addColorStop(0.75, "rgba(30, 41, 59, 0.6)");
+    sheenGrad.addColorStop(1, "rgba(20, 27, 41, 0.9)");
+    rCtx.fillStyle = sheenGrad;
+    rCtx.fillRect(0, 0, 512, 512);
+
+    // 3. Dense realistic asphalt aggregate noise
+    for (let i = 0; i < 12000; i++) {
       const x = Math.random() * 512;
       const y = Math.random() * 512;
-      const g = Math.floor(25 + Math.random() * 22);
-      rCtx.fillStyle = `rgb(${g}, ${g + 3}, ${g + 7})`;
-      rCtx.fillRect(x, y, 1.5, 1.5);
+      const shade = Math.floor(24 + Math.random() * 30);
+      rCtx.fillStyle = `rgb(${shade}, ${shade + 2}, ${shade + 6})`;
+      rCtx.fillRect(x, y, 2, 2);
     }
 
-    // 4 equal lanes: Dividers at 25%, 50%, 75% (128px, 256px, 384px)
-    rCtx.fillStyle = "#ffffff";
+    // 4. Crisp, bold white dashed lane dividers (32px wide for bold high-res visibility)
     [128, 256, 384].forEach((lx) => {
       for (let y = 0; y < 512; y += 64) {
-        rCtx.fillRect(lx - 4, y + 10, 8, 44);
+        // Outer soft glow
+        rCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        rCtx.fillRect(lx - 16, y + 6, 32, 52);
+        // Solid pure white core
+        rCtx.fillStyle = "#ffffff";
+        rCtx.fillRect(lx - 12, y + 8, 24, 48);
       }
     });
 
-    // Solid bright amber shoulder lines
+    // 5. Solid bright safety amber highway shoulder lines (24px wide)
     rCtx.fillStyle = "#f59e0b";
-    rCtx.fillRect(4, 0, 10, 512);
-    rCtx.fillRect(512 - 14, 0, 10, 512);
+    rCtx.fillRect(0, 0, 22, 512);
+    rCtx.fillRect(512 - 22, 0, 22, 512);
+
+    // Inner bright yellow neon pinstripe
+    rCtx.fillStyle = "#fef08a";
+    rCtx.fillRect(16, 0, 6, 512);
+    rCtx.fillRect(512 - 22, 0, 6, 512);
   }
 
   const roadTex = new THREE.CanvasTexture(roadCanvas);
+  roadTex.generateMipmaps = false;
+  roadTex.minFilter = THREE.LinearFilter;
+  roadTex.magFilter = THREE.LinearFilter;
   roadTex.wrapS = THREE.RepeatWrapping;
   roadTex.wrapT = THREE.RepeatWrapping;
-  roadTex.repeat.set(1, 45);
-  roadTex.anisotropy = 8;
+  roadTex.repeat.set(1, 40);
   roadTex.needsUpdate = true;
 
   // Skyscraper window grid
@@ -122,11 +143,11 @@ function generateHighwayTextures() {
         if (r < 0.45) {
           bCtx.fillStyle = "#111827";
         } else if (r < 0.78) {
-          bCtx.fillStyle = "rgba(56, 189, 248, 0.95)"; // Neon Cyan
+          bCtx.fillStyle = "rgba(56, 189, 248, 0.95)";
         } else if (r < 0.94) {
-          bCtx.fillStyle = "rgba(254, 240, 138, 0.95)"; // Warm Amber
+          bCtx.fillStyle = "rgba(254, 240, 138, 0.95)";
         } else {
-          bCtx.fillStyle = "rgba(244, 63, 94, 0.9)"; // Red beacon
+          bCtx.fillStyle = "rgba(244, 63, 94, 0.9)";
         }
         bCtx.fillRect(x, y, 12, 14);
       }
@@ -190,7 +211,7 @@ class CarAudioSystem {
     if (!this.ctx || !this.engineOsc) return;
     try {
       const now = this.ctx.currentTime;
-      const targetFreq = 52 + speedRatio * 85;
+      const targetFreq = 50 + speedRatio * 80;
       this.engineOsc.frequency.setTargetAtTime(targetFreq, now, 0.1);
     } catch {}
   }
@@ -306,7 +327,7 @@ interface CarHighwayGameProps {
 export default function CarHighwayGame({
   onClose,
   onVictory,
-  targetScore = 500, // Doubled duration for long satisfying race!
+  targetScore = 600, // Doubled duration for long satisfying race!
 }: CarHighwayGameProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const audioSysRef = useRef<CarAudioSystem>(new CarAudioSystem());
@@ -322,7 +343,7 @@ export default function CarHighwayGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
 
-  // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
+  // Exact 4-lane centers across 10m road
   const LANES = [-3.75, -1.25, 1.25, 3.75];
 
   const gameRef = useRef({
@@ -330,11 +351,12 @@ export default function CarHighwayGame({
     score: 0,
     stars: 0,
     hearts: 3,
-    baseSpeed: 38,
-    speed: 38,
+    baseSpeed: 36,
+    speed: 36,
+    speedPenalty: 1.0, // Drops on crash to 0.45, recovers smoothly over 3s!
     targetX: 1.25,
     playerX: 1.25,
-    playerZ: -4.2, // Pushed forward so 100% of car body is visible in viewport!
+    playerZ: -4.2, // Fully visible with plenty of margin
     jumpY: 0,
     roadWidth: 10.0,
     roadLength: 500,
@@ -377,6 +399,7 @@ export default function CarHighwayGame({
     gameRef.current.targetX = 1.25;
     gameRef.current.playerX = 1.25;
     gameRef.current.jumpY = 0;
+    gameRef.current.speedPenalty = 1.0;
 
     if (gameRef.current.turntableMesh) {
       gameRef.current.turntableMesh.visible = false;
@@ -399,6 +422,7 @@ export default function CarHighwayGame({
     gameRef.current.stars = 0;
     gameRef.current.hearts = 3;
     gameRef.current.speed = gameRef.current.baseSpeed;
+    gameRef.current.speedPenalty = 1.0;
     gameRef.current.playerX = 1.25;
     gameRef.current.targetX = 1.25;
     gameRef.current.jumpY = 0;
@@ -429,6 +453,7 @@ export default function CarHighwayGame({
     gameRef.current.stars = 0;
     gameRef.current.hearts = 3;
     gameRef.current.speed = gameRef.current.baseSpeed;
+    gameRef.current.speedPenalty = 1.0;
     gameRef.current.playerX = 1.25;
     gameRef.current.targetX = 1.25;
     gameRef.current.jumpY = 0;
@@ -533,7 +558,7 @@ export default function CarHighwayGame({
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060913);
-    scene.fog = new THREE.FogExp2(0x0a101f, 0.008);
+    scene.fog = new THREE.FogExp2(0x0a101f, 0.007);
     gameRef.current.scene = scene;
 
     // 2. Camera
@@ -542,7 +567,7 @@ export default function CarHighwayGame({
     camera.lookAt(0, 0.5, -1.8);
     gameRef.current.camera = camera;
 
-    // 3. Renderer (Clean 60fps, No shadow-map stair-stepping glitches)
+    // 3. Renderer (Clean 60fps, No shadow-map glitches)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -568,7 +593,7 @@ export default function CarHighwayGame({
     scene.add(spotLight);
     scene.add(spotLight.target);
 
-    // 5. Seamless Asphalt Highway Deck (Baked Canvas with Zero Z-Fighting)
+    // 5. Seamless Wet Asphalt Highway Deck (Baked Canvas with Zero Z-Fighting)
     const roadWidth = 10.0;
     const roadLength = 500;
     const { roadTex, bldgTex } = generateHighwayTextures();
@@ -577,7 +602,7 @@ export default function CarHighwayGame({
     const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength);
     const roadMat = new THREE.MeshStandardMaterial({
       map: roadTex,
-      roughness: 0.75,
+      roughness: 0.35, // Sleek wet specular sheen
       metalness: 0.25,
       side: THREE.DoubleSide,
     });
@@ -616,7 +641,7 @@ export default function CarHighwayGame({
       scene.add(pier);
     }
 
-    // Active Glowing Skyscrapers (Strictly outside road boundaries: |x| >= 14.0)
+    // Active Glowing Night Skyscrapers
     const bldgMat = new THREE.MeshStandardMaterial({
       map: bldgTex,
       emissiveMap: bldgTex,
@@ -849,17 +874,24 @@ export default function CarHighwayGame({
       }
 
       if (gameRef.current.running) {
-        // Progressive gentle speed curve (max 1.35x cap, steady comfortable duration!)
-        const speedFactor = 1 + Math.min(gameRef.current.score / 400, 0.35);
-        gameRef.current.speed = gameRef.current.baseSpeed * speedFactor;
-        setSpeedMultiplier(parseFloat(speedFactor.toFixed(1)));
-        audioSysRef.current.updateEnginePitch(speedFactor);
+        // Smooth recovery from collision slowdown over 3.0 seconds
+        if (gameRef.current.speedPenalty < 1.0) {
+          gameRef.current.speedPenalty = Math.min(1.0, gameRef.current.speedPenalty + delta * 0.22);
+        }
 
-        const moveDist = gameRef.current.speed * delta;
+        // Progressive gentle speed curve: 1.0x -> max 1.30x over 600 points (2x longer duration!)
+        const speedFactor = 1.0 + Math.min(gameRef.current.score / 500, 0.3);
+        const effectiveSpeed = gameRef.current.baseSpeed * speedFactor * gameRef.current.speedPenalty;
+        gameRef.current.speed = effectiveSpeed;
 
-        // Smooth continuous UV texture scroll on single asphalt plane (ZERO Z-fighting)
+        setSpeedMultiplier(parseFloat((speedFactor * gameRef.current.speedPenalty).toFixed(1)));
+        audioSysRef.current.updateEnginePitch(speedFactor * gameRef.current.speedPenalty);
+
+        const moveDist = effectiveSpeed * delta;
+
+        // Smooth continuous UV texture scroll on single asphalt plane
         if (gameRef.current.roadTex) {
-          gameRef.current.roadTex.offset.y += (gameRef.current.speed / 500) * delta * 45;
+          gameRef.current.roadTex.offset.y += (effectiveSpeed / 500) * delta * 40;
         }
 
         // Move active skyscrapers
@@ -945,8 +977,9 @@ export default function CarHighwayGame({
                 item.collected = true;
                 item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
-                gameRef.current.invincibleTimer = 1.6;
-                gameRef.current.jumpY = 0.35; // Nice bouncy collision jump that smoothly settles back down!
+                gameRef.current.invincibleTimer = 3.0; // 3 seconds blinking invincibility
+                gameRef.current.speedPenalty = 0.45; // Slow down to 45% then smoothly accelerate over 3s!
+                gameRef.current.jumpY = 0.35; // Bouncy shock jump
                 audioSysRef.current.playCrash();
                 setHearts(gameRef.current.hearts);
 
