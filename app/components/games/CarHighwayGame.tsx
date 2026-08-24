@@ -137,63 +137,54 @@ function createSunsetSky() {
 }
 
 // Custom Analytical Anti-Aliased Highway Shader (Single Pass, Zero Z-Fighting)
-const HighwayShader = {
-  vertexShader: `
-    varying vec2 vUv;
-    varying vec3 vWorldPosition;
-    void main() {
-      vUv = uv;
-      vec4 worldPos = modelMatrix * vec4(position, 1.0);
-      vWorldPosition = worldPos.xyz;
-      gl_Position = projectionMatrix * viewMatrix * worldPos;
+function generateAsphaltTexture(renderer: THREE.WebGLRenderer) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 1024;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    // Base dark grey asphalt
+    ctx.fillStyle = "#1e293b"; 
+    ctx.fillRect(0, 0, 1024, 1024);
+
+    // Heavy grain noise for asphalt texture
+    const imgData = ctx.getImageData(0, 0, 1024, 1024);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 45; // intense noise
+      data[i] = Math.max(0, Math.min(255, data[i] + noise));
+      data[i+1] = Math.max(0, Math.min(255, data[i+1] + noise));
+      data[i+2] = Math.max(0, Math.min(255, data[i+2] + noise));
     }
-  `,
-  fragmentShader: `
-    uniform float uOffset;
-    varying vec2 vUv;
-    varying vec3 vWorldPosition;
+    ctx.putImageData(imgData, 0, 0);
 
-    float hash(vec2 p) {
-      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    // Yellow shoulders
+    ctx.fillStyle = "#fbbf24";
+    ctx.fillRect(15, 0, 25, 1024);
+    ctx.fillRect(1024 - 40, 0, 25, 1024);
+
+    // White dashed lane dividers (3 lines for 4 lanes)
+    ctx.fillStyle = "#ffffff";
+    const dashW = 14;
+    const dashH = 180;
+    const lanes = [256, 512, 768];
+    for (let l of lanes) {
+      for (let y = 0; y < 1024; y += 341) {
+        ctx.fillRect(l - dashW/2, y, dashW, dashH);
+      }
     }
+  }
 
-    void main() {
-      // 1. Clean dark graphite wet asphalt
-      vec3 asphalt = vec3(0.08, 0.10, 0.14);
-      
-      // Fine aggregate grain noise
-      vec2 grainUv = floor(vUv * vec2(140.0, 700.0));
-      float n = hash(grainUv);
-      asphalt += (n - 0.5) * 0.035;
-
-      // 2. Yellow Highway Shoulder Bands (Left: uv.x < 0.04, Right: uv.x > 0.96)
-      float leftShoulder = 1.0 - smoothstep(0.035, 0.045, vUv.x);
-      float rightShoulder = smoothstep(0.955, 0.965, vUv.x);
-      vec3 shoulderColor = vec3(0.98, 0.68, 0.08); // Vivid neon amber
-      vec3 color = mix(asphalt, shoulderColor, max(leftShoulder, rightShoulder));
-
-      // 3. Crisp 3D White Dashed Lane Dividers (4 Equal Lanes at x = 0.25, 0.50, 0.75)
-      // 500m road / 8m dash-cycle = 62.5 cycles
-      float dashPhase = fract((vUv.y + uOffset) * 62.5);
-      float isDash = step(0.32, dashPhase); // 68% dash, 32% gap
-
-      // Perspective-compensated stripe width: bold up close and solid into the distance
-      float distToCam = length(vWorldPosition.xyz);
-      float lw = max(0.025, 0.00025 * distToCam);
-
-      float s1 = 1.0 - smoothstep(lw * 0.6, lw * 1.2, abs(vUv.x - 0.25));
-      float s2 = 1.0 - smoothstep(lw * 0.6, lw * 1.2, abs(vUv.x - 0.50));
-      float s3 = 1.0 - smoothstep(lw * 0.6, lw * 1.2, abs(vUv.x - 0.75));
-
-      float allStripes = max(max(s1, s2), s3) * isDash;
-      vec3 stripeColor = vec3(1.0, 1.0, 1.0); // Pure crisp white
-
-      color = mix(color, stripeColor, allStripes);
-
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `,
-};
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1, 100);
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 // Audio System
 class CarAudioSystem {
@@ -392,7 +383,7 @@ export default function CarHighwayGame({
     jumpY: 0,
     roadWidth: 10.0,
     roadLength: 500,
-    roadShaderMat: null as THREE.ShaderMaterial | null,
+    roadShaderMat: null as THREE.MeshStandardMaterial | null,
     roadOffset: 0,
     invincibleTimer: 0,
     items: [] as Array<{
@@ -557,11 +548,17 @@ export default function CarHighwayGame({
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-            if (mat && car.id === "lambo") {
-              mat.roughness = 0.22;
-              mat.metalness = 0.85;
-              if (mat.color.r < 0.18 && mat.color.g < 0.18 && mat.color.b < 0.18) {
-                mat.color.setHex(0x384152);
+            if (mat) {
+              if (car.id === "lambo") {
+                mat.roughness = 0.22;
+                mat.metalness = 0.85;
+                mat.color.multiplyScalar(3.0); // Make Lambo much brighter
+                mat.emissive.copy(mat.color).multiplyScalar(0.15);
+              } else if (car.id === "bmw") {
+                mat.color.multiplyScalar(1.5); // Make BMW slightly brighter
+                mat.emissive.copy(mat.color).multiplyScalar(0.05);
+              } else if (car.id === "porsche") {
+                mat.color.multiplyScalar(1.2);
               }
             }
           }
@@ -620,7 +617,7 @@ export default function CarHighwayGame({
     const starPositions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount * 3; i += 3) {
       starPositions[i] = (Math.random() - 0.5) * 400;
-      starPositions[i + 1] = 40 + Math.random() * 150;
+      starPositions[i + 1] = 5 + Math.random() * 250;
       starPositions[i + 2] = (Math.random() - 0.5) * 400;
     }
     starGeo.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
@@ -656,13 +653,11 @@ export default function CarHighwayGame({
     const roadWidth = 10.0;
     const roadLength = 500;
 
-    const roadShaderMat = new THREE.ShaderMaterial({
-      vertexShader: HighwayShader.vertexShader,
-      fragmentShader: HighwayShader.fragmentShader,
-      uniforms: {
-        uOffset: { value: 0.0 },
-      },
-      side: THREE.DoubleSide,
+    const roadTex = generateAsphaltTexture(renderer);
+    const roadShaderMat = new THREE.MeshStandardMaterial({
+      map: roadTex,
+      roughness: 0.8,
+      metalness: 0.1,
     });
     gameRef.current.roadShaderMat = roadShaderMat;
 
@@ -958,7 +953,7 @@ export default function CarHighwayGame({
         // Smooth Analytical Road Shader Scrolling (Zero Z-Fighting, 100% Crisp!)
         if (gameRef.current.roadShaderMat) {
           gameRef.current.roadOffset += (effectiveSpeed / 500.0) * delta;
-          gameRef.current.roadShaderMat.uniforms.uOffset.value = gameRef.current.roadOffset;
+          if (gameRef.current.roadShaderMat.map) { gameRef.current.roadShaderMat.map.offset.y = -(gameRef.current.roadOffset * 100); }
         }
 
         // Move active skyscrapers
