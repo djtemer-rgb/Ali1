@@ -561,31 +561,6 @@ export default function CarHighwayGame({
 
         model.rotation.y = car.rotationY;
 
-        // Create a simple blob shadow under the car
-        const shadowCanvas = document.createElement("canvas");
-        shadowCanvas.width = 128;
-        shadowCanvas.height = 128;
-        const sCtx = shadowCanvas.getContext("2d");
-        if (sCtx) {
-          const grad = sCtx.createRadialGradient(64, 64, 10, 64, 64, 60);
-          grad.addColorStop(0, "rgba(0,0,0, 0.8)");
-          grad.addColorStop(1, "rgba(0,0,0, 0)");
-          sCtx.fillStyle = grad;
-          sCtx.fillRect(0, 0, 128, 128);
-        }
-        const shadowTex = new THREE.CanvasTexture(shadowCanvas);
-        const shadowGeo = new THREE.PlaneGeometry(3.5, 6.0); // Rough size of car
-        const shadowMat = new THREE.MeshBasicMaterial({
-          map: shadowTex,
-          transparent: true,
-          depthWrite: false,
-          opacity: 0.9,
-        });
-        const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-        shadowMesh.rotation.x = -Math.PI / 2;
-        shadowMesh.position.set(0, 0.02, 0); // slightly above road
-        model.add(shadowMesh);
-
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
@@ -1054,7 +1029,34 @@ const itemsPool: Array<any> = [];
           carRoot.visible = true;
         }
 
-        camera.position.x = THREE.MathUtils.lerp(camera.position.x, gameRef.current.playerX * 0.35, delta * 8);
+        // CAMERA LOGIC
+        if (gameRef.current.currentCameraAngle === "straight") {
+          // Straight view (race mode default)
+          if (!gameRef.current.running && gameRef.current.carRoot) {
+             // In garage, but straight view selected
+             camera.position.set(0, 3.4, 2.5);
+             camera.lookAt(0, 0.5, -25.0);
+          } else {
+             // In race
+             const tgtX = gameRef.current.playerX * 0.35;
+             camera.position.set(tgtX, 3.4, 2.5);
+             camera.lookAt(0, 0.5, -25.0);
+          }
+        } else {
+          // Diagonal view (garage default)
+          if (!gameRef.current.running && gameRef.current.carRoot) {
+             // In garage
+             camera.position.set(2.8, 1.8, 1.8);
+             camera.lookAt(0, 0.5, -1.8);
+          } else {
+             // In race
+             const tgtX = gameRef.current.playerX + 2.8;
+             const tgtY = 1.64;
+             const tgtZ = gameRef.current.playerZ + 3.6;
+             camera.position.set(tgtX, tgtY, tgtZ);
+             camera.lookAt(gameRef.current.playerX, 0.34, gameRef.current.playerZ);
+          }
+        }
 
         // Move road items
         const resetThresholdZ = 10;
