@@ -184,7 +184,7 @@ function generateAsphaltTexture(renderer: THREE.WebGLRenderer) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1, 5); // 5 repeats per 25m block (5m per repeat)
+  tex.repeat.set(1, 100); // 100 repeats over 500m (5m per repeat)
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
@@ -392,7 +392,7 @@ export default function CarHighwayGame({
     roadWidth: 10.0,
     roadLength: 500,
     roadShaderMat: null as THREE.MeshStandardMaterial | null,
-    roadBlocks: [] as THREE.Mesh[],
+    
     roadOffset: 0,
     invincibleTimer: 0,
     items: [] as Array<{
@@ -664,17 +664,11 @@ export default function CarHighwayGame({
     });
     gameRef.current.roadShaderMat = roadShaderMat;
 
-    const blockLength = 25;
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, blockLength, 1, 1);
-    
-    gameRef.current.roadBlocks = [];
-    for (let i = 0; i < 22; i++) {
-      const roadMesh = new THREE.Mesh(roadGeo, roadShaderMat);
-      roadMesh.rotation.x = -Math.PI / 2;
-      roadMesh.position.set(0, 0, -i * blockLength + 25);
-      scene.add(roadMesh);
-      gameRef.current.roadBlocks.push(roadMesh);
-    }
+    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength, 1, 1);
+    const roadMesh = new THREE.Mesh(roadGeo, roadShaderMat);
+    roadMesh.rotation.x = -Math.PI / 2;
+    roadMesh.position.set(0, 0, -roadLength / 2 + 20);
+    scene.add(roadMesh);
 
     // Guardrails
     const railMat = new THREE.MeshStandardMaterial({
@@ -695,7 +689,7 @@ export default function CarHighwayGame({
     // Bridge Bed Understructure
     const bridgeBedMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.95 });
     const bridgeBed = new THREE.Mesh(new THREE.BoxGeometry(roadWidth + 1.2, 2.0, roadLength), bridgeBedMat);
-    bridgeBed.position.set(0, -1.0, -roadLength / 2 + 20);
+    bridgeBed.position.set(0, -1.1, -roadLength / 2 + 20);
     scene.add(bridgeBed);
 
     // Bridge Piers
@@ -959,13 +953,11 @@ export default function CarHighwayGame({
 
         const moveDist = effectiveSpeed * delta;
 
-        // Move road blocks (Treadmill effect)
-        gameRef.current.roadBlocks.forEach((block) => {
-          block.position.z += moveDist;
-          if (block.position.z > 25) {
-            block.position.z -= (22 * 25);
-          }
-        });
+        // Smooth Texture Scrolling
+        if (gameRef.current.roadShaderMat) {
+          gameRef.current.roadOffset += (effectiveSpeed / 500.0) * delta;
+          if (gameRef.current.roadShaderMat.map) { gameRef.current.roadShaderMat.map.offset.y = -(gameRef.current.roadOffset * 100); }
+        }
 
         // Move active skyscrapers
         gameRef.current.buildings.forEach((bldg) => {
