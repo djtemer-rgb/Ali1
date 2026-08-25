@@ -178,11 +178,12 @@ function generateAsphaltTexture(renderer: THREE.WebGLRenderer) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1, 100);
+  tex.repeat.set(1, 5); // 5 repeats per 25m block
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
   return tex;
 }
 
@@ -384,6 +385,7 @@ export default function CarHighwayGame({
     roadWidth: 10.0,
     roadLength: 500,
     roadShaderMat: null as THREE.MeshStandardMaterial | null,
+    roadBlocks: [] as THREE.Mesh[],
     roadOffset: 0,
     invincibleTimer: 0,
     items: [] as Array<{
@@ -548,17 +550,11 @@ export default function CarHighwayGame({
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-            if (mat) {
-              if (car.id === "lambo") {
-                mat.roughness = 0.22;
-                mat.metalness = 0.85;
-                mat.color.multiplyScalar(3.0); // Make Lambo much brighter
-                mat.emissive.copy(mat.color).multiplyScalar(0.15);
-              } else if (car.id === "bmw") {
-                mat.color.multiplyScalar(1.5); // Make BMW slightly brighter
-                mat.emissive.copy(mat.color).multiplyScalar(0.05);
-              } else if (car.id === "porsche") {
-                mat.color.multiplyScalar(1.2);
+            if (mat && car.id === "lambo") {
+              mat.roughness = 0.22;
+              mat.metalness = 0.85;
+              if (mat.color.r < 0.18 && mat.color.g < 0.18 && mat.color.b < 0.18) {
+                mat.color.setHex(0x384152);
               }
             }
           }
@@ -661,11 +657,17 @@ export default function CarHighwayGame({
     });
     gameRef.current.roadShaderMat = roadShaderMat;
 
-    const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength, 1, 1);
-    const roadMesh = new THREE.Mesh(roadGeo, roadShaderMat);
-    roadMesh.rotation.x = -Math.PI / 2;
-    roadMesh.position.set(0, 0, -roadLength / 2 + 20);
-    scene.add(roadMesh);
+    const blockLength = 25;
+    const roadGeo = new THREE.PlaneGeometry(roadWidth, blockLength, 1, 1);
+    
+    gameRef.current.roadBlocks = [];
+    for (let i = 0; i < 22; i++) {
+      const roadMesh = new THREE.Mesh(roadGeo, roadShaderMat);
+      roadMesh.rotation.x = -Math.PI / 2;
+      roadMesh.position.set(0, 0, -i * blockLength + 25);
+      scene.add(roadMesh);
+      gameRef.current.roadBlocks.push(roadMesh);
+    }
 
     // Guardrails
     const railMat = new THREE.MeshStandardMaterial({
@@ -950,11 +952,13 @@ export default function CarHighwayGame({
 
         const moveDist = effectiveSpeed * delta;
 
-        // Smooth Analytical Road Shader Scrolling (Zero Z-Fighting, 100% Crisp!)
-        if (gameRef.current.roadShaderMat) {
-          gameRef.current.roadOffset += (effectiveSpeed / 500.0) * delta;
-          if (gameRef.current.roadShaderMat.map) { gameRef.current.roadShaderMat.map.offset.y = -(gameRef.current.roadOffset * 100); }
-        }
+        // Move road blocks (Treadmill effect)
+        gameRef.current.roadBlocks.forEach((block) => {
+          block.position.z += moveDist;
+          if (block.position.z > 25) {
+            block.position.z -= (22 * 25);
+          }
+        });
 
         // Move active skyscrapers
         gameRef.current.buildings.forEach((bldg) => {
