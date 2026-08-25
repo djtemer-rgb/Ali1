@@ -143,29 +143,35 @@ function generateAsphaltTexture(renderer: THREE.WebGLRenderer) {
   canvas.height = 1024;
   const ctx = canvas.getContext("2d");
   if (ctx) {
-    // Base dark grey asphalt
-    ctx.fillStyle = "#1e293b"; 
+    // 1. Base dark grey asphalt
+    ctx.fillStyle = "#2c2f33"; 
     ctx.fillRect(0, 0, 1024, 1024);
 
-    // Heavy grain noise for asphalt texture
-    const imgData = ctx.getImageData(0, 0, 1024, 1024);
-    const data = imgData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const noise = (Math.random() - 0.5) * 45; // intense noise
-      data[i] = Math.max(0, Math.min(255, data[i] + noise));
-      data[i+1] = Math.max(0, Math.min(255, data[i+1] + noise));
-      data[i+2] = Math.max(0, Math.min(255, data[i+2] + noise));
+    // 2. High-contrast chunky noise (pebbles/aggregate)
+    for (let i = 0; i < 40000; i++) {
+      const x = Math.random() * 1024;
+      const y = Math.random() * 1024;
+      const shade = Math.random() > 0.5 ? "#1a1c1e" : "#3f434a";
+      const size = Math.random() * 3.0;
+      ctx.fillStyle = shade;
+      ctx.fillRect(x, y, size, size);
     }
-    ctx.putImageData(imgData, 0, 0);
+    
+    // 3. Subtle tire tracks
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.fillRect(128 - 20, 0, 40, 1024);
+    ctx.fillRect(384 - 20, 0, 40, 1024);
+    ctx.fillRect(640 - 20, 0, 40, 1024);
+    ctx.fillRect(896 - 20, 0, 40, 1024);
 
-    // Yellow shoulders
+    // 4. Vivid Yellow shoulders
     ctx.fillStyle = "#fbbf24";
     ctx.fillRect(15, 0, 25, 1024);
     ctx.fillRect(1024 - 40, 0, 25, 1024);
 
-    // White dashed lane dividers (3 lines for 4 lanes)
+    // 5. Crisp White dashed lane dividers (3 lines for 4 lanes)
     ctx.fillStyle = "#ffffff";
-    const dashW = 14;
+    const dashW = 16;
     const dashH = 180;
     const lanes = [256, 512, 768];
     for (let l of lanes) {
@@ -178,10 +184,11 @@ function generateAsphaltTexture(renderer: THREE.WebGLRenderer) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1, 5); // 5 repeats per 25m block
+  tex.repeat.set(1, 5); // 5 repeats per 25m block (5m per repeat)
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
   return tex;
