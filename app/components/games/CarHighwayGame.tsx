@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge , Video} from "lucide-react";
+import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge, Video, Pause, Play as PlayIcon } from "lucide-react";
 import confetti from "canvas-confetti";
 
 type CarId = "porsche" | "bmw" | "lambo";
@@ -366,7 +366,7 @@ export default function CarHighwayGame({
   const [selectedCarIndex, setSelectedCarIndex] = useState(0);
   const selectedCar = CARS[selectedCarIndex];
 
-  const [gameState, setGameState] = useState<"garage" | "loading" | "playing" | "gameover" | "victory">("garage");
+  const [gameState, setGameState] = useState<"garage" | "loading" | "playing" | "gameover" | "victory" | "paused">("garage");
   const [score, setScore] = useState(0);
   const [starsCount, setStarsCount] = useState(0);
   const [hearts, setHearts] = useState(3);
@@ -400,6 +400,7 @@ export default function CarHighwayGame({
     hasSpawned50: false,
     hasSpawned75: false,
     currentCameraAngle: "diagonal",
+    gameState: "garage",
     items: [] as Array<{
       mesh: THREE.Object3D;
       type: "coin" | "nitro" | "barrier" | "heart";
@@ -454,6 +455,7 @@ export default function CarHighwayGame({
   };
 
   const handleBackToGarage = useCallback(() => {
+    setCameraAngle("diagonal");
     audioSysRef.current.stopEngine();
     gameRef.current.running = false;
     setScore(0);
@@ -487,7 +489,20 @@ export default function CarHighwayGame({
     setGameState("garage");
   }, []);
 
+  const togglePause = useCallback(() => {
+    if (gameState === "playing") {
+      setGameState("paused");
+      gameRef.current.running = false;
+      audioSysRef.current.stopEngine();
+    } else if (gameState === "paused") {
+      setGameState("playing");
+      gameRef.current.running = true;
+      audioSysRef.current.startEngine();
+    }
+  }, [gameState]);
+
   const handleRestartRace = useCallback(() => {
+    setCameraAngle("diagonal");
     setScore(0);
     setStarsCount(0);
     setHearts(3);
@@ -596,6 +611,9 @@ export default function CarHighwayGame({
   useEffect(() => {
     gameRef.current.currentCameraAngle = cameraAngle;
   }, [cameraAngle]);
+  useEffect(() => {
+    gameRef.current.gameState = gameState;
+  }, [gameState]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -948,7 +966,7 @@ const itemsPool: Array<any> = [];
       const delta = Math.min(clock.getDelta(), 0.1);
       const time = clock.getElapsedTime();
 
-      if (!gameRef.current.running && carRoot) {
+      if (gameRef.current.gameState === "garage" && carRoot) {
         carRoot.rotation.y = time * 0.45;
         if (turntableMesh) turntableMesh.rotation.y = time * 0.45;
       }
@@ -1029,32 +1047,24 @@ const itemsPool: Array<any> = [];
           carRoot.visible = true;
         }
 
-        // CAMERA LOGIC
+                // CAMERA LOGIC
         if (gameRef.current.currentCameraAngle === "straight") {
-          // Straight view (race mode default)
-          if (!gameRef.current.running && gameRef.current.carRoot) {
-             // In garage, but straight view selected
-             camera.position.set(0, 3.4, 2.5);
-             camera.lookAt(0, 0.5, -25.0);
+          if (gameRef.current.gameState === "garage") {
+             camera.position.set(0, 1.6, 2.5);
+             camera.lookAt(0, 0.4, -1.8);
           } else {
-             // In race
-             const tgtX = gameRef.current.playerX * 0.35;
-             camera.position.set(tgtX, 3.4, 2.5);
-             camera.lookAt(0, 0.5, -25.0);
+             // Race / Paused / GameOver: Static straight view
+             camera.position.set(0, 1.6, gameRef.current.playerZ + 4.3);
+             camera.lookAt(0, 0.4, gameRef.current.playerZ);
           }
         } else {
-          // Diagonal view (garage default)
-          if (!gameRef.current.running && gameRef.current.carRoot) {
-             // In garage
+          if (gameRef.current.gameState === "garage") {
              camera.position.set(2.8, 1.8, 1.8);
              camera.lookAt(0, 0.5, -1.8);
           } else {
-             // In race
-             const tgtX = gameRef.current.playerX + 2.8;
-             const tgtY = 1.64;
-             const tgtZ = gameRef.current.playerZ + 3.6;
-             camera.position.set(tgtX, tgtY, tgtZ);
-             camera.lookAt(gameRef.current.playerX, 0.34, gameRef.current.playerZ);
+             // Race / Paused / GameOver: Static isometric view
+             camera.position.set(2.8, 1.8, gameRef.current.playerZ + 3.6);
+             camera.lookAt(0, 0.5, gameRef.current.playerZ);
           }
         }
 
@@ -1175,6 +1185,16 @@ const itemsPool: Array<any> = [];
           {soundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
 
+        {(gameState === "playing" || gameState === "paused") && (
+          <button
+            onClick={togglePause}
+            aria-label="Пауза"
+            className="w-11 h-11 rounded-full bg-slate-800/80 hover:bg-slate-700 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all shadow-xl active:scale-95 cursor-pointer"
+          >
+            {gameState === "paused" ? <PlayIcon size={18} className="fill-current" /> : <Pause size={18} className="fill-current" />}
+          </button>
+        )}
+
         <button
           onClick={() => setCameraAngle(a => a === "straight" ? "diagonal" : "straight")}
           aria-label="Смена Камеры"
@@ -1289,6 +1309,38 @@ const itemsPool: Array<any> = [];
           </div>
         </div>
       )}
+
+            {/* PAUSE OVERLAY */}
+      <AnimatePresence>
+        {gameState === "paused" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none"
+          >
+            <div className="text-3xl font-black text-white tracking-widest uppercase drop-shadow-lg mb-8">
+              ПАУЗА
+            </div>
+            <div className="flex gap-4 pointer-events-auto">
+              <button
+                onClick={togglePause}
+                className="h-14 px-8 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-lg flex items-center gap-2 shadow-xl active:scale-95 transition-all cursor-pointer"
+              >
+                <PlayIcon size={20} className="fill-current" />
+                <span>Продолжить</span>
+              </button>
+              <button
+                onClick={handleBackToGarage}
+                className="h-14 px-8 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center gap-2 shadow-xl active:scale-95 transition-all cursor-pointer border border-white/10"
+              >
+                <RotateCcw size={18} />
+                <span>В гараж</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* FLOATING GESTURE HINT */}
       {gameState === "playing" && !hasInteracted && (
