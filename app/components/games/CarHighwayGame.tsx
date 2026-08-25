@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge } from "lucide-react";
+import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge , Video} from "lucide-react";
 import confetti from "canvas-confetti";
 
 type CarId = "porsche" | "bmw" | "lambo";
@@ -372,6 +372,7 @@ export default function CarHighwayGame({
   const [hearts, setHearts] = useState(3);
   const [speedMultiplier, setSpeedMultiplier] = useState(1.0);
   const [soundMuted, setSoundMuted] = useState(false);
+  const [cameraAngle, setCameraAngle] = useState<"straight" | "diagonal">("diagonal");
   const [hasInteracted, setHasInteracted] = useState(false);
 
   // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
@@ -391,13 +392,17 @@ export default function CarHighwayGame({
     jumpY: 0,
     roadWidth: 10.0,
     roadLength: 500,
+    spawnHeart: null as any,
     roadShaderMat: null as THREE.MeshStandardMaterial | null,
     
     roadOffset: 0,
     invincibleTimer: 0,
+    hasSpawned50: false,
+    hasSpawned75: false,
+    currentCameraAngle: "diagonal",
     items: [] as Array<{
       mesh: THREE.Object3D;
-      type: "coin" | "nitro" | "barrier";
+      type: "coin" | "nitro" | "barrier" | "heart";
       lane: number;
       z: number;
       collected: boolean;
@@ -422,8 +427,8 @@ export default function CarHighwayGame({
     if (!gameRef.current.carRoot) return;
 
     if (gameRef.current.camera) {
-      gameRef.current.camera.position.set(0, 3.4, 2.5);
-      gameRef.current.camera.lookAt(0, 0.5, -25.0);
+      // Camera interpolates automatically in animate loop
+      // Camera interpolates automatically in animate loop
     }
 
     if (gameRef.current.carRoot) {
@@ -435,6 +440,8 @@ export default function CarHighwayGame({
     gameRef.current.jumpY = 0;
     gameRef.current.speedPenalty = 1.0;
     gameRef.current.invincibleTimer = 0;
+    gameRef.current.hasSpawned50 = false;
+    gameRef.current.hasSpawned75 = false;
 
     if (gameRef.current.turntableMesh) {
       gameRef.current.turntableMesh.visible = false;
@@ -464,8 +471,8 @@ export default function CarHighwayGame({
     gameRef.current.invincibleTimer = 0;
 
     if (gameRef.current.camera) {
-      gameRef.current.camera.position.set(2.8, 1.8, 1.8);
-      gameRef.current.camera.lookAt(0, 0.5, -1.8);
+      // Camera interpolates automatically in animate loop
+      // Camera interpolates automatically in animate loop
     }
 
     if (gameRef.current.carRoot) {
@@ -554,6 +561,31 @@ export default function CarHighwayGame({
 
         model.rotation.y = car.rotationY;
 
+        // Create a simple blob shadow under the car
+        const shadowCanvas = document.createElement("canvas");
+        shadowCanvas.width = 128;
+        shadowCanvas.height = 128;
+        const sCtx = shadowCanvas.getContext("2d");
+        if (sCtx) {
+          const grad = sCtx.createRadialGradient(64, 64, 10, 64, 64, 60);
+          grad.addColorStop(0, "rgba(0,0,0, 0.8)");
+          grad.addColorStop(1, "rgba(0,0,0, 0)");
+          sCtx.fillStyle = grad;
+          sCtx.fillRect(0, 0, 128, 128);
+        }
+        const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+        const shadowGeo = new THREE.PlaneGeometry(3.5, 6.0); // Rough size of car
+        const shadowMat = new THREE.MeshBasicMaterial({
+          map: shadowTex,
+          transparent: true,
+          depthWrite: false,
+          opacity: 0.9,
+        });
+        const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+        shadowMesh.rotation.x = -Math.PI / 2;
+        shadowMesh.position.set(0, 0.02, 0); // slightly above road
+        model.add(shadowMesh);
+
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
@@ -584,6 +616,11 @@ export default function CarHighwayGame({
   useEffect(() => {
     switchCarModel(CARS[selectedCarIndex]);
   }, [selectedCarIndex, switchCarModel]);
+
+
+  useEffect(() => {
+    gameRef.current.currentCameraAngle = cameraAngle;
+  }, [cameraAngle]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -799,7 +836,24 @@ export default function CarHighwayGame({
       roughness: 0.3,
     });
 
-    const itemsPool: Array<any> = [];
+        const heartGeo = new THREE.IcosahedronGeometry(0.7, 0);
+    const heartMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981, // emerald
+      emissive: 0x059669,
+      emissiveIntensity: 1.2,
+      metalness: 0.9,
+      roughness: 0.1,
+    });
+    gameRef.current.spawnHeart = () => {
+      const mesh = new THREE.Mesh(heartGeo, heartMat);
+      const lane = LANES[Math.floor(Math.random() * LANES.length)];
+      mesh.position.set(lane, 1.0, -250); // spawn far ahead
+      scene.add(mesh);
+      gameRef.current.items.push({
+        mesh, type: "heart", lane, z: -250, collected: false, radius: 1.0
+      });
+    };
+const itemsPool: Array<any> = [];
     const numRows = 24;
 
     for (let r = 0; r < numRows; r++) {
@@ -826,7 +880,7 @@ export default function CarHighwayGame({
       const isNitro = Math.random() < 0.25;
 
       let rewardMesh: THREE.Object3D;
-      let rewardType: "coin" | "nitro" = isNitro ? "nitro" : "coin";
+      let rewardType: "coin" | "nitro" | "heart" = isNitro ? "nitro" : "coin";
       if (isNitro) {
         rewardMesh = new THREE.Mesh(nitroGeo, nitroMat);
         rewardMesh.position.set(rewardLane, 0.85, zPos);
@@ -952,6 +1006,14 @@ export default function CarHighwayGame({
         audioSysRef.current.updateEnginePitch(speedFactor * gameRef.current.speedPenalty);
 
         const moveDist = effectiveSpeed * delta;
+        if (gameRef.current.score >= targetScore * 0.5 && !gameRef.current.hasSpawned50) {
+          gameRef.current.hasSpawned50 = true;
+          if (gameRef.current.spawnHeart) gameRef.current.spawnHeart();
+        }
+        if (gameRef.current.score >= targetScore * 0.75 && !gameRef.current.hasSpawned75) {
+          gameRef.current.hasSpawned75 = true;
+          if (gameRef.current.spawnHeart) gameRef.current.spawnHeart();
+        }
 
         // Smooth Texture Scrolling
         if (gameRef.current.roadShaderMat) {
@@ -969,7 +1031,7 @@ export default function CarHighwayGame({
 
         // Smooth Car Steering
         const dx = gameRef.current.targetX - gameRef.current.playerX;
-        gameRef.current.playerX += dx * Math.min(delta * 15, 1.0);
+        gameRef.current.playerX += dx * 0.12; // buttery smooth independent of minor delta spikes
         carRoot.position.x = gameRef.current.playerX;
         carRoot.position.z = gameRef.current.playerZ;
 
@@ -1001,7 +1063,7 @@ export default function CarHighwayGame({
         gameRef.current.items.forEach((item) => {
           item.mesh.position.z += moveDist;
 
-          if (item.type === "coin" || item.type === "nitro") {
+          if (item.type === "coin" || item.type === "nitro" || item.type === "heart") {
             item.mesh.rotation.y += delta * 4.0;
           }
 
@@ -1012,10 +1074,14 @@ export default function CarHighwayGame({
             item.mesh.position.z < gameRef.current.playerZ + 1.6 &&
             Math.abs(item.mesh.position.x - gameRef.current.playerX) < item.radius
           ) {
-            if (item.type === "coin" || item.type === "nitro") {
+            if (item.type === "coin" || item.type === "nitro" || item.type === "heart") {
               item.collected = true;
               item.mesh.visible = false;
-              if (item.type === "coin") {
+              if (item.type === "heart") {
+                if (gameRef.current.hearts < 3) gameRef.current.hearts++;
+                setHearts(gameRef.current.hearts);
+                audioSysRef.current.playCoin(); // play sound
+              } else if (item.type === "coin") {
                 gameRef.current.score += 5; // Balanced point distribution for full 60s runtime
                 gameRef.current.stars += 1;
                 audioSysRef.current.playCoin();
@@ -1060,6 +1126,10 @@ export default function CarHighwayGame({
           }
 
           if (item.mesh.position.z > resetThresholdZ) {
+          if (item.type === "heart") {
+            item.mesh.visible = false;
+            return; // Hearts don't recycle
+          }
             item.mesh.position.z = respawnZ - Math.random() * 40;
             const laneIndex = Math.floor(Math.random() * LANES.length);
             item.mesh.position.x = LANES[laneIndex];
@@ -1101,6 +1171,14 @@ export default function CarHighwayGame({
           className="w-11 h-11 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-white/90 hover:text-white flex items-center justify-center transition-all shadow-xl active:scale-95 cursor-pointer"
         >
           {soundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
+
+        <button
+          onClick={() => setCameraAngle(a => a === "straight" ? "diagonal" : "straight")}
+          aria-label="Смена Камеры"
+          className="w-11 h-11 rounded-full bg-indigo-600/80 hover:bg-indigo-600 backdrop-blur-md border border-indigo-400/40 text-white flex items-center justify-center transition-all shadow-xl active:scale-95 cursor-pointer"
+        >
+          <Video size={18} />
         </button>
 
         <button
@@ -1192,13 +1270,20 @@ export default function CarHighwayGame({
               })}
             </div>
 
+            <div className="flex gap-2 w-full"><button
+              onClick={() => setCameraAngle(a => a === "straight" ? "diagonal" : "straight")}
+              className="w-14 sm:w-16 h-14 sm:h-16 shrink-0 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-white/10 flex items-center justify-center text-indigo-400 transition-all active:scale-95 shadow-xl cursor-pointer"
+              title="Смена ракурса камеры"
+            >
+              <Video size={22} />
+            </button>
             <button
               onClick={handleLaunchRace}
-              className="w-full h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/30 active:scale-95 transition-all cursor-pointer uppercase tracking-wider"
+              className="flex-1 h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/30 active:scale-95 transition-all cursor-pointer uppercase tracking-wider"
             >
               <Play size={22} className="fill-current" />
               <span>Погнали на трассу! 🏁</span>
-            </button>
+            </button></div>
           </div>
         </div>
       )}
