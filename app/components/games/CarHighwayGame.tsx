@@ -4,11 +4,12 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge, Video, Pause, Play as PlayIcon } from "lucide-react";
 import confetti from "canvas-confetti";
 
-type CarId = "porsche" | "bmw" | "lambo";
+type CarId = "porsche" | "bmw" | "lambo" | "audi" | "nissan";
 
 interface CarInfo {
   id: CarId;
@@ -22,6 +23,7 @@ interface CarInfo {
   scale: number;
   rotationY: number;
   yOffset: number;
+  badge: string;
 }
 
 const CARS: CarInfo[] = [
@@ -37,6 +39,7 @@ const CARS: CarInfo[] = [
     scale: 3.1,
     rotationY: Math.PI,
     yOffset: 0.02,
+    badge: "P",
   },
   {
     id: "bmw",
@@ -50,6 +53,7 @@ const CARS: CarInfo[] = [
     scale: 3.2,
     rotationY: 0,
     yOffset: 0.02,
+    badge: "M",
   },
   {
     id: "lambo",
@@ -63,6 +67,35 @@ const CARS: CarInfo[] = [
     scale: 3.2,
     rotationY: 0,
     yOffset: 0.03,
+    badge: "L",
+  },
+  {
+    id: "audi",
+    name: "Audi R8 LMS",
+    subtitle: "2016 GT Racing Edition",
+    modelPath: "/models/audi_r8.glb",
+    imgPath: "/images/cars/audi.webp",
+    speedStat: 98,
+    handlingStat: 98,
+    nitroStat: 96,
+    scale: 3.15,
+    rotationY: Math.PI,
+    yOffset: 0.02,
+    badge: "R8",
+  },
+  {
+    id: "nissan",
+    name: "Nissan GT-R",
+    subtitle: "Most Wanted Street Edition",
+    modelPath: "/models/nissan_gtr.glb",
+    imgPath: "/images/cars/nissan.webp",
+    speedStat: 97,
+    handlingStat: 97,
+    nitroStat: 98,
+    scale: 3.15,
+    rotationY: -Math.PI / 2,
+    yOffset: 0.02,
+    badge: "GT-R",
   },
 ];
 
@@ -355,6 +388,39 @@ interface CarHighwayGameProps {
   targetScore?: number;
 }
 
+type CameraAngle = "straight" | "diagonal";
+type CameraGameState = "garage" | "loading" | "playing" | "gameover" | "victory" | "paused";
+
+const GARAGE_CAR_Z = -1.8;
+const TRAFFIC_COPIES_PER_CAR = 2;
+
+function getTrafficGap(progress: number) {
+  if (progress >= 2 / 3) return 30;
+  if (progress >= 1 / 3) return 42;
+  return 56;
+}
+
+function applyCameraPose(
+  camera: THREE.PerspectiveCamera,
+  angle: CameraAngle,
+  gameState: CameraGameState,
+  playerZ: number
+) {
+  const targetZ = gameState === "garage" ? GARAGE_CAR_Z : playerZ;
+
+  if (angle === "diagonal") {
+    // Match the straight camera's height and forward visibility while keeping
+    // a clear three-quarter view of the player's car.
+    camera.position.set(3.4, 3.8, targetZ + 7.0);
+    camera.lookAt(0, 0.45, targetZ - 1.2);
+    return;
+  }
+
+  // Centered rear view: high and far enough back to keep all four lanes visible.
+  camera.position.set(0, 3.8, targetZ + 7.0);
+  camera.lookAt(0, 0.45, targetZ - 1.2);
+}
+
 export default function CarHighwayGame({
   onClose,
   onVictory,
@@ -366,13 +432,13 @@ export default function CarHighwayGame({
   const [selectedCarIndex, setSelectedCarIndex] = useState(0);
   const selectedCar = CARS[selectedCarIndex];
 
-  const [gameState, setGameState] = useState<"garage" | "loading" | "playing" | "gameover" | "victory" | "paused">("garage");
+  const [gameState, setGameState] = useState<CameraGameState>("garage");
   const [score, setScore] = useState(0);
   const [starsCount, setStarsCount] = useState(0);
   const [hearts, setHearts] = useState(3);
   const [speedMultiplier, setSpeedMultiplier] = useState(1.0);
   const [soundMuted, setSoundMuted] = useState(false);
-  const [cameraAngle, setCameraAngle] = useState<"straight" | "diagonal">("diagonal");
+  const [cameraAngle, setCameraAngle] = useState<CameraAngle>("diagonal");
   const [hasInteracted, setHasInteracted] = useState(false);
 
   // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
@@ -401,13 +467,16 @@ export default function CarHighwayGame({
     hasSpawned75: false,
     currentCameraAngle: "diagonal",
     gameState: "garage",
+    selectedCarId: "porsche" as CarId,
     items: [] as Array<{
       mesh: THREE.Object3D;
-      type: "coin" | "nitro" | "barrier" | "heart";
+      type: "coin" | "nitro" | "traffic" | "heart";
       lane: number;
       z: number;
       collected: boolean;
       radius: number;
+      speedFactor?: number;
+      trafficCarId?: CarId;
     }>,
     buildings: [] as Array<THREE.Mesh>,
     carRoot: null as THREE.Group | null,
@@ -415,6 +484,7 @@ export default function CarHighwayGame({
     speedLines: null as THREE.LineSegments | null,
     starPoints: null as THREE.Points | null,
     loadedModels: {} as Record<string, THREE.Object3D>,
+    loadingModels: {} as Record<string, Promise<THREE.Object3D>>,
     scene: null as THREE.Scene | null,
     camera: null as THREE.PerspectiveCamera | null,
   });
@@ -423,6 +493,21 @@ export default function CarHighwayGame({
     audioSysRef.current.enabled = soundMuted;
     setSoundMuted(!soundMuted);
   };
+
+  const toggleCamera = useCallback(() => {
+    const nextAngle: CameraAngle = gameRef.current.currentCameraAngle === "straight" ? "diagonal" : "straight";
+    gameRef.current.currentCameraAngle = nextAngle;
+    setCameraAngle(nextAngle);
+
+    if (gameRef.current.camera) {
+      applyCameraPose(
+        gameRef.current.camera,
+        nextAngle,
+        gameRef.current.gameState as CameraGameState,
+        gameRef.current.playerZ
+      );
+    }
+  }, []);
 
   const handleLaunchRace = () => {
     if (!gameRef.current.carRoot) return;
@@ -443,18 +528,32 @@ export default function CarHighwayGame({
     gameRef.current.invincibleTimer = 0;
     gameRef.current.hasSpawned50 = false;
     gameRef.current.hasSpawned75 = false;
+    let visibleTrafficIndex = 0;
+    gameRef.current.items.forEach((item) => {
+      if (item.type === "traffic") {
+        const isVisibleTraffic = item.trafficCarId !== gameRef.current.selectedCarId;
+        item.mesh.visible = isVisibleTraffic;
+        if (isVisibleTraffic) {
+          item.mesh.position.z = -70 - visibleTrafficIndex * getTrafficGap(0);
+          item.mesh.position.x = LANES[Math.floor(Math.random() * LANES.length)];
+          visibleTrafficIndex += 1;
+        }
+      }
+    });
 
     if (gameRef.current.turntableMesh) {
       gameRef.current.turntableMesh.visible = false;
     }
 
     audioSysRef.current.startEngine();
+    gameRef.current.gameState = "playing";
     setGameState("playing");
     setHasInteracted(true);
     gameRef.current.running = true;
   };
 
   const handleBackToGarage = useCallback(() => {
+    gameRef.current.currentCameraAngle = "diagonal";
     setCameraAngle("diagonal");
     audioSysRef.current.stopEngine();
     gameRef.current.running = false;
@@ -471,10 +570,13 @@ export default function CarHighwayGame({
     gameRef.current.targetX = 1.25;
     gameRef.current.jumpY = 0;
     gameRef.current.invincibleTimer = 0;
+    gameRef.current.items.forEach((item) => {
+      if (item.type === "traffic") item.mesh.visible = false;
+    });
 
+    gameRef.current.gameState = "garage";
     if (gameRef.current.camera) {
-      // Camera interpolates automatically in animate loop
-      // Camera interpolates automatically in animate loop
+      applyCameraPose(gameRef.current.camera, "diagonal", "garage", gameRef.current.playerZ);
     }
 
     if (gameRef.current.carRoot) {
@@ -491,10 +593,12 @@ export default function CarHighwayGame({
 
   const togglePause = useCallback(() => {
     if (gameState === "playing") {
+      gameRef.current.gameState = "paused";
       setGameState("paused");
       gameRef.current.running = false;
       audioSysRef.current.stopEngine();
     } else if (gameState === "paused") {
+      gameRef.current.gameState = "playing";
       setGameState("playing");
       gameRef.current.running = true;
       audioSysRef.current.startEngine();
@@ -502,6 +606,7 @@ export default function CarHighwayGame({
   }, [gameState]);
 
   const handleRestartRace = useCallback(() => {
+    gameRef.current.currentCameraAngle = "diagonal";
     setCameraAngle("diagonal");
     setScore(0);
     setStarsCount(0);
@@ -517,9 +622,9 @@ export default function CarHighwayGame({
     gameRef.current.jumpY = 0;
     gameRef.current.invincibleTimer = 0;
 
+    gameRef.current.gameState = "playing";
     if (gameRef.current.camera) {
-      gameRef.current.camera.position.set(0, 3.4, 2.5);
-      gameRef.current.camera.lookAt(0, 0.5, -25.0);
+      applyCameraPose(gameRef.current.camera, "diagonal", "playing", gameRef.current.playerZ);
     }
 
     if (gameRef.current.carRoot) {
@@ -527,10 +632,20 @@ export default function CarHighwayGame({
       gameRef.current.carRoot.rotation.set(0, 0, 0);
     }
 
+    let trafficIndex = 0;
     gameRef.current.items.forEach((item, idx) => {
-      const rowIdx = Math.floor(idx / 2);
-      item.mesh.position.z = -35 - rowIdx * 28 - Math.random() * 5;
-      item.mesh.visible = true;
+      if (item.type === "traffic") {
+        const isVisibleTraffic = item.trafficCarId !== gameRef.current.selectedCarId;
+        item.mesh.visible = isVisibleTraffic;
+        if (isVisibleTraffic) {
+          item.mesh.position.z = -70 - trafficIndex * getTrafficGap(0);
+          item.mesh.position.x = LANES[Math.floor(Math.random() * LANES.length)];
+          trafficIndex += 1;
+        }
+      } else {
+        item.mesh.position.z = -35 - idx * 28 - Math.random() * 5;
+        item.mesh.visible = true;
+      }
       item.collected = false;
     });
 
@@ -539,26 +654,18 @@ export default function CarHighwayGame({
     gameRef.current.running = true;
   }, []);
 
-  // Strict Car Switcher
-  const switchCarModel = useCallback((car: CarInfo) => {
-    if (!gameRef.current.carRoot) return;
-
-    while (gameRef.current.carRoot.children.length > 0) {
-      gameRef.current.carRoot.remove(gameRef.current.carRoot.children[0]);
-    }
-
+  const getCarModel = useCallback((car: CarInfo) => {
     if (gameRef.current.loadedModels[car.id]) {
-      const cached = gameRef.current.loadedModels[car.id];
-      gameRef.current.carRoot.add(cached);
-      return;
+      return Promise.resolve(gameRef.current.loadedModels[car.id]);
     }
-
+    if (gameRef.current.loadingModels[car.id]) {
+      return gameRef.current.loadingModels[car.id];
+    }
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
 
-    loader.load(
-      car.modelPath,
-      (gltf) => {
+    const loading = new Promise<THREE.Object3D>((resolve, reject) => {
+      loader.load(car.modelPath, (gltf) => {
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
@@ -576,6 +683,17 @@ export default function CarHighwayGame({
 
         model.rotation.y = car.rotationY;
 
+        // Nissan's source pivot is off-center after its required quarter-turn.
+        // Recenter the rotated bounds without changing the models that are
+        // already approved in the garage.
+        if (car.id === "nissan") {
+          model.updateMatrixWorld(true);
+          const rotatedBox = new THREE.Box3().setFromObject(model);
+          const rotatedCenter = rotatedBox.getCenter(new THREE.Vector3());
+          model.position.x -= rotatedCenter.x;
+          model.position.z -= rotatedCenter.z;
+        }
+
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
@@ -590,22 +708,40 @@ export default function CarHighwayGame({
         });
 
         gameRef.current.loadedModels[car.id] = model;
+        resolve(model);
+      }, undefined, reject);
+    }).finally(() => {
+      delete gameRef.current.loadingModels[car.id];
+    });
 
-        if (gameRef.current.carRoot) {
-          while (gameRef.current.carRoot.children.length > 0) {
-            gameRef.current.carRoot.remove(gameRef.current.carRoot.children[0]);
-          }
-          gameRef.current.carRoot.add(model);
-        }
-      },
-      undefined,
-      (err) => console.error("Car load error:", err)
-    );
+    gameRef.current.loadingModels[car.id] = loading;
+    return loading;
   }, []);
 
+  // Strict car switcher. Clones share optimized geometry and textures, so the
+  // player and traffic do not duplicate heavy GPU assets.
+  const switchCarModel = useCallback(async (car: CarInfo) => {
+    try {
+      const model = await getCarModel(car);
+      if (!gameRef.current.carRoot || gameRef.current.selectedCarId !== car.id) return;
+      while (gameRef.current.carRoot.children.length > 0) {
+        gameRef.current.carRoot.remove(gameRef.current.carRoot.children[0]);
+      }
+      gameRef.current.carRoot.add(cloneSkeleton(model));
+    } catch (err) {
+      console.error("Car load error:", err);
+    }
+  }, [getCarModel]);
+
   useEffect(() => {
-    switchCarModel(CARS[selectedCarIndex]);
-  }, [selectedCarIndex, switchCarModel]);
+    gameRef.current.selectedCarId = selectedCar.id;
+    gameRef.current.items.forEach((item) => {
+      if (item.type === "traffic") {
+        item.mesh.visible = gameRef.current.gameState !== "garage" && !item.collected && item.trafficCarId !== selectedCar.id;
+      }
+    });
+    switchCarModel(selectedCar);
+  }, [selectedCar, switchCarModel]);
 
 
   useEffect(() => {
@@ -628,8 +764,7 @@ export default function CarHighwayGame({
 
     // 2. Camera
     const camera = new THREE.PerspectiveCamera(56, width / height, 0.1, 500);
-    camera.position.set(2.8, 1.8, 1.8);
-    camera.lookAt(0, 0.5, -1.8);
+    applyCameraPose(camera, "diagonal", "garage", gameRef.current.playerZ);
     gameRef.current.camera = camera;
 
     // 3. Renderer
@@ -821,15 +956,7 @@ export default function CarHighwayGame({
       roughness: 0.05,
     });
 
-    const barrierGeo = new THREE.BoxGeometry(1.6, 0.9, 0.45);
-    const barrierMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xb91c1c,
-      emissiveIntensity: 0.5,
-      roughness: 0.3,
-    });
-
-        const heartGeo = new THREE.IcosahedronGeometry(0.7, 0);
+    const heartGeo = new THREE.IcosahedronGeometry(0.7, 0);
     const heartMat = new THREE.MeshStandardMaterial({
       color: 0x10b981, // emerald
       emissive: 0x059669,
@@ -840,36 +967,18 @@ export default function CarHighwayGame({
     gameRef.current.spawnHeart = () => {
       const mesh = new THREE.Mesh(heartGeo, heartMat);
       const lane = LANES[Math.floor(Math.random() * LANES.length)];
-      mesh.position.set(lane, 1.0, -250); // spawn far ahead
+      mesh.position.set(lane, 1.0, -105); // appears soon after each milestone
       scene.add(mesh);
       gameRef.current.items.push({
-        mesh, type: "heart", lane, z: -250, collected: false, radius: 1.0
+        mesh, type: "heart", lane, z: -105, collected: false, radius: 1.0
       });
     };
-const itemsPool: Array<any> = [];
+    const itemsPool: typeof gameRef.current.items = [];
     const numRows = 24;
 
     for (let r = 0; r < numRows; r++) {
       const zPos = -35 - r * 28;
-
-      const obstacleLane1 = Math.floor(Math.random() * LANES.length);
-      const spawnSecond = Math.random() < 0.4;
-      const obstacleLane2 = spawnSecond ? (obstacleLane1 + 1 + Math.floor(Math.random() * 2)) % LANES.length : -1;
-
-      const barrierMesh = new THREE.Mesh(barrierGeo, barrierMat);
-      barrierMesh.position.set(LANES[obstacleLane1], 0.45, zPos);
-      scene.add(barrierMesh);
-      itemsPool.push({
-        mesh: barrierMesh,
-        type: "barrier",
-        lane: LANES[obstacleLane1],
-        z: zPos,
-        collected: false,
-        radius: 0.85,
-      });
-
-      const freeLanes = LANES.filter((_, idx) => idx !== obstacleLane1 && idx !== obstacleLane2);
-      const rewardLane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+      const rewardLane = LANES[Math.floor(Math.random() * LANES.length)];
       const isNitro = Math.random() < 0.25;
 
       let rewardMesh: THREE.Object3D;
@@ -893,6 +1002,41 @@ const itemsPool: Array<any> = [];
       });
     }
     gameRef.current.items = itemsPool;
+
+    // Every non-selected supercar becomes slow traffic. Models are cloned
+    // from the same optimized assets as the player car, keeping mobile memory
+    // use low. The 55m spacing is intentionally much larger than the former
+    // barrier spacing so a child has time to swipe around a full-length car.
+    Array.from({ length: CARS.length * TRAFFIC_COPIES_PER_CAR }, (_, index) => ({
+      trafficCar: CARS[index % CARS.length],
+      index,
+    })).forEach(({ trafficCar, index }) => {
+      getCarModel(trafficCar).then((model) => {
+        // Ignore a model that finished loading for a React/Three scene that
+        // has already been replaced. Otherwise it becomes an invisible but
+        // collidable object in the new run.
+        if (gameRef.current.scene !== scene) return;
+        const trafficMesh = new THREE.Group();
+        trafficMesh.add(cloneSkeleton(model));
+        const lane = LANES[Math.floor(Math.random() * LANES.length)];
+        const z = -70 - index * getTrafficGap(0);
+        trafficMesh.position.set(lane, 0.04, z);
+        trafficMesh.visible =
+          gameRef.current.gameState !== "garage" &&
+          trafficCar.id !== gameRef.current.selectedCarId;
+        scene.add(trafficMesh);
+        gameRef.current.items.push({
+          mesh: trafficMesh,
+          type: "traffic",
+          lane,
+          z,
+          collected: false,
+          radius: 1.05,
+          speedFactor: 0.72,
+          trafficCarId: trafficCar.id,
+        });
+      }).catch((err) => console.error("Traffic car load error:", err));
+    });
 
     // 10. Controls
     let isPointerDown = false;
@@ -984,6 +1128,16 @@ const itemsPool: Array<any> = [];
         gameRef.current.starPoints.rotation.y = time * 0.01;
       }
 
+      // Camera remains interactive even while the simulation is stopped in
+      // the garage or paused. Applying an absolute pose also prevents drift
+      // after a restart, crash, or return to the garage.
+      applyCameraPose(
+        camera,
+        gameRef.current.currentCameraAngle as CameraAngle,
+        gameRef.current.gameState as CameraGameState,
+        gameRef.current.playerZ
+      );
+
       if (gameRef.current.running) {
         // Quick 1.2-second recovery after impact
         if (gameRef.current.speedPenalty < 1.0) {
@@ -1047,33 +1201,12 @@ const itemsPool: Array<any> = [];
           carRoot.visible = true;
         }
 
-                // CAMERA LOGIC
-        if (gameRef.current.currentCameraAngle === "straight") {
-          if (gameRef.current.gameState === "garage") {
-             camera.position.set(0, 1.6, 2.5);
-             camera.lookAt(0, 0.4, -1.8);
-          } else {
-             // Race / Paused / GameOver: Static straight view
-             camera.position.set(0, 1.6, gameRef.current.playerZ + 4.3);
-             camera.lookAt(0, 0.4, gameRef.current.playerZ);
-          }
-        } else {
-          if (gameRef.current.gameState === "garage") {
-             camera.position.set(2.8, 1.8, 1.8);
-             camera.lookAt(0, 0.5, -1.8);
-          } else {
-             // Race / Paused / GameOver: Static isometric view
-             camera.position.set(2.8, 1.8, gameRef.current.playerZ + 3.6);
-             camera.lookAt(0, 0.5, gameRef.current.playerZ);
-          }
-        }
-
         // Move road items
         const resetThresholdZ = 10;
         const respawnZ = -300;
 
         gameRef.current.items.forEach((item) => {
-          item.mesh.position.z += moveDist;
+          item.mesh.position.z += moveDist * (item.speedFactor ?? 1);
 
           if (item.type === "coin" || item.type === "nitro" || item.type === "heart") {
             item.mesh.rotation.y += delta * 4.0;
@@ -1082,6 +1215,8 @@ const itemsPool: Array<any> = [];
           // Collision Check
           if (
             !item.collected &&
+            item.mesh.visible &&
+            item.mesh.parent === scene &&
             item.mesh.position.z > gameRef.current.playerZ - 1.2 &&
             item.mesh.position.z < gameRef.current.playerZ + 1.6 &&
             Math.abs(item.mesh.position.x - gameRef.current.playerX) < item.radius
@@ -1117,10 +1252,8 @@ const itemsPool: Array<any> = [];
                 });
                 if (onVictory) onVictory(gameRef.current.score, gameRef.current.stars);
               }
-            } else if (item.type === "barrier") {
+            } else if (item.type === "traffic") {
               if (gameRef.current.invincibleTimer <= 0) {
-                item.collected = true;
-                item.mesh.visible = false;
                 gameRef.current.hearts -= 1;
                 gameRef.current.invincibleTimer = 0.7; // Fast 0.7s: 2 quick blinks!
                 gameRef.current.speedPenalty = 0.55; // Quick speed drop, recovers in 1.2s
@@ -1142,11 +1275,25 @@ const itemsPool: Array<any> = [];
             item.mesh.visible = false;
             return; // Hearts don't recycle
           }
-            item.mesh.position.z = respawnZ - Math.random() * 40;
+            if (item.type === "traffic") {
+              const progress = Math.min(gameRef.current.score / targetScore, 1);
+              const farthestTrafficZ = gameRef.current.items.reduce((farthest, candidate) => {
+                if (
+                  candidate.type !== "traffic" ||
+                  candidate === item ||
+                  candidate.trafficCarId === gameRef.current.selectedCarId ||
+                  candidate.mesh.parent !== scene
+                ) return farthest;
+                return Math.min(farthest, candidate.mesh.position.z);
+              }, respawnZ);
+              item.mesh.position.z = farthestTrafficZ - getTrafficGap(progress);
+            } else {
+              item.mesh.position.z = respawnZ - Math.random() * 40;
+            }
             const laneIndex = Math.floor(Math.random() * LANES.length);
             item.mesh.position.x = LANES[laneIndex];
             item.collected = false;
-            item.mesh.visible = true;
+            item.mesh.visible = item.type !== "traffic" || item.trafficCarId !== gameRef.current.selectedCarId;
           }
         });
       }
@@ -1158,6 +1305,7 @@ const itemsPool: Array<any> = [];
 
     return () => {
       cancelAnimationFrame(animId);
+      if (gameRef.current.scene === scene) gameRef.current.scene = null;
       audioSysRef.current.stopEngine();
       dom.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
@@ -1196,7 +1344,7 @@ const itemsPool: Array<any> = [];
         )}
 
         <button
-          onClick={() => setCameraAngle(a => a === "straight" ? "diagonal" : "straight")}
+          onClick={toggleCamera}
           aria-label="Смена Камеры"
           className="w-11 h-11 rounded-full bg-indigo-600/80 hover:bg-indigo-600 backdrop-blur-md border border-indigo-400/40 text-white flex items-center justify-center transition-all shadow-xl active:scale-95 cursor-pointer"
         >
@@ -1257,25 +1405,31 @@ const itemsPool: Array<any> = [];
           </div>
 
           <div className="w-full max-w-2xl mx-auto flex flex-col gap-3 pointer-events-auto pb-2">
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 snap-x snap-mandatory justify-start sm:justify-center">
               {CARS.map((car, idx) => {
                 const isSelected = idx === selectedCarIndex;
                 return (
                   <button
                     key={car.id}
                     onClick={() => setSelectedCarIndex(idx)}
-                    className={`relative rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-between transition-all cursor-pointer border-2 ${
+                    className={`relative w-24 sm:w-28 shrink-0 snap-center rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-between transition-all cursor-pointer border-2 min-h-[106px] ${
                       isSelected
                         ? "bg-slate-900/90 border-amber-400 shadow-xl shadow-amber-500/25 scale-[1.03]"
                         : "bg-slate-950/70 border-white/10 opacity-75 hover:opacity-100 hover:border-white/30"
                     }`}
                   >
                     <div className="w-full aspect-[16/10] rounded-xl overflow-hidden flex items-center justify-center p-1 bg-black/40">
-                      <img
-                        src={car.imgPath}
-                        alt={car.name}
-                        className="w-full h-full object-contain drop-shadow-lg"
-                      />
+                      {car.imgPath ? (
+                        <img
+                          src={car.imgPath}
+                          alt={car.name}
+                          className="w-full h-full object-contain drop-shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-lg bg-gradient-to-br from-slate-700 via-slate-900 to-black flex items-center justify-center text-amber-300 font-black text-lg tracking-tight border border-white/10">
+                          {car.badge}
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-center mt-1.5 w-full">
@@ -1293,7 +1447,7 @@ const itemsPool: Array<any> = [];
             </div>
 
             <div className="flex gap-2 w-full"><button
-              onClick={() => setCameraAngle(a => a === "straight" ? "diagonal" : "straight")}
+              onClick={toggleCamera}
               className="w-14 sm:w-16 h-14 sm:h-16 shrink-0 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-white/10 flex items-center justify-center text-indigo-400 transition-all active:scale-95 shadow-xl cursor-pointer"
               title="Смена ракурса камеры"
             >

@@ -126,7 +126,7 @@ export default function GameHubModal({
                   </button>
                 </div>
 
-                {/* GAME 2: Турбо Драйв (3 Суперкара в гараже) */}
+                {/* GAME 2: Турбо Драйв (5 суперкаров в гараже) */}
                 <div className="relative rounded-2xl bg-gradient-to-b from-amber-950/40 to-slate-900 border-2 border-amber-500/40 p-4 flex flex-col justify-between shadow-xl shadow-amber-500/10 hover:border-amber-400 transition-all group">
                   <div className="absolute -top-2.5 right-3 px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-md">
                     Готово 🟢
@@ -146,7 +146,7 @@ export default function GameHubModal({
                       <span>Турбо Драйв</span>
                     </h3>
                     <p className="text-[11px] text-slate-300 font-medium mt-1 leading-relaxed">
-                      Скоростное шоссе, 3 суперкара в 3D гараже на выбор, нитро-ускорение.
+                      Скоростное шоссе, 5 суперкаров в 3D-гараже на выбор и живой трафик.
                     </p>
 
                     <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-bold text-amber-300">

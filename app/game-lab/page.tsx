@@ -108,7 +108,7 @@ export default function GameLabPage() {
                 Турбо Драйв
               </p>
               <p className="text-[11px] text-amber-200/70 font-medium">
-                3 суперкара в гараже
+                5 суперкаров в гараже
               </p>
             </div>
           </button>
