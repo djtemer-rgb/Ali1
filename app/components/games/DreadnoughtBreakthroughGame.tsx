@@ -8,7 +8,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, Play, RotateCcw, Shield, Sparkles, Trophy, Volume2, VolumeX, X, Zap } from "lucide-react";
 import confetti from "canvas-confetti";
-import { MobileLandscapeGate, useMobileLandscapeLaunch } from "./MobileLandscapeGate";
+import { useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
 type FighterId = "azure" | "solar" | "phantom";
 type GameState = "hangar" | "loading" | "playing" | "gameover" | "victory";
@@ -323,12 +323,9 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
   const [warning, setWarning] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
   const [missionSession, setMissionSession] = useState(0);
-  const { showRotateHint, isPortraitTouch, launchInLandscape } = useMobileLandscapeLaunch();
+  const { launchInLandscape, getLandscapePointerX, landscapeFrameStyle } = useMobileLandscapeLaunch();
 
   useEffect(() => { onVictoryRef.current = onVictory; }, [onVictory]);
-  useEffect(() => {
-    if (gameState === "playing") runtime.current.running = !isPortraitTouch;
-  }, [gameState, isPortraitTouch]);
 
   const runtime = useRef({
     running: false,
@@ -891,23 +888,27 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
     };
     const onPointerDown = (event: PointerEvent) => {
       renderer.domElement.setPointerCapture(event.pointerId);
-      const pointer = { x: event.clientX, startX: event.clientX, startY: event.clientY, moved: false, held: false, holdTimer: 0, repeatTimer: 0 };
+      const pointerX = getLandscapePointerX(event.clientX, event.clientY);
+      const pointer = { x: pointerX, startX: pointerX, startY: event.clientY, moved: false, held: false, holdTimer: 0, repeatTimer: 0 };
       game.pointers.set(event.pointerId, pointer);
       beginHold(pointer);
     };
     const onPointerMove = (event: PointerEvent) => {
       const pointer = game.pointers.get(event.pointerId);
       if (!pointer || !game.running) return;
-      const delta = event.clientX - pointer.x;
-      if (Math.abs(event.clientX - pointer.startX) > 9 || Math.abs(event.clientY - pointer.startY) > 9) {
+      const pointerX = getLandscapePointerX(event.clientX, event.clientY);
+      const delta = pointerX - pointer.x;
+      if (Math.abs(pointerX - pointer.startX) > 9 || Math.abs(event.clientY - pointer.startY) > 9) {
         if (!pointer.moved) {
           window.clearTimeout(pointer.holdTimer);
           window.clearInterval(pointer.repeatTimer);
         }
         pointer.moved = true;
       }
-      game.targetX = THREE.MathUtils.clamp(game.targetX + delta * 0.022, LANES[0], LANES[3]);
-      pointer.x = event.clientX;
+      const landscapeWidth = Math.max(window.innerWidth, window.innerHeight);
+      const sensitivity = (LANES[LANES.length - 1] - LANES[0]) / Math.max(120, landscapeWidth / 3);
+      game.targetX = THREE.MathUtils.clamp(game.targetX + delta * sensitivity, LANES[0], LANES[3]);
+      pointer.x = pointerX;
     };
     const onPointerUp = (event: PointerEvent) => {
       const pointer = game.pointers.get(event.pointerId);
@@ -953,7 +954,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       game.pointers.clear();
       game.keys.clear();
     };
-  }, [fire, missionSession, selectedFighter, updateShield]);
+  }, [fire, missionSession, selectedFighter, updateShield, getLandscapePointerX]);
 
   const launchMission = () => {
     const game = runtime.current;
@@ -1008,7 +1009,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
   const selected = FIGHTERS.find((fighter) => fighter.id === selectedFighter) ?? FIGHTERS[0];
 
   return (
-    <div className="fixed inset-0 z-[80] bg-[#01030d] text-white overflow-hidden select-none" style={{ touchAction: "none" }}>
+    <div className={`fixed z-[80] bg-[#01030d] text-white overflow-hidden select-none ${landscapeFrameStyle ? "" : "inset-0"}`} style={{ ...landscapeFrameStyle, touchAction: "none" }}>
       <div ref={mountRef} className={`absolute inset-0 transition-opacity duration-500 ${gameState === "hangar" ? "opacity-30" : "opacity-100"}`} />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_50%_105%,rgba(34,211,238,0.16),transparent_42%),radial-gradient(ellipse_at_24%_94%,rgba(124,58,237,0.12),transparent_36%),radial-gradient(circle_at_50%_25%,rgba(67,56,202,0.10),transparent_46%)]" />
 
@@ -1079,7 +1080,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
                 const active = selectedFighter === fighter.id;
                 return <button key={fighter.id} disabled={gameState === "loading"} onClick={() => setSelectedFighter(fighter.id)} className={`min-h-[126px] sm:min-h-[154px] rounded-2xl border p-2.5 sm:p-4 flex flex-col items-center justify-center transition-all active:scale-95 [@media(max-height:450px)]:min-h-[112px] [@media(max-height:450px)]:p-2 ${active ? `border-white/55 bg-gradient-to-b ${fighter.accent} ${fighter.glow} shadow-xl` : "border-white/10 bg-white/[.045] opacity-70 hover:opacity-100"}`}>
                   <div className="relative w-full h-16 sm:h-20 rounded-xl bg-slate-800 overflow-hidden shadow-lg border border-white/10 [@media(max-height:450px)]:h-14">
-                    <img src="/images/class3-fighters-reference.png" alt={fighter.name} className={`h-full w-[300%] max-w-none object-cover ${fighter.id === "azure" ? "translate-x-0" : fighter.id === "solar" ? "-translate-x-[33.333%]" : "-translate-x-[66.666%]"}`} />
+                    <img src="/images/class3-fighters-reference.webp" alt={fighter.name} className={`h-full w-[300%] max-w-none object-cover ${fighter.id === "azure" ? "translate-x-0" : fighter.id === "solar" ? "-translate-x-[33.333%]" : "-translate-x-[66.666%]"}`} />
                     <span className={`absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t ${fighter.accent} opacity-35`} />
                   </div>
                   <p className="mt-2 text-[10px] sm:text-sm font-black leading-tight [@media(max-height:450px)]:mt-1 [@media(max-height:450px)]:text-xs">{fighter.name}</p><p className={`hidden sm:block mt-1 text-[10px] [@media(max-height:450px)]:hidden ${active ? "text-white/80" : "text-slate-400"}`}>{fighter.subtitle}</p>
@@ -1094,7 +1095,6 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
         </div>
       )}
 
-      <MobileLandscapeGate visible={showRotateHint || (gameState === "playing" && isPortraitTouch)} />
 
       {(gameState === "gameover" || gameState === "victory") && (
         <div className="absolute inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/72 backdrop-blur-lg pointer-events-auto">

@@ -159,3 +159,14 @@ vite.config.ts.timestamp-*
 
 # CodeGraph files
 .codegraph/
+
+# Local source assets and generated QA files. Runtime-ready optimized assets
+# belong in public/; originals stay recoverable locally without bloating Git.
+/.local-source-assets/
+/output/
+/scratch/
+/test-results/
+/.playwright-cli/
+/.playwright-mcp/
+/artifacts/
+/referens/

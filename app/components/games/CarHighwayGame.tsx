@@ -8,7 +8,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge, Video, Pause, Play as PlayIcon } from "lucide-react";
 import confetti from "canvas-confetti";
-import { MobileLandscapeGate, useMobileLandscapeLaunch } from "./MobileLandscapeGate";
+import { useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
 type CarId = "porsche" | "bmw" | "lambo" | "audi" | "nissan";
 
@@ -33,7 +33,7 @@ const CARS: CarInfo[] = [
     name: "Porsche 911 GT3 RS",
     subtitle: "Carrera Tribute 992 (White & Python Green)",
     modelPath: "/models/porsche_gt3.glb",
-    imgPath: "/images/cars/porsche.png",
+    imgPath: "/images/cars/porsche.webp",
     speedStat: 98,
     handlingStat: 99,
     nitroStat: 95,
@@ -47,7 +47,7 @@ const CARS: CarInfo[] = [
     name: "BMW M8 Competition",
     subtitle: "Widebody Carbon Edition (Gunmetal & Red)",
     modelPath: "/models/bmw_m8.glb",
-    imgPath: "/images/cars/bmw.png",
+    imgPath: "/images/cars/bmw.webp",
     speedStat: 97,
     handlingStat: 95,
     nitroStat: 97,
@@ -61,7 +61,7 @@ const CARS: CarInfo[] = [
     name: "Lamborghini Revuelto",
     subtitle: "Duke Dynamics Carbon (V12 Hybrid)",
     modelPath: "/models/lambo.glb",
-    imgPath: "/images/cars/lambo.png",
+    imgPath: "/images/cars/lambo.webp",
     speedStat: 100,
     handlingStat: 96,
     nitroStat: 99,
@@ -441,7 +441,8 @@ export default function CarHighwayGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>("diagonal");
   const [hasInteracted, setHasInteracted] = useState(false);
-  const { showRotateHint, isPortraitTouch, launchInLandscape } = useMobileLandscapeLaunch();
+  const carPickerRef = useRef<HTMLDivElement | null>(null);
+  const { launchInLandscape, getLandscapePointerX, landscapeFrameStyle } = useMobileLandscapeLaunch();
 
   // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
   const LANES = [-3.75, -1.25, 1.25, 3.75];
@@ -559,11 +560,9 @@ export default function CarHighwayGame({
   };
 
   useEffect(() => {
-    if (gameState !== "playing") return;
-    gameRef.current.running = !isPortraitTouch;
-    if (isPortraitTouch) audioSysRef.current.stopEngine();
-    else audioSysRef.current.startEngine();
-  }, [gameState, isPortraitTouch]);
+    const selectedButton = carPickerRef.current?.querySelector<HTMLElement>(`[data-car-index="${selectedCarIndex}"]`);
+    selectedButton?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [selectedCarIndex]);
 
   const handleBackToGarage = useCallback(() => {
     gameRef.current.currentCameraAngle = "diagonal";
@@ -1058,14 +1057,16 @@ export default function CarHighwayGame({
 
     const onPointerDown = (e: PointerEvent) => {
       isPointerDown = true;
-      startPointerX = e.clientX;
+      startPointerX = getLandscapePointerX(e.clientX, e.clientY);
       startPlayerX = gameRef.current.targetX;
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (!isPointerDown) return;
-      const deltaX = e.clientX - startPointerX;
-      const sensitivity = 0.022;
+      const pointerX = getLandscapePointerX(e.clientX, e.clientY);
+      const deltaX = pointerX - startPointerX;
+      const landscapeWidth = Math.max(window.innerWidth, window.innerHeight);
+      const sensitivity = (LANES[LANES.length - 1] - LANES[0]) / Math.max(120, landscapeWidth / 3);
       const maxX = roadWidth / 2 - 0.9;
       gameRef.current.targetX = THREE.MathUtils.clamp(
         startPlayerX + deltaX * sensitivity,
@@ -1330,10 +1331,10 @@ export default function CarHighwayGame({
         dom.parentElement.removeChild(dom);
       }
     };
-  }, [targetScore, onVictory, switchCarModel]);
+  }, [targetScore, onVictory, switchCarModel, getLandscapePointerX]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden touch-none">
+    <div className={`fixed z-50 bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden touch-none ${landscapeFrameStyle ? "" : "inset-0"}`} style={landscapeFrameStyle}>
       <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* TOP CONTROLS & CLOSE BUTTON (ALWAYS VISIBLE IN ALL STATES) */}
@@ -1418,20 +1419,21 @@ export default function CarHighwayGame({
           </div>
 
           <div className="w-full max-w-2xl mx-auto flex flex-col gap-3 pointer-events-auto pb-2">
-            <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-1 snap-x snap-mandatory justify-start sm:justify-center">
+            <div ref={carPickerRef} className="w-[min(42vw,330px)] sm:w-full ml-auto mr-5 sm:mx-auto flex gap-2 sm:gap-3 overflow-x-auto px-[calc(50%_-_46px)] sm:px-0 pb-1 snap-x snap-mandatory justify-start sm:justify-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {CARS.map((car, idx) => {
                 const isSelected = idx === selectedCarIndex;
                 return (
                   <button
                     key={car.id}
+                    data-car-index={idx}
                     onClick={() => setSelectedCarIndex(idx)}
-                    className={`relative w-24 sm:w-28 shrink-0 snap-center rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-between transition-all cursor-pointer border-2 min-h-[106px] ${
+                    className={`relative w-[92px] sm:w-28 shrink-0 snap-center rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 flex flex-col items-center justify-between transition-all cursor-pointer border-2 min-h-[62px] sm:min-h-[106px] ${
                       isSelected
                         ? "bg-slate-900/90 border-amber-400 shadow-xl shadow-amber-500/25 scale-[1.03]"
                         : "bg-slate-950/70 border-white/10 opacity-75 hover:opacity-100 hover:border-white/30"
                     }`}
                   >
-                    <div className="w-full aspect-[16/10] rounded-xl overflow-hidden flex items-center justify-center p-1 bg-black/40">
+                    <div className="w-full h-10 sm:h-auto sm:aspect-[16/10] rounded-lg sm:rounded-xl overflow-hidden flex items-center justify-center p-0.5 sm:p-1 bg-black/40">
                       {car.imgPath ? (
                         <img
                           src={car.imgPath}
@@ -1445,11 +1447,11 @@ export default function CarHighwayGame({
                       )}
                     </div>
 
-                    <div className="text-center mt-1.5 w-full">
-                      <p className="text-[11px] sm:text-xs font-black text-white truncate">
+                    <div className="text-center mt-0.5 sm:mt-1.5 w-full">
+                      <p className="text-[9px] sm:text-xs font-black text-white truncate">
                         {car.name}
                       </p>
-                      <div className="flex items-center justify-center gap-2 mt-0.5 text-[9px] sm:text-[10px] text-slate-400 font-bold">
+                      <div className="hidden sm:flex items-center justify-center gap-2 mt-0.5 text-[10px] text-slate-400 font-bold">
                         <span>⚡ {car.speedStat}</span>
                         <span>🎯 {car.handlingStat}</span>
                       </div>
@@ -1583,8 +1585,6 @@ export default function CarHighwayGame({
           </motion.div>
         )}
       </AnimatePresence>
-
-      <MobileLandscapeGate visible={showRotateHint || (gameState === "playing" && isPortraitTouch)} />
 
       {/* GAME OVER MODAL */}
       <AnimatePresence>

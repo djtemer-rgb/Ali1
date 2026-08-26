@@ -7,7 +7,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play } from "lucide-react";
 import confetti from "canvas-confetti";
-import { MobileLandscapeGate, useMobileLandscapeLaunch } from "./MobileLandscapeGate";
+import { useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
 interface DragonSnowGameProps {
   onClose: () => void;
@@ -164,7 +164,7 @@ export default function DragonSnowGame({
   const [speedMultiplier, setSpeedMultiplier] = useState(1.0);
   const [soundMuted, setSoundMuted] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
-  const { showRotateHint, isPortraitTouch, launchInLandscape } = useMobileLandscapeLaunch();
+  const { launchInLandscape, getLandscapePointerX, landscapeFrameStyle } = useMobileLandscapeLaunch();
 
   // 5 full-width playable lanes covering [-3.8 .. +3.8]
   const LANES = [-4.5, -1.5, 1.5, 4.5];
@@ -218,10 +218,6 @@ export default function DragonSnowGame({
       gameRef.current.running = true;
     });
   }, [launchInLandscape]);
-
-  useEffect(() => {
-    if (gameState === "playing") gameRef.current.running = !isPortraitTouch;
-  }, [gameState, isPortraitTouch]);
 
   const handleRestart = useCallback(() => {
     setScore(0);
@@ -553,14 +549,16 @@ export default function DragonSnowGame({
 
     const onPointerDown = (e: PointerEvent) => {
       isPointerDown = true;
-      startPointerX = e.clientX;
+      startPointerX = getLandscapePointerX(e.clientX, e.clientY);
       startPlayerX = gameRef.current.targetX;
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (!isPointerDown) return;
-      const deltaX = e.clientX - startPointerX;
-      const sensitivity = 0.022;
+      const pointerX = getLandscapePointerX(e.clientX, e.clientY);
+      const deltaX = pointerX - startPointerX;
+      const landscapeWidth = Math.max(window.innerWidth, window.innerHeight);
+      const sensitivity = (LANES[LANES.length - 1] - LANES[0]) / Math.max(120, landscapeWidth / 3);
       const maxX = 4.5;
       gameRef.current.targetX = THREE.MathUtils.clamp(
         startPlayerX + deltaX * sensitivity,
@@ -817,12 +815,11 @@ export default function DragonSnowGame({
         dom.parentElement.removeChild(dom);
       }
     };
-  }, [targetScore, onVictory]);
+  }, [targetScore, onVictory, getLandscapePointerX]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden touch-none">
+    <div className={`fixed z-50 bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden touch-none ${landscapeFrameStyle ? "" : "inset-0"}`} style={landscapeFrameStyle}>
       <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
-      <MobileLandscapeGate visible={showRotateHint || (gameState === "playing" && isPortraitTouch)} />
 
       {/* TOP CONTROLS & CLOSE BUTTON (ALWAYS VISIBLE IN ALL STATES) */}
       <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
