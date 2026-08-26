@@ -5,10 +5,11 @@ import Link from "next/link";
 import { ArrowLeft, Gamepad2, Sparkles, Play, Eye, RotateCcw } from "lucide-react";
 import DragonSnowGame from "@/app/components/games/DragonSnowGame";
 import CarHighwayGame from "@/app/components/games/CarHighwayGame";
+import DreadnoughtBreakthroughGame from "@/app/components/games/DreadnoughtBreakthroughGame";
 import GameHubModal from "@/app/components/GameHubModal";
 
 export default function GameLabPage() {
-  const [activeTest, setActiveTest] = useState<"none" | "direct-dragon" | "direct-car" | "hub-modal">("none");
+  const [activeTest, setActiveTest] = useState<"none" | "direct-dragon" | "direct-car" | "direct-space" | "hub-modal">("none");
   const [lastResult, setLastResult] = useState<{ score: number; stars: number } | null>(null);
 
   return (
@@ -32,6 +33,14 @@ export default function GameLabPage() {
           onVictory={(score, stars) => {
             setLastResult({ score, stars });
           }}
+        />
+      )}
+
+      {/* DIRECT SPACE COMBAT GAME */}
+      {activeTest === "direct-space" && (
+        <DreadnoughtBreakthroughGame
+          onClose={() => setActiveTest("none")}
+          onVictory={(score, stars) => setLastResult({ score, stars })}
         />
       )}
 
@@ -72,7 +81,7 @@ export default function GameLabPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             onClick={() => setActiveTest("direct-dragon")}
             className="p-4 rounded-2xl bg-gradient-to-br from-sky-950 to-blue-900 border-2 border-sky-400/40 hover:border-sky-400 text-left flex flex-col justify-between shadow-xl shadow-sky-500/10 group cursor-pointer transition-all active:scale-95"
@@ -110,6 +119,22 @@ export default function GameLabPage() {
               <p className="text-[11px] text-amber-200/70 font-medium">
                 5 суперкаров в гараже
               </p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTest("direct-space")}
+            className="p-4 rounded-2xl bg-gradient-to-br from-violet-950 to-slate-950 border-2 border-violet-400/40 hover:border-violet-300 text-left flex flex-col justify-between shadow-xl shadow-violet-500/10 group cursor-pointer transition-all active:scale-95"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">🚀 🛸</span>
+              <div className="w-7 h-7 rounded-full bg-violet-400 text-slate-950 flex items-center justify-center font-bold">
+                <Play size={14} className="fill-current ml-0.5" />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-black text-white group-hover:text-violet-300 transition-colors">Космический охотник</p>
+              <p className="text-[11px] text-violet-200/70 font-medium">Космическая боевая миссия</p>
             </div>
           </button>
 
@@ -157,7 +182,7 @@ export default function GameLabPage() {
         <div className="p-4 rounded-2xl bg-black/40 border border-white/5 text-xs text-slate-400 space-y-1.5">
           <p className="font-bold text-slate-300">⚙️ Параметры движка:</p>
           <p>• Three.js WebGL: v0.183 (ACESFilmic + PCFSoftShadows)</p>
-          <p>• 3D Модель: <code className="text-sky-300">/models/dragon.glb</code> (4.35 MB, Meshopt)</p>
+          <p>• 3D-модели: Dragon, 5 суперкаров и 3 оптимизированных космических корабля</p>
           <p>• Физика: Dynamic Delta Time + Smooth Lerp + Touch Action Lock</p>
         </div>
       </div>

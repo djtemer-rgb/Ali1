@@ -53,15 +53,15 @@ export default function RootLayout({
                   navigator.serviceWorker.getRegistrations().then(function(registrations) {
                     return Promise.all(registrations.map(function(reg) { return reg.unregister(); }));
                   }).catch(function() {});
-                  return;
-                }
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(reg) {
-                    console.log('SW registered:', reg.scope);
-                  }).catch(function(err) {
-                    console.log('SW registration failed:', err);
+                } else {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                      console.log('SW registered:', reg.scope);
+                    }).catch(function(err) {
+                      console.log('SW registration failed:', err);
+                    });
                   });
-                });
+                }
               }
             `,
           }}

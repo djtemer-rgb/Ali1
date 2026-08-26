@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ali-quest-v2';
+const CACHE_NAME = 'ali-quest-v3';
 
 const ASSETS = [
   '/',

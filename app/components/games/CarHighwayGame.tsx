@@ -8,6 +8,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play, Gauge, Video, Pause, Play as PlayIcon } from "lucide-react";
 import confetti from "canvas-confetti";
+import { MobileLandscapeGate, useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
 type CarId = "porsche" | "bmw" | "lambo" | "audi" | "nissan";
 
@@ -440,6 +441,7 @@ export default function CarHighwayGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>("diagonal");
   const [hasInteracted, setHasInteracted] = useState(false);
+  const { showRotateHint, isPortraitTouch, launchInLandscape } = useMobileLandscapeLaunch();
 
   // Exact 4-lane centers across 10m road (dividers at -2.5, 0.0, +2.5)
   const LANES = [-3.75, -1.25, 1.25, 3.75];
@@ -551,6 +553,17 @@ export default function CarHighwayGame({
     setHasInteracted(true);
     gameRef.current.running = true;
   };
+
+  const requestLaunchRace = () => {
+    void launchInLandscape(handleLaunchRace);
+  };
+
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    gameRef.current.running = !isPortraitTouch;
+    if (isPortraitTouch) audioSysRef.current.stopEngine();
+    else audioSysRef.current.startEngine();
+  }, [gameState, isPortraitTouch]);
 
   const handleBackToGarage = useCallback(() => {
     gameRef.current.currentCameraAngle = "diagonal";
@@ -1219,7 +1232,7 @@ export default function CarHighwayGame({
             item.mesh.parent === scene &&
             item.mesh.position.z > gameRef.current.playerZ - 1.2 &&
             item.mesh.position.z < gameRef.current.playerZ + 1.6 &&
-            Math.abs(item.mesh.position.x - gameRef.current.playerX) < item.radius
+            Math.abs(item.mesh.position.x - gameRef.current.playerX) < (item.type === "traffic" ? 1.28 : item.radius)
           ) {
             if (item.type === "coin" || item.type === "nitro" || item.type === "heart") {
               item.collected = true;
@@ -1454,7 +1467,7 @@ export default function CarHighwayGame({
               <Video size={22} />
             </button>
             <button
-              onClick={handleLaunchRace}
+              onClick={requestLaunchRace}
               className="flex-1 h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/30 active:scale-95 transition-all cursor-pointer uppercase tracking-wider"
             >
               <Play size={22} className="fill-current" />
@@ -1570,6 +1583,8 @@ export default function CarHighwayGame({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MobileLandscapeGate visible={showRotateHint || (gameState === "playing" && isPortraitTouch)} />
 
       {/* GAME OVER MODAL */}
       <AnimatePresence>

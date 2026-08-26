@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Trophy, Play, Car, Rocket, ShieldAlert, Award } from "lucide-react";
+import { X, Sparkles, Play } from "lucide-react";
 import DragonSnowGame from "./games/DragonSnowGame";
 import CarHighwayGame from "./games/CarHighwayGame";
+import DreadnoughtBreakthroughGame from "./games/DreadnoughtBreakthroughGame";
 
 interface GameHubModalProps {
   open: boolean;
@@ -18,7 +19,6 @@ export default function GameHubModal({
   onGameComplete,
 }: GameHubModalProps) {
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
-  const [selectedShip, setSelectedShip] = useState<"ship1" | "ship2" | "ship3">("ship1");
 
   if (!open) return null;
 
@@ -42,6 +42,16 @@ export default function GameHubModal({
           onClose={() => setActiveGameId(null)}
           onVictory={(score, stars) => {
             if (onGameComplete) onGameComplete("car-highway", score, stars);
+          }}
+        />
+      )}
+
+      {/* ACTIVE 3D SPACE COMBAT GAME */}
+      {activeGameId === "dreadnought-breakthrough" && (
+        <DreadnoughtBreakthroughGame
+          onClose={() => setActiveGameId(null)}
+          onVictory={(score, stars) => {
+            if (onGameComplete) onGameComplete("dreadnought-breakthrough", score, stars);
           }}
         />
       )}
@@ -101,8 +111,8 @@ export default function GameHubModal({
 
                   <div>
                     {/* Visual Icon / Art */}
-                    <div className="w-full aspect-video rounded-xl bg-gradient-to-tr from-sky-900 to-blue-700 flex items-center justify-center text-4xl shadow-inner border border-sky-400/30 group-hover:scale-[1.02] transition-transform">
-                      🏂 🐲
+                    <div className="w-full aspect-video rounded-xl shadow-inner border border-sky-400/30 group-hover:scale-[1.02] transition-transform overflow-hidden">
+                      <img src="/images/game-hub/winter-dragon.webp" alt="Дракон спускается по снежной горе" className="w-full h-full object-cover" />
                     </div>
 
                     <h3 className="text-base font-black text-white mt-3 flex items-center gap-1.5">
@@ -134,11 +144,11 @@ export default function GameHubModal({
 
                   <div>
                     {/* Visual Cutout Image */}
-                    <div className="w-full aspect-video rounded-xl bg-gradient-to-tr from-slate-900 to-amber-950/60 flex items-center justify-center p-2 shadow-inner border border-amber-500/30 group-hover:scale-[1.02] transition-transform overflow-hidden">
+                    <div className="w-full aspect-video rounded-xl bg-gradient-to-tr from-slate-900 to-amber-950/60 flex items-center justify-center shadow-inner border border-amber-500/30 group-hover:scale-[1.02] transition-transform overflow-hidden">
                       <img
-                        src="/images/cars/porsche.png"
-                        alt="Porsche GT3 RS"
-                        className="w-full h-full object-contain drop-shadow-md"
+                        src="/images/game-hub/turbo-drive.webp"
+                        alt="Пять суперкаров на скоростной трассе"
+                        className="w-full h-full object-cover"
                       />
                     </div>
 
@@ -163,63 +173,28 @@ export default function GameHubModal({
                   </button>
                 </div>
 
-                {/* GAME 3: Звёздный Крейсер (3 Ships in 1) */}
-                <div className="relative rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 p-4 flex flex-col justify-between shadow-xl group">
+                {/* GAME 3: Космический охотник */}
+                <div className="relative rounded-2xl bg-gradient-to-b from-violet-950/60 to-slate-950 border-2 border-violet-400/40 p-4 flex flex-col justify-between shadow-xl shadow-violet-500/10 hover:border-violet-300 transition-all group">
+                  <div className="absolute -top-2.5 right-3 px-2.5 py-0.5 rounded-full bg-violet-400 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-md">
+                    Новая миссия 🟢
+                  </div>
                   <div>
                     {/* Visual Icon / Art */}
-                    <div className="w-full aspect-video rounded-xl bg-gradient-to-tr from-purple-950 to-indigo-900 flex items-center justify-center text-4xl shadow-inner border border-white/10">
-                      🚀 ✨
+                    <div className="relative w-full aspect-video rounded-xl shadow-inner border border-violet-300/25 overflow-hidden group-hover:scale-[1.02] transition-transform">
+                      <img src="/images/game-hub/space-hunter.webp" alt="Космический охотник вступает в бой" className="w-full h-full object-cover" />
                     </div>
 
                     <h3 className="text-base font-black text-white mt-3 flex items-center gap-1.5">
-                      <span>Звёздный Крейсер</span>
+                      <span>Космический охотник</span>
                     </h3>
                     <p className="text-[11px] text-slate-300 font-medium mt-1 leading-relaxed">
-                      Гиперпространственный полёт через кольца энергии и астероиды.
+                      Пять Andromeda, астероиды и трёхфазная битва с главным кораблём.
                     </p>
 
-                    {/* Ship Model Selector */}
-                    <div className="mt-2.5">
-                      <p className="text-[10px] font-extrabold uppercase text-slate-400 mb-1">
-                        Выбор корабля (3 цвета):
-                      </p>
-                      <div className="grid grid-cols-3 gap-1">
-                        <button
-                          onClick={() => setSelectedShip("ship1")}
-                          className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
-                            selectedShip === "ship1"
-                              ? "bg-purple-500 text-white shadow-md"
-                              : "bg-slate-800 text-slate-300 border border-white/10"
-                          }`}
-                        >
-                          Альфа
-                        </button>
-                        <button
-                          onClick={() => setSelectedShip("ship2")}
-                          className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
-                            selectedShip === "ship2"
-                              ? "bg-purple-500 text-white shadow-md"
-                              : "bg-slate-800 text-slate-300 border border-white/10"
-                          }`}
-                        >
-                          Неон
-                        </button>
-                        <button
-                          onClick={() => setSelectedShip("ship3")}
-                          className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
-                            selectedShip === "ship3"
-                              ? "bg-purple-500 text-white shadow-md"
-                              : "bg-slate-800 text-slate-300 border border-white/10"
-                          }`}
-                        >
-                          Тень
-                        </button>
-                      </div>
-                    </div>
                   </div>
 
                   <button
-                    onClick={() => setActiveGameId("dragon-snow")}
+                    onClick={() => setActiveGameId("dreadnought-breakthrough")}
                     className="mt-4 w-full h-11 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95 transition-all cursor-pointer"
                   >
                     <Play size={16} className="fill-current" />

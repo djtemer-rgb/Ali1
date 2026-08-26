@@ -7,6 +7,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Volume2, VolumeX, RotateCcw, Trophy, Sparkles, Heart, Zap, Play } from "lucide-react";
 import confetti from "canvas-confetti";
+import { MobileLandscapeGate, useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
 interface DragonSnowGameProps {
   onClose: () => void;
@@ -163,6 +164,7 @@ export default function DragonSnowGame({
   const [speedMultiplier, setSpeedMultiplier] = useState(1.0);
   const [soundMuted, setSoundMuted] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const { showRotateHint, isPortraitTouch, launchInLandscape } = useMobileLandscapeLaunch();
 
   // 5 full-width playable lanes covering [-3.8 .. +3.8]
   const LANES = [-4.5, -1.5, 1.5, 4.5];
@@ -210,10 +212,16 @@ export default function DragonSnowGame({
   };
 
   const handleStartGame = useCallback(() => {
-    setGameState("playing");
-    setHasInteracted(true);
-    gameRef.current.running = true;
-  }, []);
+    void launchInLandscape(() => {
+      setGameState("playing");
+      setHasInteracted(true);
+      gameRef.current.running = true;
+    });
+  }, [launchInLandscape]);
+
+  useEffect(() => {
+    if (gameState === "playing") gameRef.current.running = !isPortraitTouch;
+  }, [gameState, isPortraitTouch]);
 
   const handleRestart = useCallback(() => {
     setScore(0);
@@ -735,7 +743,7 @@ export default function DragonSnowGame({
             !item.collected &&
             item.mesh.position.z > gameRef.current.playerZ - 1.0 &&
             item.mesh.position.z < gameRef.current.playerZ + 1.2 &&
-            Math.abs(item.mesh.position.x - gameRef.current.playerX) < item.radius
+            Math.abs(item.mesh.position.x - gameRef.current.playerX) < (item.type === "rock" ? 1.55 : item.radius)
           ) {
             if (item.type === "star" || item.type === "crystal") {
               item.collected = true;
@@ -814,6 +822,7 @@ export default function DragonSnowGame({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden touch-none">
       <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
+      <MobileLandscapeGate visible={showRotateHint || (gameState === "playing" && isPortraitTouch)} />
 
       {/* TOP CONTROLS & CLOSE BUTTON (ALWAYS VISIBLE IN ALL STATES) */}
       <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
