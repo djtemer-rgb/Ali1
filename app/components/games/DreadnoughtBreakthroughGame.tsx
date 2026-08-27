@@ -6,7 +6,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, Play, RotateCcw, Shield, Sparkles, Trophy, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { Heart, Pause, Play, RotateCcw, Shield, Sparkles, Trophy, Volume2, VolumeX, X, Zap } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useMobileLandscapeLaunch } from "./MobileLandscapeGate";
 
@@ -322,6 +322,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
   const [phaseText, setPhaseText] = useState("Сектор Андромеды");
   const [warning, setWarning] = useState(false);
   const [soundMuted, setSoundMuted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [missionSession, setMissionSession] = useState(0);
   const { launchInLandscape, getLandscapePointerX, landscapeFrameStyle } = useMobileLandscapeLaunch();
 
@@ -619,7 +620,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       game.warningTimer = 0;
       setWarning(false);
       syncEnemyHud();
-      setPhaseText(boss ? "DREADNOUGHT • Фаза 1" : `ANDROMEDA • ${count} ЦЕЛИ`);
+      setPhaseText(boss ? "БОСС • ФАЗА 1" : `${count} ${count === 1 ? "ЦЕЛЬ" : "ЦЕЛИ"}`);
       if (boss) audioRef.current.bossArrival();
     };
 
@@ -655,7 +656,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       if (game.enemies.length === 0) {
         clearPlayerShots();
         window.setTimeout(() => spawnEnemy(game.defeated >= 5), 760);
-      } else setPhaseText(`ANDROMEDA • ${game.enemies.length} ЦЕЛИ`);
+      } else setPhaseText(`${game.enemies.length} ${game.enemies.length === 1 ? "ЦЕЛЬ" : "ЦЕЛИ"}`);
     };
 
     let lastTime = performance.now();
@@ -757,7 +758,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
           const nextPhase = game.enemyHealth <= 8 ? 3 : game.enemyHealth <= 16 ? 2 : 1;
           if (nextPhase !== game.bossPhase) {
             game.bossPhase = nextPhase;
-            setPhaseText(`DREADNOUGHT • Фаза ${nextPhase}`);
+            setPhaseText(`БОСС • ФАЗА ${nextPhase}`);
             if (nextPhase === 3) {
               game.powered = true;
               setPhaseText("ФАЗА 3 • ЗОЛОТОЙ ЛАЗЕР");
@@ -995,7 +996,8 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
     setScore(0);
     setAmmo(10);
     setPowerCharge(0);
-    setPhaseText("ANDROMEDA 1 / 5");
+    setPhaseText("2 ЦЕЛИ");
+    setIsPaused(false);
     setWarning(false);
     setLoadingProgress(0);
     setGameState("loading");
@@ -1006,6 +1008,17 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
     launchInLandscape(launchMission);
   };
 
+  const togglePause = useCallback(() => {
+    const nextPaused = !isPaused;
+    runtime.current.running = !nextPaused;
+    if (nextPaused) {
+      runtime.current.keys.clear();
+      runtime.current.pointers.clear();
+      runtime.current.spaceHold = null;
+    }
+    setIsPaused(nextPaused);
+  }, [isPaused]);
+
   const selected = FIGHTERS.find((fighter) => fighter.id === selectedFighter) ?? FIGHTERS[0];
 
   return (
@@ -1013,55 +1026,55 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       <div ref={mountRef} className={`absolute inset-0 transition-opacity duration-500 ${gameState === "hangar" ? "opacity-30" : "opacity-100"}`} />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_50%_105%,rgba(34,211,238,0.16),transparent_42%),radial-gradient(ellipse_at_24%_94%,rgba(124,58,237,0.12),transparent_36%),radial-gradient(circle_at_50%_25%,rgba(67,56,202,0.10),transparent_46%)]" />
 
-      <button onClick={onClose} aria-label="Закрыть игру" className="absolute z-30 top-[max(12px,env(safe-area-inset-top))] right-3 sm:right-5 w-11 h-11 rounded-full bg-black/55 border border-white/15 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
+      {gameState !== "playing" && <button onClick={onClose} aria-label="Закрыть игру" className="absolute z-30 top-[max(12px,env(safe-area-inset-top))] right-3 sm:right-5 w-11 h-11 rounded-full bg-black/55 border border-white/15 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
         <X size={22} />
-      </button>
+      </button>}
 
-      {gameState !== "hangar" && (
-        <div className="absolute z-20 top-[max(12px,env(safe-area-inset-top))] left-3 right-16 sm:left-5 sm:right-20 flex items-start justify-between gap-2 pointer-events-none [@media(max-width:640px)]:grid [@media(max-width:640px)]:grid-cols-[minmax(0,1fr)_minmax(112px,0.72fr)] [@media(max-width:640px)]:gap-2">
-          <div className="flex items-start gap-2 [@media(max-width:640px)]:grid [@media(max-width:640px)]:grid-cols-2 [@media(max-width:640px)]:gap-1.5">
-            <div className="min-w-0 rounded-2xl bg-slate-950/72 border border-cyan-300/20 backdrop-blur-md px-3 py-2 shadow-xl [@media(max-width:640px)]:col-span-2 [@media(max-width:640px)]:px-2.5 [@media(max-width:640px)]:py-1.5">
-              <div className="flex items-center gap-2 text-[10px] sm:text-xs font-black uppercase tracking-wider text-cyan-200">
-                <Shield size={14} className="shrink-0" />
-                <span>Щит {shield}/{MAX_SHIELD}</span>
-              </div>
-              <div className="mt-1.5 flex gap-[3px]">
-                {Array.from({ length: MAX_SHIELD }, (_, index) => <span key={index} className={`h-2 w-2 sm:w-3 rounded-sm [@media(max-width:420px)]:w-1.5 ${index < shield ? "bg-cyan-300 shadow-[0_0_7px_#22d3ee]" : "bg-slate-700/80"}`} />)}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-950/72 border border-amber-300/25 backdrop-blur-md px-3 py-2 shadow-xl min-w-[108px] [@media(max-width:640px)]:min-w-0 [@media(max-width:640px)]:px-2 [@media(max-width:640px)]:py-1.5">
-              <div className="flex items-center gap-1 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-200"><Zap size={13} /><span className="[@media(max-width:640px)]:hidden">Заряды {ammo}/10</span><span className="hidden [@media(max-width:640px)]:inline">Огонь {ammo}</span></div>
-              <div className="mt-1.5 flex gap-[3px]">{Array.from({ length: 10 }, (_, index) => <span key={index} className={`h-2 w-1.5 sm:w-2 rounded-sm ${index < ammo ? "bg-amber-300 shadow-[0_0_6px_#fbbf24]" : "bg-slate-700/80"}`} />)}</div>
-            </div>
-            <div className="rounded-2xl bg-slate-950/72 border border-fuchsia-300/25 backdrop-blur-md px-3 py-2 shadow-xl min-w-[108px] [@media(max-width:640px)]:min-w-0 [@media(max-width:640px)]:px-2 [@media(max-width:640px)]:py-1.5">
-              <div className="flex items-center gap-1 text-[10px] sm:text-xs font-black uppercase tracking-wider text-fuchsia-200"><Sparkles size={13} /><span className="[@media(max-width:640px)]:hidden">Супер {powerCharge}/10</span><span className="hidden [@media(max-width:640px)]:inline">Супер {powerCharge}</span></div>
-              <div className="mt-1.5 flex gap-[3px]">{Array.from({ length: 10 }, (_, index) => <span key={index} className={`h-2 w-1.5 sm:w-2 rounded-sm ${index < powerCharge ? "bg-fuchsia-300 shadow-[0_0_7px_#e879f9]" : "bg-slate-700/80"}`} />)}</div>
-            </div>
+      {gameState !== "hangar" && <div className="absolute z-20 top-[max(6px,env(safe-area-inset-top))] left-2 right-2 sm:left-3 sm:right-3 flex flex-col gap-1.5 pointer-events-none">
+        <div className="grid grid-cols-[1.35fr_.85fr_.85fr_.9fr] gap-1.5">
+          <div className="min-w-0 h-10 rounded-xl bg-slate-950/76 border border-cyan-300/25 backdrop-blur-md px-2 py-1 shadow-lg">
+            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-cyan-200"><Shield size={12} /><span>Щит {shield}/{MAX_SHIELD}</span></div>
+            <div className="mt-1 flex gap-[2px]">{Array.from({ length: MAX_SHIELD }, (_, index) => <span key={index} className={`h-1.5 min-w-0 flex-1 rounded-sm ${index < shield ? "bg-cyan-300 shadow-[0_0_5px_#22d3ee]" : "bg-slate-700/80"}`} />)}</div>
           </div>
-          <div className="text-right rounded-2xl bg-slate-950/72 border border-violet-300/20 backdrop-blur-md px-3 py-2 shadow-xl [@media(max-width:640px)]:px-2.5 [@media(max-width:640px)]:py-2">
-            <p className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-violet-200 truncate max-w-[170px]">{phaseText}</p>
-            <p className="text-xs sm:text-sm font-black text-amber-300 mt-0.5">{score} очков</p>
+          <div className="min-w-0 h-10 rounded-xl bg-slate-950/76 border border-amber-300/25 backdrop-blur-md px-2 py-1 shadow-lg">
+            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-amber-200"><Zap size={12} /><span>Огонь {ammo}</span></div>
+            <div className="mt-1 flex gap-[2px]">{Array.from({ length: 10 }, (_, index) => <span key={index} className={`h-1.5 min-w-0 flex-1 rounded-sm ${index < ammo ? "bg-amber-300 shadow-[0_0_5px_#fbbf24]" : "bg-slate-700/80"}`} />)}</div>
+          </div>
+          <div className="min-w-0 h-10 rounded-xl bg-slate-950/76 border border-fuchsia-300/25 backdrop-blur-md px-2 py-1 shadow-lg">
+            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-fuchsia-200"><Sparkles size={12} /><span>Супер {powerCharge}</span></div>
+            <div className="mt-1 flex gap-[2px]">{Array.from({ length: 10 }, (_, index) => <span key={index} className={`h-1.5 min-w-0 flex-1 rounded-sm ${index < powerCharge ? "bg-fuchsia-300 shadow-[0_0_5px_#e879f9]" : "bg-slate-700/80"}`} />)}</div>
+          </div>
+          <div className="min-w-0 h-10 rounded-xl bg-slate-950/76 border border-violet-300/25 backdrop-blur-md px-2 py-0.5 text-center shadow-lg">
+            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-violet-200 truncate">{phaseText}</p>
+            <p className="text-[10px] sm:text-xs font-black leading-tight text-amber-300">{score} очков</p>
           </div>
         </div>
-      )}
+        {gameState === "playing" && <div className="flex items-center gap-1.5">
+          <div className="h-10 flex-1 rounded-xl bg-slate-950/76 border border-white/15 backdrop-blur-md px-2 flex items-center gap-2 shadow-lg">
+            <div className="h-2 flex-1 rounded-full bg-black/65 border border-white/15 overflow-hidden"><motion.div animate={{ width: `${(enemyHealth / enemyMaxHealth) * 100}%` }} className={`h-full ${runtime.current.boss ? "bg-gradient-to-r from-fuchsia-600 to-red-400" : "bg-gradient-to-r from-violet-500 to-cyan-300"}`} /></div>
+            <span className="w-9 text-right text-[9px] font-black text-white/75">{enemyHealth}/{enemyMaxHealth}</span>
+          </div>
+          <div className="flex gap-1.5 pointer-events-auto">
+            <button onClick={() => { audioRef.current.enabled = soundMuted; setSoundMuted(!soundMuted); }} aria-label={soundMuted ? "Включить звук" : "Выключить звук"} className="w-10 h-10 rounded-xl bg-black/65 border border-white/15 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">{soundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+            <button onClick={togglePause} aria-label={isPaused ? "Продолжить игру" : "Поставить на паузу"} className="w-10 h-10 rounded-xl bg-black/65 border border-white/15 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">{isPaused ? <Play size={18} className="fill-current" /> : <Pause size={18} className="fill-current" />}</button>
+            <button onClick={onClose} aria-label="Закрыть игру" className="w-10 h-10 rounded-xl bg-black/65 border border-white/15 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform"><X size={19} /></button>
+          </div>
+        </div>}
+      </div>}
 
-      {gameState === "playing" && (
-        <>
-          <div className="absolute z-20 top-[82px] left-1/2 -translate-x-1/2 w-[min(72vw,360px)] pointer-events-none text-center [@media(max-width:640px)]:top-[154px] [@media(max-width:640px)]:w-[calc(100%_-_32px)] [@media(max-height:480px)]:top-[82px] [@media(max-height:480px)]:w-[min(52vw,360px)]">
-            <div className="flex items-center justify-between text-[10px] font-black tracking-wider text-white/75 mb-1"><span>{runtime.current.boss ? "DREADNOUGHT" : "ANDROMEDA"}</span><span>{enemyHealth}/{enemyMaxHealth}</span></div>
-            <div className="h-2.5 rounded-full bg-black/65 border border-white/15 overflow-hidden"><motion.div animate={{ width: `${(enemyHealth / enemyMaxHealth) * 100}%` }} className={`h-full ${runtime.current.boss ? "bg-gradient-to-r from-fuchsia-600 to-red-400" : "bg-gradient-to-r from-violet-500 to-cyan-300"}`} /></div>
-          </div>
-          <div className="absolute z-20 bottom-[max(14px,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-slate-950/58 border border-white/10 backdrop-blur-md text-[10px] sm:text-xs font-bold text-slate-200 pointer-events-none whitespace-nowrap">
-            <span className="sm:hidden">Свайп — двигаться • Тап — огонь • Удержание — супер</span><span className="hidden sm:inline">← → двигаться • ПРОБЕЛ: тап — огонь, удержание — супер</span>
-          </div>
-        </>
-      )}
+
+      {gameState === "playing" && <>
+        <div className="absolute z-20 bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-slate-950/58 border border-white/10 backdrop-blur-md text-[9px] sm:text-[10px] font-bold text-slate-200 pointer-events-none whitespace-nowrap">
+          <span className="sm:hidden">Свайп — двигаться • Тап — огонь • Удержание — супер</span><span className="hidden sm:inline">← → двигаться • ПРОБЕЛ: тап — огонь, удержание — супер</span>
+        </div>
+        {isPaused && <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none bg-slate-950/20"><div className="rounded-2xl border border-white/15 bg-slate-950/75 px-5 py-3 text-sm font-black backdrop-blur-md">ПАУЗА</div></div>}
+      </>}
 
       <AnimatePresence>
         {warning && gameState === "playing" && (
           <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute z-30 top-[30%] left-1/2 -translate-x-1/2 pointer-events-none text-center">
             <div className="px-5 py-3 rounded-2xl bg-fuchsia-950/75 border-2 border-fuchsia-400 shadow-[0_0_35px_rgba(232,121,249,.55)] backdrop-blur-md animate-pulse">
-              <p className="text-sm sm:text-lg font-black tracking-wider text-fuchsia-100">⚠ ANDROMEDA РАЗВОРАЧИВАЕТСЯ</p><p className="text-[10px] sm:text-xs text-fuchsia-200 mt-1">Сейчас она останется лицом к тебе и усилит огонь</p>
+              <p className="text-sm sm:text-lg font-black tracking-wider text-fuchsia-100">⚠ ПРОТИВНИК РАЗВОРАЧИВАЕТСЯ</p><p className="text-[10px] sm:text-xs text-fuchsia-200 mt-1">Сейчас он останется лицом к тебе и усилит огонь</p>
             </div>
           </motion.div>
         )}
@@ -1108,9 +1121,9 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
         </div>
       )}
 
-      <button onClick={() => { audioRef.current.enabled = soundMuted; setSoundMuted(!soundMuted); }} aria-label={soundMuted ? "Включить звук" : "Выключить звук"} className="absolute z-30 bottom-[max(14px,env(safe-area-inset-bottom))] right-3 sm:right-5 w-11 h-11 rounded-full bg-black/55 border border-white/15 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
+      {gameState !== "playing" && <button onClick={() => { audioRef.current.enabled = soundMuted; setSoundMuted(!soundMuted); }} aria-label={soundMuted ? "Включить звук" : "Выключить звук"} className="absolute z-30 bottom-[max(14px,env(safe-area-inset-bottom))] right-3 sm:right-5 w-11 h-11 rounded-full bg-black/55 border border-white/15 backdrop-blur-md flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
         {soundMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-      </button>
+      </button>}
       {runtime.current.powered && gameState === "playing" && <div className="absolute z-20 bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-amber-400/15 border border-amber-300/40 text-amber-200 text-xs font-black pointer-events-none shadow-[0_0_25px_rgba(251,191,36,.25)]"><Zap size={16} className="fill-current" /> ЗОЛОТОЙ ЛАЗЕР ×2</div>}
     </div>
   );

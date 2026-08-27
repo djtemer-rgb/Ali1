@@ -481,7 +481,8 @@ export default function CarHighwayGame({
       speedFactor?: number;
       trafficCarId?: CarId;
     }>,
-    buildings: [] as Array<THREE.Mesh>,
+    buildings: null as THREE.InstancedMesh | null,
+    buildingTransforms: [] as Array<{ x: number; y: number; z: number; width: number; height: number }>,
     carRoot: null as THREE.Group | null,
     turntableMesh: null as THREE.Mesh | null,
     speedLines: null as THREE.LineSegments | null,
@@ -780,9 +781,13 @@ export default function CarHighwayGame({
     gameRef.current.camera = camera;
 
     // 3. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    const mobilePerformanceMode = window.matchMedia("(pointer: coarse)").matches;
+    const renderer = new THREE.WebGLRenderer({ antialias: !mobilePerformanceMode, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Mobile browsers otherwise render several times more physical pixels than
+    // the landscape viewport needs. 1.25 keeps the approved car models sharp
+    // while leaving substantially more GPU time for a stable frame rate.
+    renderer.setPixelRatio(mobilePerformanceMode ? 1.25 : Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
     container.appendChild(renderer.domElement);
@@ -871,11 +876,15 @@ export default function CarHighwayGame({
 
     // Bridge Piers
     const pillarMat = new THREE.MeshStandardMaterial({ color: 0x141028, roughness: 0.95 });
+    const piers = new THREE.InstancedMesh(new THREE.BoxGeometry(3.5, 40, 3.5), pillarMat, 14);
+    const pierTransform = new THREE.Object3D();
     for (let p = 0; p < 14; p++) {
-      const pier = new THREE.Mesh(new THREE.BoxGeometry(3.5, 40, 3.5), pillarMat);
-      pier.position.set(0, -21.0, -p * 35);
-      scene.add(pier);
+      pierTransform.position.set(0, -21.0, -p * 35);
+      pierTransform.updateMatrix();
+      piers.setMatrixAt(p, pierTransform.matrix);
     }
+    piers.instanceMatrix.needsUpdate = true;
+    scene.add(piers);
 
     // 7. Active Glowing Night Skyscrapers
     const bldgTex = generateSkyscraperTexture();
@@ -888,22 +897,27 @@ export default function CarHighwayGame({
       metalness: 0.2,
     });
 
-    const buildingsList: THREE.Mesh[] = [];
+    const buildingTransforms: Array<{ x: number; y: number; z: number; width: number; height: number }> = [];
     const numBuildings = 36;
+    const buildings = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), bldgMat, numBuildings);
+    const buildingTransform = new THREE.Object3D();
     for (let i = 0; i < numBuildings; i++) {
       const h = 32 + Math.random() * 55;
       const wBldg = 10 + Math.random() * 8;
-      const bldg = new THREE.Mesh(new THREE.BoxGeometry(wBldg, h, wBldg), bldgMat);
-
       const isRight = i % 2 === 0;
       const x = isRight ? 14.0 + (i % 4) * 3.0 : -14.0 - (i % 4) * 3.0;
       const z = -Math.floor(i / 2) * 16 - Math.random() * 6;
-
-      bldg.position.set(x, h / 2 - 6, z);
-      scene.add(bldg);
-      buildingsList.push(bldg);
+      const transform = { x, y: h / 2 - 6, z, width: wBldg, height: h };
+      buildingTransforms.push(transform);
+      buildingTransform.position.set(transform.x, transform.y, transform.z);
+      buildingTransform.scale.set(transform.width, transform.height, transform.width);
+      buildingTransform.updateMatrix();
+      buildings.setMatrixAt(i, buildingTransform.matrix);
     }
-    gameRef.current.buildings = buildingsList;
+    buildings.instanceMatrix.needsUpdate = true;
+    scene.add(buildings);
+    gameRef.current.buildings = buildings;
+    gameRef.current.buildingTransforms = buildingTransforms;
 
     // Glowing Turntable in Garage Mode
     const turntableGeo = new THREE.CylinderGeometry(2.6, 2.7, 0.15, 32);
@@ -1183,12 +1197,17 @@ export default function CarHighwayGame({
         }
 
         // Move active skyscrapers
-        gameRef.current.buildings.forEach((bldg) => {
-          bldg.position.z += moveDist;
-          if (bldg.position.z > 20) {
-            bldg.position.z -= 280;
-          }
-        });
+        if (gameRef.current.buildings) {
+          gameRef.current.buildingTransforms.forEach((building, index) => {
+            building.z += moveDist;
+            if (building.z > 20) building.z -= 280;
+            buildingTransform.position.set(building.x, building.y, building.z);
+            buildingTransform.scale.set(building.width, building.height, building.width);
+            buildingTransform.updateMatrix();
+            gameRef.current.buildings?.setMatrixAt(index, buildingTransform.matrix);
+          });
+          gameRef.current.buildings.instanceMatrix.needsUpdate = true;
+        }
 
         // Smooth Car Steering
         const dx = gameRef.current.targetX - gameRef.current.playerX;
