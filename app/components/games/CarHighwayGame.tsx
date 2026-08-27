@@ -393,7 +393,7 @@ type CameraAngle = "straight" | "diagonal";
 type CameraGameState = "garage" | "loading" | "playing" | "gameover" | "victory" | "paused";
 
 const GARAGE_CAR_Z = -1.8;
-const TRAFFIC_COPIES_PER_CAR = 2;
+const TRAFFIC_COPIES_PER_CAR = 1;
 
 function getTrafficGap(progress: number) {
   if (progress >= 2 / 3) return 30;
@@ -441,6 +441,7 @@ export default function CarHighwayGame({
   const [soundMuted, setSoundMuted] = useState(false);
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>("diagonal");
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [modelsReady, setModelsReady] = useState(false);
   const carPickerRef = useRef<HTMLDivElement | null>(null);
   const { launchInLandscape, getLandscapePointerX, landscapeFrameStyle } = useMobileLandscapeLaunch();
 
@@ -454,6 +455,7 @@ export default function CarHighwayGame({
     hearts: 3,
     baseSpeed: 34,
     speed: 34,
+    displayedSpeedMultiplier: 1.0,
     speedPenalty: 1.0,
     targetX: 1.25,
     playerX: 1.25,
@@ -482,7 +484,6 @@ export default function CarHighwayGame({
       trafficCarId?: CarId;
     }>,
     buildings: null as THREE.InstancedMesh | null,
-    buildingTransforms: [] as Array<{ x: number; y: number; z: number; width: number; height: number }>,
     carRoot: null as THREE.Group | null,
     turntableMesh: null as THREE.Mesh | null,
     speedLines: null as THREE.LineSegments | null,
@@ -557,6 +558,7 @@ export default function CarHighwayGame({
   };
 
   const requestLaunchRace = () => {
+    if (!modelsReady) return;
     void launchInLandscape(handleLaunchRace);
   };
 
@@ -574,6 +576,7 @@ export default function CarHighwayGame({
     setStarsCount(0);
     setHearts(3);
     setSpeedMultiplier(1.0);
+    gameRef.current.displayedSpeedMultiplier = 1.0;
     gameRef.current.score = 0;
     gameRef.current.stars = 0;
     gameRef.current.hearts = 3;
@@ -625,6 +628,7 @@ export default function CarHighwayGame({
     setStarsCount(0);
     setHearts(3);
     setSpeedMultiplier(1.0);
+    gameRef.current.displayedSpeedMultiplier = 1.0;
     gameRef.current.score = 0;
     gameRef.current.stars = 0;
     gameRef.current.hearts = 3;
@@ -766,6 +770,7 @@ export default function CarHighwayGame({
 
   useEffect(() => {
     if (!mountRef.current) return;
+    setModelsReady(false);
     const container = mountRef.current;
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
@@ -897,9 +902,9 @@ export default function CarHighwayGame({
       metalness: 0.2,
     });
 
-    const buildingTransforms: Array<{ x: number; y: number; z: number; width: number; height: number }> = [];
     const numBuildings = 36;
-    const buildings = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), bldgMat, numBuildings);
+    const cityLoopLength = 280;
+    const buildings = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), bldgMat, numBuildings * 2);
     const buildingTransform = new THREE.Object3D();
     for (let i = 0; i < numBuildings; i++) {
       const h = 32 + Math.random() * 55;
@@ -907,17 +912,16 @@ export default function CarHighwayGame({
       const isRight = i % 2 === 0;
       const x = isRight ? 14.0 + (i % 4) * 3.0 : -14.0 - (i % 4) * 3.0;
       const z = -Math.floor(i / 2) * 16 - Math.random() * 6;
-      const transform = { x, y: h / 2 - 6, z, width: wBldg, height: h };
-      buildingTransforms.push(transform);
-      buildingTransform.position.set(transform.x, transform.y, transform.z);
-      buildingTransform.scale.set(transform.width, transform.height, transform.width);
-      buildingTransform.updateMatrix();
-      buildings.setMatrixAt(i, buildingTransform.matrix);
+      [z, z - cityLoopLength].forEach((instanceZ, copyIndex) => {
+        buildingTransform.position.set(x, h / 2 - 6, instanceZ);
+        buildingTransform.scale.set(wBldg, h, wBldg);
+        buildingTransform.updateMatrix();
+        buildings.setMatrixAt(i + copyIndex * numBuildings, buildingTransform.matrix);
+      });
     }
     buildings.instanceMatrix.needsUpdate = true;
     scene.add(buildings);
     gameRef.current.buildings = buildings;
-    gameRef.current.buildingTransforms = buildingTransforms;
 
     // Glowing Turntable in Garage Mode
     const turntableGeo = new THREE.CylinderGeometry(2.6, 2.7, 0.15, 32);
@@ -1064,6 +1068,12 @@ export default function CarHighwayGame({
       }).catch((err) => console.error("Traffic car load error:", err));
     });
 
+    // Finish model decoding and GPU preparation in the garage. Letting a new
+    // traffic model finish during the race causes a visible hitch on Android.
+    void Promise.all(CARS.map((car) => getCarModel(car))).then(() => {
+      if (gameRef.current.scene === scene) setModelsReady(true);
+    }).catch((err) => console.error("Car preload error:", err));
+
     // 10. Controls
     let isPointerDown = false;
     let startPointerX = 0;
@@ -1177,7 +1187,11 @@ export default function CarHighwayGame({
         const effectiveSpeed = gameRef.current.baseSpeed * speedFactor * gameRef.current.speedPenalty;
         gameRef.current.speed = effectiveSpeed;
 
-        setSpeedMultiplier(parseFloat((speedFactor * gameRef.current.speedPenalty).toFixed(1)));
+        const nextSpeedMultiplier = parseFloat((speedFactor * gameRef.current.speedPenalty).toFixed(1));
+        if (nextSpeedMultiplier !== gameRef.current.displayedSpeedMultiplier) {
+          gameRef.current.displayedSpeedMultiplier = nextSpeedMultiplier;
+          setSpeedMultiplier(nextSpeedMultiplier);
+        }
         audioSysRef.current.updateEnginePitch(speedFactor * gameRef.current.speedPenalty);
 
         const moveDist = effectiveSpeed * delta;
@@ -1198,15 +1212,10 @@ export default function CarHighwayGame({
 
         // Move active skyscrapers
         if (gameRef.current.buildings) {
-          gameRef.current.buildingTransforms.forEach((building, index) => {
-            building.z += moveDist;
-            if (building.z > 20) building.z -= 280;
-            buildingTransform.position.set(building.x, building.y, building.z);
-            buildingTransform.scale.set(building.width, building.height, building.width);
-            buildingTransform.updateMatrix();
-            gameRef.current.buildings?.setMatrixAt(index, buildingTransform.matrix);
-          });
-          gameRef.current.buildings.instanceMatrix.needsUpdate = true;
+          gameRef.current.buildings.position.z += moveDist;
+          if (gameRef.current.buildings.position.z >= cityLoopLength) {
+            gameRef.current.buildings.position.z -= cityLoopLength;
+          }
         }
 
         // Smooth Car Steering
@@ -1220,7 +1229,7 @@ export default function CarHighwayGame({
           gameRef.current.jumpY = Math.max(0, gameRef.current.jumpY - delta * 2.2);
         }
 
-        const steerRoll = -dx * 0.18;
+        const steerRoll = -dx * 0.09;
         carRoot.rotation.z = THREE.MathUtils.lerp(carRoot.rotation.z, steerRoll, delta * 14);
         carRoot.rotation.y = THREE.MathUtils.lerp(carRoot.rotation.y, dx * 0.15, delta * 12);
         carRoot.position.y = 0.04 + gameRef.current.jumpY + Math.sin(time * 30) * 0.008;
@@ -1489,10 +1498,11 @@ export default function CarHighwayGame({
             </button>
             <button
               onClick={requestLaunchRace}
-              className="flex-1 h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-base sm:text-lg flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/30 active:scale-95 transition-all cursor-pointer uppercase tracking-wider"
+              disabled={!modelsReady}
+              className={`flex-1 h-14 sm:h-16 rounded-2xl text-slate-950 font-black text-base sm:text-lg flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all uppercase tracking-wider ${modelsReady ? "bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 shadow-amber-500/30 cursor-pointer" : "bg-slate-400 text-slate-700 cursor-wait"}`}
             >
               <Play size={22} className="fill-current" />
-              <span>Погнали на трассу! 🏁</span>
+              <span>{modelsReady ? "Погнали на трассу! 🏁" : "Готовим машины…"}</span>
             </button></div>
           </div>
         </div>

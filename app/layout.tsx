@@ -54,8 +54,15 @@ export default function RootLayout({
                     return Promise.all(registrations.map(function(reg) { return reg.unregister(); }));
                   }).catch(function() {});
                 } else {
+                  let refreshingForNewWorker = false;
+                  navigator.serviceWorker.addEventListener('controllerchange', function() {
+                    if (refreshingForNewWorker) return;
+                    refreshingForNewWorker = true;
+                    window.location.reload();
+                  });
                   window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(function(reg) {
+                      reg.update();
                       console.log('SW registered:', reg.scope);
                     }).catch(function(err) {
                       console.log('SW registration failed:', err);
