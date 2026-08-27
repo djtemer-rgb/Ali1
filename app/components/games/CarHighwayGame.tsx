@@ -790,9 +790,9 @@ export default function CarHighwayGame({
     const renderer = new THREE.WebGLRenderer({ antialias: !mobilePerformanceMode, alpha: false, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     // Mobile browsers otherwise render several times more physical pixels than
-    // the landscape viewport needs. 1.25 keeps the approved car models sharp
-    // while leaving substantially more GPU time for a stable frame rate.
-    renderer.setPixelRatio(mobilePerformanceMode ? 1.25 : Math.min(window.devicePixelRatio, 2));
+    // the landscape viewport needs. 1.35 improves edge clarity while keeping
+    // most of the mobile GPU headroom recovered by the traffic/city pass.
+    renderer.setPixelRatio(mobilePerformanceMode ? 1.35 : Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
     container.appendChild(renderer.domElement);

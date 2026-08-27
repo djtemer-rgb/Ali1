@@ -73,6 +73,7 @@ const NORMAL_ENEMY_LANES = [LANES[1], LANES[2]];
 const MAX_SHIELD = 18;
 const MAX_AMMO = 10;
 const CHARGED_SHOT_COST = 7;
+const NORMAL_ENEMY_TOTAL = 8;
 
 function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
@@ -603,8 +604,8 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       game.enemies.forEach((enemy) => game.scene?.remove(enemy.root));
       game.enemies = [];
       game.boss = boss;
-      const remaining = Math.max(0, 5 - game.defeated);
-      const count = boss ? 1 : Math.min(remaining, 2);
+      // Original five: 2 + 2 + 1. Extended finale: 1 + 2, then the boss.
+      const count = boss ? 1 : game.defeated < 4 ? 2 : game.defeated < 6 ? 1 : 2;
       const shuffledLanes = [...NORMAL_ENEMY_LANES].sort(() => Math.random() - 0.5);
       for (let index = 0; index < count; index += 1) {
         const root = new THREE.Group();
@@ -655,7 +656,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
       syncEnemyHud();
       if (game.enemies.length === 0) {
         clearPlayerShots();
-        window.setTimeout(() => spawnEnemy(game.defeated >= 5), 760);
+        window.setTimeout(() => spawnEnemy(game.defeated >= NORMAL_ENEMY_TOTAL), 760);
       } else setPhaseText(`${game.enemies.length} ${game.enemies.length === 1 ? "ЦЕЛЬ" : "ЦЕЛИ"}`);
     };
 
@@ -1086,7 +1087,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
             <div className="px-5 pt-6 pb-4 sm:px-8 text-center [@media(max-height:450px)]:pt-2 [@media(max-height:450px)]:pb-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/15 border border-violet-300/25 text-[10px] font-black uppercase tracking-[.18em] text-violet-200"><Sparkles size={13} /> Миссия класса «Герой»</div>
               <h1 className="mt-3 text-2xl sm:text-4xl font-black tracking-tight bg-gradient-to-r from-cyan-200 via-white to-violet-300 bg-clip-text text-transparent [@media(max-height:450px)]:mt-1 [@media(max-height:450px)]:text-2xl">Космический охотник</h1>
-              <p className="mt-1.5 text-xs sm:text-sm text-slate-300 [@media(max-height:450px)]:mt-0.5 [@media(max-height:450px)]:text-[11px]">Пять Andromeda охраняют путь к главному кораблю. Выбери свой истребитель.</p>
+              <p className="mt-1.5 text-xs sm:text-sm text-slate-300 [@media(max-height:450px)]:mt-0.5 [@media(max-height:450px)]:text-[11px]">Восемь кораблей охраняют путь к боссу. Выбери свой истребитель.</p>
             </div>
             <div className="px-4 sm:px-7 grid grid-cols-3 gap-2 sm:gap-4">
               {FIGHTERS.map((fighter) => {
@@ -1102,7 +1103,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
             </div>
             <div className="px-5 py-5 sm:px-8 [@media(max-height:450px)]:py-2">
               {gameState === "loading" ? <div><div className="flex items-center justify-between text-xs font-bold text-cyan-100 mb-2"><span>Подготовка кораблей…</span><span>{loadingProgress}%</span></div><div className="h-3 rounded-full bg-slate-800 overflow-hidden"><motion.div animate={{ width: `${loadingProgress}%` }} className="h-full bg-gradient-to-r from-cyan-400 to-violet-500" /></div></div> : <button onClick={startGame} className={`w-full min-h-14 rounded-2xl bg-gradient-to-r ${selected.accent} text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl ${selected.glow} active:scale-[.98] transition-transform`}><Play size={20} className="fill-current" /> Начать охоту</button>}
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[9px] sm:text-[11px] font-bold text-slate-400 [@media(max-height:450px)]:hidden"><span>5 × Andromeda</span><span>18 щитов</span><span>1 × Dreadnought</span></div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[9px] sm:text-[11px] font-bold text-slate-400 [@media(max-height:450px)]:hidden"><span>8 противников</span><span>18 щитов</span><span>1 босс</span></div>
             </div>
           </motion.div>
         </div>
@@ -1114,7 +1115,7 @@ export default function DreadnoughtBreakthroughGame({ onClose, onVictory, initia
           <motion.div initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1 }} className={`w-full max-w-md rounded-[30px] border p-6 sm:p-8 text-center shadow-2xl ${gameState === "victory" ? "bg-gradient-to-b from-indigo-950 to-slate-950 border-amber-300/45" : "bg-slate-950 border-rose-400/35"}`}>
             <div className={`mx-auto w-20 h-20 rounded-3xl flex items-center justify-center ${gameState === "victory" ? "bg-amber-400/15 text-amber-300" : "bg-rose-400/10 text-rose-300"}`}>{gameState === "victory" ? <Trophy size={43} /> : <Heart size={43} />}</div>
             <h2 className="mt-4 text-2xl sm:text-3xl font-black">{gameState === "victory" ? "Дредноут повержен!" : "Щит исчерпан"}</h2>
-            <p className="mt-2 text-sm text-slate-300">{gameState === "victory" ? "Звёздный путь свободен. Миссия выполнена, герой!" : `Ты прошёл ${enemiesDefeated} из 5 кораблей Andromeda. Следующий прорыв будет сильнее.`}</p>
+            <p className="mt-2 text-sm text-slate-300">{gameState === "victory" ? "Звёздный путь свободен. Миссия выполнена, герой!" : `Ты прошёл ${enemiesDefeated} из ${NORMAL_ENEMY_TOTAL} кораблей. Следующий прорыв будет сильнее.`}</p>
             <div className="mt-4 rounded-2xl bg-white/[.055] border border-white/10 py-3"><p className="text-xs text-slate-400">Результат</p><p className="text-xl font-black text-amber-300">{score} очков {gameState === "victory" ? "• +500 ⭐" : ""}</p></div>
             <div className="mt-5 grid grid-cols-2 gap-3"><button onClick={launchMission} className="min-h-12 rounded-xl bg-slate-800 border border-white/10 text-sm font-black flex items-center justify-center gap-2"><RotateCcw size={17} /> Ещё раз</button><button onClick={onClose} className="min-h-12 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-sm font-black">В портал</button></div>
           </motion.div>
